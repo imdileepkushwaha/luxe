@@ -14,6 +14,15 @@ function site_setting_get(PDO $pdo, string $key, string $default = ''): string
     return (string) $v;
 }
 
+function site_setting_set(PDO $pdo, string $key, string $value): void
+{
+    $st = $pdo->prepare(
+        'INSERT INTO site_settings (setting_key, setting_value) VALUES (?, ?)
+         ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_at = CURRENT_TIMESTAMP'
+    );
+    $st->execute([$key, $value]);
+}
+
 function site_platform_fee_rupees(PDO $pdo): int
 {
     return max(0, (int) site_setting_get($pdo, 'platform_fee_rupees', '3'));

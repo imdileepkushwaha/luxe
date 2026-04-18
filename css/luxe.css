@@ -4400,6 +4400,23 @@ ul {
     font-weight: 700;
 }
 
+a.product-seller-link {
+    color: inherit;
+    text-decoration: none;
+    border-bottom: 1px solid rgba(196, 181, 253, 0.45);
+    transition: border-color var(--transition), color var(--transition);
+}
+
+a.product-seller-link:hover {
+    color: var(--primary-light);
+    border-bottom-color: var(--accent2);
+}
+
+.spec-val a.product-seller-link {
+    color: var(--primary-light);
+    border-bottom-color: rgba(196, 181, 253, 0.35);
+}
+
 /* Price */
 .price-block {
     display: flex;

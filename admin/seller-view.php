@@ -36,6 +36,19 @@ if (!$seller) {
     exit;
 }
 
+$deletionStatusSt = $pdo->prepare(
+    "SELECT status
+     FROM seller_account_deletion_requests
+     WHERE seller_id = ? OR email = ?
+     ORDER BY id DESC
+     LIMIT 1"
+);
+$deletionStatusSt->execute([$sellerId, (string) ($seller['email'] ?? '')]);
+$deletionRequestRow = $deletionStatusSt->fetch();
+$deletionStatus = $deletionRequestRow
+    ? strtolower((string) ($deletionRequestRow['status'] ?? ''))
+    : '';
+
 $statsRow = $pdo->query(
     "SELECT
         COALESCE(SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END), 0) AS active_sellers,
@@ -157,7 +170,11 @@ require __DIR__ . '/partials/shell-top.php';
     <div>
       <div class="admin-stat__label">Seller status</div>
       <div class="admin-stat__value" style="font-size:1rem">
-        <?php if ((int) $seller['is_active'] === 1): ?>
+        <?php if ($deletionStatus === 'approved'): ?>
+          <span class="admin-status admin-status--cancelled">Deleted</span>
+        <?php elseif ($deletionStatus === 'pending'): ?>
+          <span class="admin-status admin-status--processing">Deletion pending</span>
+        <?php elseif ((int) $seller['is_active'] === 1): ?>
           <span class="admin-status admin-status--delivered">Active</span>
         <?php else: ?>
           <span class="admin-status admin-status--cancelled">Inactive</span>

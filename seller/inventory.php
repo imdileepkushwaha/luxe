@@ -101,9 +101,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
         $updatedProducts = 0;
         $updatedVariants = 0;
 
-        $upd = $pdo->prepare(
+        $updFull = $pdo->prepare(
             'UPDATE products
              SET stock_qty = ?, active = ?, badge = ?
+             WHERE id = ? AND seller_id = ?
+             LIMIT 1'
+        );
+        $updMeta = $pdo->prepare(
+            'UPDATE products
+             SET active = ?, badge = ?
              WHERE id = ? AND seller_id = ?
              LIMIT 1'
         );
@@ -112,18 +118,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
             if ($pid <= 0 || !isset($productIndex[$pid]) || !is_array($row)) {
                 continue;
             }
-            $stockQty = max(0, (int) ($row['stock_qty'] ?? 0));
+            $hasVariantMatrix = ($variantMatrixByProduct[$pid] ?? []) !== [];
             $active = (int) ($row['active'] ?? 0) === 1 ? 1 : 0;
             $badge = trim((string) ($row['badge'] ?? ''));
             if (strlen($badge) > 64) {
                 $badge = substr($badge, 0, 64);
             }
-            if ($active === 0 && $stockQty === 0 && $badge === '') {
+            $stockQty = max(0, (int) ($row['stock_qty'] ?? 0));
+            $lineStockForBadge = $stockQty;
+            if ($hasVariantMatrix && is_array($variants[$pid] ?? null)) {
+                $lineStockForBadge = 0;
+                foreach ($variants[$pid] as $vr) {
+                    if (is_array($vr)) {
+                        $lineStockForBadge += max(0, (int) ($vr['stock_qty'] ?? 0));
+                    }
+                }
+            }
+            if ($active === 0 && $lineStockForBadge === 0 && $badge === '') {
                 $badge = 'Discontinued';
             }
-            $upd->execute([$stockQty, $active, $badge, $pid, (int) $seller['id']]);
-            if ($upd->rowCount() > 0) {
-                $updatedProducts++;
+            if ($hasVariantMatrix) {
+                $updMeta->execute([$active, $badge, $pid, (int) $seller['id']]);
+                if ($updMeta->rowCount() > 0) {
+                    $updatedProducts++;
+                }
+            } else {
+                $updFull->execute([$stockQty, $active, $badge, $pid, (int) $seller['id']]);
+                if ($updFull->rowCount() > 0) {
+                    $updatedProducts++;
+                }
             }
         }
 
@@ -154,6 +177,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
                     $upsert->execute([$pid, $canonical['size'], $canonical['color'], $stockQty, $active]);
                     $updatedVariants++;
                 }
+            }
+        }
+
+        $sumVariantStock = $pdo->prepare(
+            'SELECT COALESCE(SUM(stock_qty), 0) FROM product_variant_inventory WHERE product_id = ?'
+        );
+        $syncProductStock = $pdo->prepare(
+            'UPDATE products SET stock_qty = ? WHERE id = ? AND seller_id = ? LIMIT 1'
+        );
+        foreach ($productIndex as $pid => $_p) {
+            if (($variantMatrixByProduct[$pid] ?? []) === []) {
+                continue;
+            }
+            $sumVariantStock->execute([$pid]);
+            $total = (int) $sumVariantStock->fetchColumn();
+            $syncProductStock->execute([$total, $pid, (int) $seller['id']]);
+            if ($syncProductStock->rowCount() > 0) {
+                $updatedProducts++;
             }
         }
 
@@ -341,6 +382,17 @@ require __DIR__ . '/partials/shell-top.php';
                       $stock = (int) ($p['stock_qty'] ?? 0);
                       $active = (int) ($p['active'] ?? 0) === 1 ? 1 : 0;
                       $matrix = $variantMatrixByProduct[$pid] ?? [];
+                      $mainStockDisplay = $stock;
+                      if ($matrix !== []) {
+                          $mainStockDisplay = 0;
+                          foreach ($matrix as $m) {
+                              $sv = $variantValueMap[$pid][$m['key']] ?? null;
+                              $mainStockDisplay += (int) ($sv['stock_qty'] ?? 0);
+                          }
+                          if (($variantValueMap[$pid] ?? []) === []) {
+                              $mainStockDisplay = $stock;
+                          }
+                      }
                       $inventorySearchBlob = mb_strtolower(
                           trim((string) ($p['name'] ?? '')) . ' '
                           . trim((string) ($p['slug'] ?? '')) . ' '
@@ -365,13 +417,26 @@ require __DIR__ . '/partials/shell-top.php';
                         <td><?= h((string) $p['category']) ?></td>
                         <td>Rs <?= number_format((int) ($p['price'] ?? 0)) ?></td>
                         <td>
-                          <input
-                            class="seller-stock-input"
-                            type="number"
-                            min="0"
-                            name="rows[<?= $pid ?>][stock_qty]"
-                            value="<?= $stock ?>"
-                          >
+                          <?php if ($matrix !== []): ?>
+                            <input
+                              class="seller-stock-input seller-stock-input--readonly"
+                              type="number"
+                              min="0"
+                              name="rows[<?= $pid ?>][stock_qty]"
+                              value="<?= (int) $mainStockDisplay ?>"
+                              readonly
+                              title="Size/color products: yahan total dikhta hai. Stock badalne ke liye View → variant stock."
+                            >
+                            <div class="seller-help" style="margin-top:4px;font-size:0.78rem">Per variant: <strong>View</strong></div>
+                          <?php else: ?>
+                            <input
+                              class="seller-stock-input"
+                              type="number"
+                              min="0"
+                              name="rows[<?= $pid ?>][stock_qty]"
+                              value="<?= $stock ?>"
+                            >
+                          <?php endif; ?>
                         </td>
                         <td>
                           <select class="seller-status-select" name="rows[<?= $pid ?>][active]">

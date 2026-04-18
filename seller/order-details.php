@@ -725,7 +725,10 @@ require __DIR__ . '/partials/shell-top.php';
                 <?php endforeach; ?>
               </div>
             <?php else: ?>
-              <p class="seller-help">Is order ke liye abhi koi return request nahi mili.</p>
+              <div class="seller-return-empty-state" role="status">
+                <p class="seller-return-empty-state__title">Is order ke liye abhi koi return request nahi mili.</p>
+                <p class="seller-return-empty-state__hint">Customer jab return raise karega, yahan status, pickup aur refund steps dikhenge.</p>
+              </div>
             <?php endif; ?>
           </div>
         </div>

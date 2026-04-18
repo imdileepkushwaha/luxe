@@ -2,10 +2,14 @@
 require_once __DIR__ . '/includes/bootstrap.php';
 $pdo = db();
 $id = isset($_GET['id']) ? (int) $_GET['id'] : 1;
-$product = products_fetch_by_id($pdo, $id);
 $sellerSessionId = isset($_SESSION['seller_id']) ? (int) $_SESSION['seller_id'] : 0;
+$adminSessionId = isset($_SESSION['admin_id']) ? (int) $_SESSION['admin_id'] : 0;
+$product = products_fetch_by_id($pdo, $id);
 if (!$product && $sellerSessionId > 0) {
     $product = products_fetch_by_id($pdo, $id, $sellerSessionId);
+}
+if (!$product && $adminSessionId > 0) {
+    $product = products_fetch_by_id_for_admin($pdo, $id);
 }
 if (!$product) {
     header('Location: index.php');
@@ -393,8 +397,10 @@ if (is_array($_SESSION['cart'] ?? null)) {
 }
 $approvalStatus = strtolower(trim((string) ($product['approval_status'] ?? 'approved')));
 $sellerPreviewOnly = $approvalStatus !== 'approved'
-    && $sellerSessionId > 0
-    && $sellerSessionId === (int) ($product['seller_id'] ?? 0);
+    && (
+        ($sellerSessionId > 0 && $sellerSessionId === (int) ($product['seller_id'] ?? 0))
+        || $adminSessionId > 0
+    );
 
 $pageProduct = [
     'id' => $product['id'],
@@ -496,7 +502,9 @@ $pageProduct = [
       <div class="container">
         <?php if ($sellerPreviewOnly): ?>
         <div class="seller-preview-banner" role="status">
-          <?php if ($approvalStatus === 'pending'): ?>
+          <?php if ($adminSessionId > 0): ?>
+            <strong>Admin preview</strong> — Yeh listing abhi public catalog me live nahi hai. Approve karne ke liye <a href="admin/product-approvals.php" style="color:inherit;text-decoration:underline">Product approvals</a> kholein.
+          <?php elseif ($approvalStatus === 'pending'): ?>
             <strong>Seller preview</strong> — Yeh product admin approval ke baad hi buyers ko dikhega. Abhi cart / checkout available nahi hai.
           <?php else: ?>
             <strong>Seller preview</strong> — Yeh product reject ho chuka hai. Seller panel se edit karke dubara submit karein.
@@ -566,7 +574,16 @@ $pageProduct = [
                 <?php endif; ?>
               </div>
             </div>
-            <p class="product-seller-line">Sold by <strong id="productSellerName"><?= h((string) ($product['seller_name'] ?? 'LUXE Store')) ?></strong></p>
+            <?php
+            $pubSellerId = (int) ($product['seller_id'] ?? 0);
+            $pubSellerName = (string) ($product['seller_name'] ?? 'LUXE Store');
+            ?>
+            <p class="product-seller-line">Sold by <?php if ($pubSellerId > 0): ?>
+                <a href="seller-store.php?id=<?= $pubSellerId ?>" class="product-seller-link"><strong id="productSellerName"><?= h($pubSellerName) ?></strong></a>
+              <?php else: ?>
+                <strong id="productSellerName"><?= h($pubSellerName) ?></strong>
+              <?php endif; ?>
+            </p>
 
             <!-- Name -->
             <h1 class="product-name">AirMax Pro 2026</h1>
@@ -756,7 +773,7 @@ $pageProduct = [
               <div class="spec-row"><span class="spec-key">Brand</span><span class="spec-val"><?= h((string) ($product['brand'] ?? 'LUXE')) ?></span></div>
               <div class="spec-row"><span class="spec-key">Model</span><span class="spec-val"><?= h((string) ($product['name'] ?? '-')) ?></span></div>
               <div class="spec-row"><span class="spec-key">Category</span><span class="spec-val"><?= h((string) ucfirst((string) ($product['category'] ?? '-'))) ?></span></div>
-              <div class="spec-row"><span class="spec-key">Seller</span><span class="spec-val"><?= h((string) ($product['seller_name'] ?? 'LUXE Store')) ?></span></div>
+              <div class="spec-row"><span class="spec-key">Seller</span><span class="spec-val"><?php if ($pubSellerId > 0): ?><a href="seller-store.php?id=<?= $pubSellerId ?>" class="product-seller-link"><?= h($pubSellerName) ?></a><?php else: ?><?= h($pubSellerName) ?><?php endif; ?></span></div>
               <div class="spec-row"><span class="spec-key">Sizes Available</span><span class="spec-val"><?= h($sizeOptions !== [] ? implode(', ', $sizeOptions) : 'Standard') ?></span></div>
               <div class="spec-row"><span class="spec-key">Colors Available</span><span class="spec-val"><?= h($colorOptions !== [] ? implode(', ', $colorOptions) : 'Default') ?></span></div>
               <div class="spec-row"><span class="spec-key">Stock</span><span class="spec-val"><?= (int) ($product['stock_qty'] ?? 0) ?> units</span></div>

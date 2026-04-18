@@ -292,3 +292,78 @@ function cart_speed_fee_totals_for_lines(PDO $pdo, array $lines): array
 
     return $out;
 }
+
+/**
+ * Backfill orders.platform_fee_rupees where it is still 0 but total_amount matches
+ * subtotal + site platform fee + delivery (standard, express, or same-day), using
+ * current site_settings and seller shipping rules — same math as checkout.
+ *
+ * @return int Number of orders updated
+ */
+function orders_backfill_platform_fee_on_orders(PDO $pdo): int
+{
+    $feeNow = site_platform_fee_rupees($pdo);
+    if ($feeNow <= 0) {
+        return 0;
+    }
+
+    $list = $pdo->query(
+        'SELECT id, total_amount FROM orders WHERE platform_fee_rupees = 0 ORDER BY id ASC'
+    )->fetchAll(PDO::FETCH_ASSOC);
+    if ($list === []) {
+        return 0;
+    }
+
+    $upd = $pdo->prepare(
+        'UPDATE orders SET platform_fee_rupees = ? WHERE id = ? AND platform_fee_rupees = 0 LIMIT 1'
+    );
+    $oiSt = $pdo->prepare('SELECT product_id, price, qty FROM order_items WHERE order_id = ?');
+    $updated = 0;
+
+    foreach ($list as $row) {
+        $orderId = (int) ($row['id'] ?? 0);
+        $totalAmt = (int) ($row['total_amount'] ?? 0);
+        if ($orderId <= 0) {
+            continue;
+        }
+
+        $oiSt->execute([$orderId]);
+        $lines = [];
+        $subtotal = 0;
+        while ($oi = $oiSt->fetch(PDO::FETCH_ASSOC)) {
+            $pid = (int) ($oi['product_id'] ?? 0);
+            $pr = max(0, (int) ($oi['price'] ?? 0));
+            $q = max(1, (int) ($oi['qty'] ?? 1));
+            $subtotal += $pr * $q;
+            if ($pid > 0) {
+                $lines[] = ['id' => $pid, 'price' => $pr, 'qty' => $q];
+            }
+        }
+
+        if ($lines === []) {
+            continue;
+        }
+
+        $baseDelivery = cart_compute_delivery_total($pdo, $lines);
+        $speedFees = cart_speed_fee_totals_for_lines($pdo, $lines);
+        $expressDel = (int) ($speedFees['express'] ?? 0);
+        $sameDel = (int) ($speedFees['same_day'] ?? 0);
+
+        $expectedTotals = [
+            $subtotal + $feeNow + $baseDelivery,
+            $subtotal + $feeNow + $expressDel,
+            $subtotal + $feeNow + $sameDel,
+        ];
+
+        if (!in_array($totalAmt, $expectedTotals, true)) {
+            continue;
+        }
+
+        $upd->execute([$feeNow, $orderId]);
+        if ($upd->rowCount() > 0) {
+            $updated++;
+        }
+    }
+
+    return $updated;
+}

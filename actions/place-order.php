@@ -61,10 +61,10 @@ try {
     $pdo->beginTransaction();
     $ref = 'LUXE' . substr((string) time(), -6) . random_int(100, 999);
     $insO = $pdo->prepare(
-        'INSERT INTO orders (user_id, order_ref, status, total_amount, payment_method, shipping_address)
-         VALUES (?,?,?,?,?,?)'
+        'INSERT INTO orders (user_id, order_ref, status, total_amount, payment_method, shipping_address, platform_fee_rupees)
+         VALUES (?,?,?,?,?,?,?)'
     );
-    $insO->execute([$userId, $ref, 'processing', 0, $payment, $address]);
+    $insO->execute([$userId, $ref, 'processing', 0, $payment, $address, 0]);
     $orderId = (int) $pdo->lastInsertId();
 
     $insI = $pdo->prepare(
@@ -217,11 +217,11 @@ try {
 
     $updO = $pdo->prepare(
         'UPDATE orders
-         SET total_amount = ?
+         SET total_amount = ?, platform_fee_rupees = ?
          WHERE id = ?
          LIMIT 1'
     );
-    $updO->execute([$orderTotal, $orderId]);
+    $updO->execute([$orderTotal, $platformFee, $orderId]);
 
     $_SESSION['cart'] = [];
     unset($_SESSION['checkout']);

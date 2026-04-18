@@ -392,6 +392,17 @@ function db_ensure_products_seller_column(PDO $pdo): void
         if (!$hasFk) {
             $pdo->exec('ALTER TABLE products ADD CONSTRAINT fk_products_seller FOREIGN KEY (seller_id) REFERENCES seller_users(id) ON DELETE SET NULL');
         }
+
+        $createdAtChk = $pdo->prepare(
+            'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $createdAtChk->execute([$dbName, 'products', 'created_at']);
+        if (!(bool) $createdAtChk->fetchColumn()) {
+            $pdo->exec(
+                "ALTER TABLE products ADD COLUMN created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP AFTER approval_status"
+            );
+        }
     } catch (Throwable) {
         // Missing permissions or non-MySQL: rely on manual migrations
     }
@@ -717,6 +728,29 @@ function db_ensure_user_order_cancel_requests_table(PDO $pdo): void
     }
 }
 
+function db_ensure_orders_platform_fee_column(PDO $pdo): void
+{
+    try {
+        $dbName = (string) $pdo->query('SELECT DATABASE()')->fetchColumn();
+        if ($dbName === '') {
+            return;
+        }
+        $chk = $pdo->prepare(
+            'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $chk->execute([$dbName, 'orders', 'platform_fee_rupees']);
+        if ($chk->fetchColumn()) {
+            return;
+        }
+        $pdo->exec(
+            'ALTER TABLE orders ADD COLUMN platform_fee_rupees INT UNSIGNED NOT NULL DEFAULT 0 AFTER total_amount'
+        );
+    } catch (Throwable) {
+        // Missing permissions or non-MySQL
+    }
+}
+
 function db_ensure_site_settings_table(PDO $pdo): void
 {
     try {
@@ -793,5 +827,6 @@ function db(): PDO
     db_ensure_user_return_requests_table($pdo);
     db_ensure_user_order_cancel_requests_table($pdo);
     db_ensure_site_settings_table($pdo);
+    db_ensure_orders_platform_fee_column($pdo);
     return $pdo;
 }
