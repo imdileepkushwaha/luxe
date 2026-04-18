@@ -1494,6 +1494,31 @@ a.admin-user-dropdown__item:hover {
   border-color: rgba(255, 255, 255, 0.55);
 }
 
+/* Outline / secondary — cards & tables (light background). Not for dark hero — use --ghost-light there. */
+.admin-btn--outline {
+  background: #fff;
+  color: var(--admin-text);
+  border-color: var(--admin-border);
+}
+
+.admin-btn--outline:hover {
+  background: #f8fafc;
+  border-color: var(--admin-accent);
+  color: var(--admin-accent);
+}
+
+html.admin-theme-dark .admin-btn--outline {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--admin-text);
+  border-color: var(--admin-border);
+}
+
+html.admin-theme-dark .admin-btn--outline:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--admin-accent);
+  color: #fff;
+}
+
 .admin-dash-grid-3 {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

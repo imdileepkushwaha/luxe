@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /** @var string $pageTitle */
-/** @var string $activeNav dashboard|settings|users|orders|sellers|seller_kyc|deletions|product_approvals */
+/** @var string $activeNav dashboard|settings|users|orders|earnings|sellers|seller_kyc|seller_withdrawals|deletions|product_approvals */
 /** @var array $admin */
 
 if (!isset($pageTitle, $activeNav, $admin) || !is_array($admin)) {
@@ -83,6 +83,10 @@ if ($initials === '') {
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
           Orders
         </a>
+        <a class="admin-nav__link<?= $activeNav === 'earnings' ? ' admin-nav__link--active' : '' ?>" href="earnings.php">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          Platform earnings
+        </a>
         <a class="admin-nav__link<?= $activeNav === 'product_approvals' ? ' admin-nav__link--active' : '' ?>" href="product-approvals.php">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
           Product approvals
@@ -106,6 +110,14 @@ if ($initials === '') {
               <path d="M9.5 12.5l1.8 1.8 3.2-3.2"/>
             </svg>
             KYC requests
+          </a>
+        <a class="admin-nav__link<?= $activeNav === 'seller_withdrawals' ? ' admin-nav__sublink--active' : '' ?>" href="seller-withdrawals.php">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2v20"/>
+              <path d="m17 7-5-5-5 5"/>
+              <path d="M5 17h14"/>
+            </svg>
+            Withdrawals
           </a>
         <a class="admin-nav__link<?= $activeNav === 'deletions' ? ' admin-nav__link--active' : '' ?>" href="account-deletions.php">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
@@ -158,8 +170,11 @@ if ($initials === '') {
                 <a class="admin-apps-dropdown__item" role="menuitem" href="settings.php">Settings</a>
                 <a class="admin-apps-dropdown__item" role="menuitem" href="users.php">Users</a>
                 <a class="admin-apps-dropdown__item" role="menuitem" href="orders.php">Orders</a>
+                <a class="admin-apps-dropdown__item" role="menuitem" href="earnings.php">Platform earnings</a>
+                <a class="admin-apps-dropdown__item" role="menuitem" href="product-approvals.php">Product approvals</a>
                 <a class="admin-apps-dropdown__item" role="menuitem" href="sellers.php">Sellers</a>
                 <a class="admin-apps-dropdown__item" role="menuitem" href="seller-kyc.php">Seller KYC</a>
+                <a class="admin-apps-dropdown__item" role="menuitem" href="seller-withdrawals.php">Seller withdrawals</a>
                 <a class="admin-apps-dropdown__item" role="menuitem" href="account-deletions.php">Deletion requests</a>
               </div>
             </div>
@@ -196,6 +211,15 @@ if ($initials === '') {
                       <span class="admin-notify-row__body">
                         <span class="admin-notify-row__title">Seller KYC pending</span>
                         <span class="admin-notify-row__meta">Seller onboarding · Review now</span>
+                      </span>
+                    </a>
+                  </li>
+                  <li>
+                    <a class="admin-notify-row" href="seller-withdrawals.php">
+                      <span class="admin-notify-row__dot admin-notify-row__dot--warn" aria-hidden="true"></span>
+                      <span class="admin-notify-row__body">
+                        <span class="admin-notify-row__title">Seller withdrawals</span>
+                        <span class="admin-notify-row__meta">Finance · Mark paid / Reject</span>
                       </span>
                     </a>
                   </li>
@@ -243,15 +267,15 @@ if ($initials === '') {
                     </a>
                   </li>
                   <li>
-                    <span class="admin-user-dropdown__item admin-user-dropdown__item--disabled" tabindex="-1" aria-disabled="true">
+                    <a class="admin-user-dropdown__item" href="settings.php">
                       <span class="admin-user-dropdown__icon" aria-hidden="true">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                       </span>
                       <span class="admin-user-dropdown__text">
                         <span class="admin-user-dropdown__label">Settings</span>
-                        <span class="admin-user-dropdown__hint">Coming soon</span>
+                        <span class="admin-user-dropdown__hint">Account &amp; store</span>
                       </span>
-                    </span>
+                    </a>
                   </li>
                   <li>
                     <a class="admin-user-dropdown__item admin-user-dropdown__item--logout" href="logout.php">
