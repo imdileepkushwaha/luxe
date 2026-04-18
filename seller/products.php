@@ -505,11 +505,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $productsSt = $pdo->prepare(
-    'SELECT id, name, slug, sku, category, price, original_price, emoji, badge, brand, image_path, size_options, color_options, stock_qty, description, active,
-            offer_flash_text, offer_countdown_seconds, offer_bank_text, approval_status
-     FROM products
-     WHERE seller_id = ?
-     ORDER BY id DESC'
+    'SELECT p.id, p.name, p.slug, p.sku, p.category, p.price, p.original_price, p.emoji, p.badge, p.brand, p.image_path, p.size_options, p.color_options, p.stock_qty, p.description, p.active,
+            p.offer_flash_text, p.offer_countdown_seconds, p.offer_bank_text, p.approval_status,
+            COALESCE(v.variant_stock_sum, p.stock_qty) AS display_stock_qty
+     FROM products p
+     LEFT JOIN (
+         SELECT product_id, SUM(stock_qty) AS variant_stock_sum
+         FROM product_variant_inventory
+         GROUP BY product_id
+     ) v ON v.product_id = p.id
+     WHERE p.seller_id = ?
+     ORDER BY p.id DESC'
 );
 $productsSt->execute([(int) $seller['id']]);
 $products = $productsSt->fetchAll();
@@ -572,6 +578,7 @@ require __DIR__ . '/partials/shell-top.php';
                   <?php foreach ($products as $p): ?>
                     <?php
                     $pid = (int) ($p['id'] ?? 0);
+                    $displayStockQty = (int) ($p['display_stock_qty'] ?? $p['stock_qty'] ?? 0);
                     $gallery = [];
                     $mainImage = trim((string) ($p['image_path'] ?? ''));
                     if ($mainImage !== '') {
@@ -609,7 +616,7 @@ require __DIR__ . '/partials/shell-top.php';
                       </td>
                       <td><?= h((string) $p['category']) ?></td>
                       <td>Rs <?= number_format((int) $p['price']) ?><br><small>MRP: Rs <?= number_format((int) $p['original_price']) ?></small></td>
-                      <td><?= (int) ($p['stock_qty'] ?? 0) ?></td>
+                      <td><?= $displayStockQty ?></td>
                       <td>
                         <?php if ((int) $p['active'] === 1): ?>
                           <span class="admin-status admin-status--delivered">Active</span>
@@ -639,7 +646,7 @@ require __DIR__ . '/partials/shell-top.php';
                           data-category="<?= h((string) $p['category']) ?>"
                           data-price="<?= (int) $p['price'] ?>"
                           data-original-price="<?= (int) $p['original_price'] ?>"
-                          data-stock="<?= (int) ($p['stock_qty'] ?? 0) ?>"
+                          data-stock="<?= $displayStockQty ?>"
                           data-status="<?= (int) $p['active'] === 1 ? 'Active' : 'Inactive' ?>"
                           data-badge="<?= h((string) ($p['badge'] ?? '')) ?>"
                           data-brand="<?= h((string) ($p['brand'] ?? '')) ?>"

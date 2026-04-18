@@ -91,6 +91,12 @@
   box-shadow: 0 0 0 3px rgba(229, 57, 53, 0.14);
 }
 
+.seller-stock-input--readonly {
+  background: #f1f5f9;
+  cursor: not-allowed;
+  color: #64748b;
+}
+
 .seller-variant-block {
   border: 1px dashed var(--admin-border);
   border-radius: 10px;
@@ -984,6 +990,11 @@ html.admin-theme-dark .seller-badge-input {
   color: #f3f4f6;
 }
 
+html.admin-theme-dark .seller-stock-input--readonly {
+  background: #1a1a1a;
+  color: #94a3b8;
+}
+
 html.admin-theme-dark .seller-variant-block {
   background: #121212;
   border-color: rgba(243,243,243,0.08);
@@ -1240,8 +1251,33 @@ html.admin-theme-dark .seller-view-item-block p {
 }
 
 /* —— Seller order return process (order-details) —— */
+.seller-return-empty-state {
+  margin: 16px 18px 20px;
+  padding: 18px 20px 20px;
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid var(--admin-border, #e5e7eb);
+  border-radius: 10px;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
+}
+
+.seller-return-empty-state__title {
+  margin: 0 0 8px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--admin-text, #0f172a);
+}
+
+.seller-return-empty-state__hint {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  color: var(--admin-text-muted, #64748b);
+  max-width: 42rem;
+}
+
 .seller-return-panels-intro {
-  padding: 12px 16px 0;
+  padding: 14px 18px 14px;
   margin: 0;
   border-bottom: 1px solid var(--admin-border, #e5e7eb);
 }
@@ -1679,6 +1715,20 @@ html.admin-theme-dark .seller-view-item-block p {
     grid-column: 1 / -1;
     justify-content: flex-start;
   }
+}
+
+html.admin-theme-dark .seller-return-empty-state {
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.45) 0%, #121212 100%);
+  border-color: rgba(243, 243, 243, 0.1);
+  box-shadow: none;
+}
+
+html.admin-theme-dark .seller-return-empty-state__title {
+  color: #f1f5f9;
+}
+
+html.admin-theme-dark .seller-return-empty-state__hint {
+  color: #94a3b8;
 }
 
 html.admin-theme-dark .seller-return-note-input {
