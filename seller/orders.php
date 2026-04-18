@@ -158,14 +158,29 @@ require __DIR__ . '/partials/shell-top.php';
 
         <div class="card">
           <div class="card-header">
-            <div class="seller-card-head">
+            <div class="seller-card-head seller-card-head--inventory">
               <h1 class="admin-page-title card-title">Your order list</h1>
-              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-                <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;color:var(--admin-text-muted)">
-                  <input type="checkbox" id="sellerOrdersAutoRefresh" checked>
-                  Auto refresh (5s)
+              <div class="seller-inventory-toolbar seller-orders-toolbar">
+                <label class="seller-inventory-search-wrap" for="sellerOrdersSearch">
+                  <span class="seller-inventory-search-icon" aria-hidden="true">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                  </span>
+                  <input
+                    type="search"
+                    id="sellerOrdersSearch"
+                    class="seller-inventory-search-input"
+                    placeholder="Search: order ref, customer, email, status, amount…"
+                    autocomplete="off"
+                    aria-label="Search orders"
+                  >
                 </label>
-                <button type="button" id="sellerOrdersRefreshNow" class="admin-btn admin-btn--ghost-light">Refresh now</button>
+                <div class="seller-orders-refresh-actions">
+                  <label class="seller-orders-auto-refresh-label">
+                    <input type="checkbox" id="sellerOrdersAutoRefresh" checked>
+                    Auto refresh (5s)
+                  </label>
+                  <button type="button" id="sellerOrdersRefreshNow" class="admin-btn admin-btn--ghost-light">Refresh now</button>
+                </div>
               </div>
             </div>
           </div>
@@ -238,8 +253,20 @@ require __DIR__ . '/partials/shell-top.php';
                     if ($cust === '') {
                         $cust = 'Guest';
                     }
+                    $ordersSearchBlob = mb_strtolower(
+                        trim((string) ($o['order_ref'] ?? '')) . ' '
+                        . $cust . ' '
+                        . trim((string) ($o['email'] ?? '')) . ' '
+                        . trim((string) ($o['status'] ?? '')) . ' '
+                        . trim((string) ($o['categories'] ?? '')) . ' '
+                        . trim((string) ($o['payment_method'] ?? '')) . ' '
+                        . (string) (int) ($o['id'] ?? 0) . ' '
+                        . (string) (int) ($o['total_amount'] ?? 0) . ' '
+                        . trim((string) ($o['shipping_address'] ?? '')) . ' '
+                        . trim((string) ($o['created_at'] ?? ''))
+                    );
                     ?>
-                    <tr>
+                    <tr class="seller-order-row" data-orders-search="<?= h($ordersSearchBlob) ?>">
                       <td><strong><?= h((string) $o['order_ref']) ?></strong></td>
                       <td><?= h($cust) ?></td>
                       <td><?= h((string) ($o['email'] ?? '-')) ?></td>
@@ -274,7 +301,11 @@ require __DIR__ . '/partials/shell-top.php';
                     </tr>
                   <?php endforeach; ?>
                   <?php if ($orders === []): ?>
-                    <tr><td colspan="10">No orders found for your allowed categories.</td></tr>
+                    <tr class="seller-orders-empty-placeholder"><td colspan="10">No orders found for your allowed categories.</td></tr>
+                  <?php else: ?>
+                    <tr id="sellerOrdersNoMatchRow" class="seller-orders-no-match-row" style="display:none">
+                      <td colspan="10" class="seller-help" style="padding:16px 18px">Is search se koi order match nahi hua. Ref / customer / email / status try karein.</td>
+                    </tr>
                   <?php endif; ?>
                 </tbody>
               </table>
@@ -284,6 +315,34 @@ require __DIR__ . '/partials/shell-top.php';
 
 <script>
   (function () {
+    var searchInput = document.getElementById('sellerOrdersSearch');
+    if (searchInput) {
+      var orderRows = document.querySelectorAll('tr.seller-order-row');
+      var noMatchRow = document.getElementById('sellerOrdersNoMatchRow');
+
+      function applyOrderSearch() {
+        var q = (searchInput.value || '').trim().toLowerCase();
+        var words = q.split(/\s+/).filter(Boolean);
+        var anyShown = false;
+        orderRows.forEach(function (tr) {
+          var hay = (tr.getAttribute('data-orders-search') || '').toLowerCase();
+          var show = words.length === 0 || words.every(function (w) {
+            return hay.indexOf(w) !== -1;
+          });
+          tr.style.display = show ? '' : 'none';
+          if (show) {
+            anyShown = true;
+          }
+        });
+        if (noMatchRow) {
+          noMatchRow.style.display = (words.length > 0 && !anyShown) ? '' : 'none';
+        }
+      }
+
+      searchInput.addEventListener('input', applyOrderSearch);
+      searchInput.addEventListener('search', applyOrderSearch);
+    }
+
     var autoRefreshCheckbox = document.getElementById('sellerOrdersAutoRefresh');
     var refreshNowBtn = document.getElementById('sellerOrdersRefreshNow');
     if (!autoRefreshCheckbox || !refreshNowBtn) return;

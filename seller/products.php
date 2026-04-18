@@ -552,9 +552,24 @@ require __DIR__ . '/partials/shell-top.php';
 
         <div class="card" style="margin-top:16px">
           <div class="card-header">
-            <div class="seller-card-head">
+            <div class="seller-card-head seller-card-head--inventory">
               <h2 class="card-title">Product list</h2>
-              <button type="button" class="admin-btn admin-btn--primary" id="openProductDrawerBtn" aria-controls="productDrawer" aria-expanded="<?= $openProductDrawer ? 'true' : 'false' ?>">Add product</button>
+              <div class="seller-inventory-toolbar seller-products-toolbar">
+                <label class="seller-inventory-search-wrap" for="sellerProductsSearch">
+                  <span class="seller-inventory-search-icon" aria-hidden="true">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                  </span>
+                  <input
+                    type="search"
+                    id="sellerProductsSearch"
+                    class="seller-inventory-search-input"
+                    placeholder="Search: name, slug, SKU, category, brand, ID…"
+                    autocomplete="off"
+                    aria-label="Search products"
+                  >
+                </label>
+                <button type="button" class="admin-btn admin-btn--primary" id="openProductDrawerBtn" aria-controls="productDrawer" aria-expanded="<?= $openProductDrawer ? 'true' : 'false' ?>">Add product</button>
+              </div>
             </div>
           </div>
           <div class="card-body card-body--flush">
@@ -564,6 +579,7 @@ require __DIR__ . '/partials/shell-top.php';
                   <tr>
                     <th>ID</th>
                     <th>Product</th>
+                    <th>SKU</th>
                     <th>Category</th>
                     <th>Price</th>
                     <th>Stock</th>
@@ -597,8 +613,25 @@ require __DIR__ . '/partials/shell-top.php';
                     if (!is_string($galleryJson)) {
                         $galleryJson = '[]';
                     }
+                    $apRaw = strtolower(trim((string) ($p['approval_status'] ?? 'approved')));
+                    $productsSearchBlob = mb_strtolower(
+                        (string) $pid . ' '
+                        . trim((string) ($p['name'] ?? '')) . ' '
+                        . trim((string) ($p['slug'] ?? '')) . ' '
+                        . trim((string) ($p['sku'] ?? '')) . ' '
+                        . trim((string) ($p['category'] ?? '')) . ' '
+                        . trim((string) ($p['brand'] ?? '')) . ' '
+                        . trim((string) ($p['badge'] ?? '')) . ' '
+                        . (string) (int) ($p['price'] ?? 0) . ' '
+                        . (string) (int) ($p['original_price'] ?? 0) . ' '
+                        . (string) $displayStockQty . ' '
+                        . ((int) ($p['active'] ?? 0) === 1 ? 'active' : 'inactive') . ' '
+                        . $apRaw . ' '
+                        . trim((string) ($p['size_options'] ?? '')) . ' '
+                        . trim((string) ($p['color_options'] ?? ''))
+                    );
                     ?>
-                    <tr>
+                    <tr class="seller-product-row" data-products-search="<?= h($productsSearchBlob) ?>">
                       <td><?= (int) $p['id'] ?></td>
                       <td>
                         <?php if ((string) ($p['image_path'] ?? '') !== ''): ?>
@@ -609,10 +642,15 @@ require __DIR__ . '/partials/shell-top.php';
                         <div style="margin-top:6px">
                           <strong><?= h((string) $p['name']) ?></strong><br>
                           <small><?= h((string) $p['slug']) ?></small>
-                          <?php if (trim((string) ($p['sku'] ?? '')) !== ''): ?>
-                            <br><small>SKU: <?= h((string) $p['sku']) ?></small>
-                          <?php endif; ?>
                         </div>
+                      </td>
+                      <td>
+                        <?php $skuListVal = trim((string) ($p['sku'] ?? '')); ?>
+                        <?php if ($skuListVal !== ''): ?>
+                          <span class="seller-product-list-sku"><?= h($skuListVal) ?></span>
+                        <?php else: ?>
+                          <span class="seller-help">—</span>
+                        <?php endif; ?>
                       </td>
                       <td><?= h((string) $p['category']) ?></td>
                       <td>Rs <?= number_format((int) $p['price']) ?><br><small>MRP: Rs <?= number_format((int) $p['original_price']) ?></small></td>
@@ -626,7 +664,7 @@ require __DIR__ . '/partials/shell-top.php';
                       </td>
                       <td>
                         <?php
-                        $ap = strtolower(trim((string) ($p['approval_status'] ?? 'approved')));
+                        $ap = $apRaw;
                         if ($ap === 'approved'): ?>
                           <span class="admin-status admin-status--delivered" title="Store par visible">Approved</span>
                         <?php elseif ($ap === 'pending'): ?>
@@ -675,7 +713,11 @@ require __DIR__ . '/partials/shell-top.php';
                     </tr>
                   <?php endforeach; ?>
                   <?php if ($products === []): ?>
-                    <tr><td colspan="10">No products found in your categories.</td></tr>
+                    <tr class="seller-products-empty-placeholder"><td colspan="11">No products found in your categories.</td></tr>
+                  <?php else: ?>
+                    <tr id="sellerProductsNoMatchRow" class="seller-products-no-match-row" style="display:none">
+                      <td colspan="11" class="seller-help" style="padding:16px 18px">Is search se koi product match nahi hua. Name, slug, SKU ya category try karein.</td>
+                    </tr>
                   <?php endif; ?>
                 </tbody>
               </table>
@@ -888,6 +930,36 @@ require __DIR__ . '/partials/shell-top.php';
             </form>
           </div>
         </aside>
+
+        <script>
+          (function () {
+            var searchInput = document.getElementById('sellerProductsSearch');
+            if (searchInput) {
+              var productRows = document.querySelectorAll('tr.seller-product-row');
+              var noMatchRow = document.getElementById('sellerProductsNoMatchRow');
+              function applyProductSearch() {
+                var q = (searchInput.value || '').trim().toLowerCase();
+                var words = q.split(/\s+/).filter(Boolean);
+                var anyShown = false;
+                productRows.forEach(function (tr) {
+                  var hay = (tr.getAttribute('data-products-search') || '').toLowerCase();
+                  var show = words.length === 0 || words.every(function (w) {
+                    return hay.indexOf(w) !== -1;
+                  });
+                  tr.style.display = show ? '' : 'none';
+                  if (show) {
+                    anyShown = true;
+                  }
+                });
+                if (noMatchRow) {
+                  noMatchRow.style.display = (words.length > 0 && !anyShown) ? '' : 'none';
+                }
+              }
+              searchInput.addEventListener('input', applyProductSearch);
+              searchInput.addEventListener('search', applyProductSearch);
+            }
+          })();
+        </script>
 
         <script>
           (function () {

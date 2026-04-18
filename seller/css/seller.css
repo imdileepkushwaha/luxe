@@ -578,6 +578,19 @@
   background: #fff;
 }
 
+.seller-product-list-sku {
+  font-size: 0.84rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  color: var(--admin-text, #0f172a);
+  word-break: break-word;
+}
+
+html.admin-theme-dark .seller-product-list-sku {
+  color: #e2e8f0;
+}
+
 .seller-product-thumb--placeholder {
   width: 64px;
 }
@@ -680,7 +693,7 @@
 
 .seller-card-head--inventory {
   flex-wrap: wrap;
-  align-items: flex-start;
+  /* align-items: flex-start; */
 }
 
 .seller-inventory-toolbar {
@@ -691,6 +704,29 @@
   gap: 10px;
   flex: 1;
   min-width: min(100%, 280px);
+}
+
+.seller-orders-refresh-actions {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.seller-orders-auto-refresh-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--admin-text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.seller-orders-no-match-row td,
+.seller-products-no-match-row td {
+  text-align: center;
 }
 
 .seller-inventory-search-wrap {
