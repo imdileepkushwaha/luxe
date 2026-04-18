@@ -2597,11 +2597,89 @@ function initThemeToggle() {
     { id: 7, name: "Smart Coffee Maker", emoji: "☕", price: 5499, orig: 8999 },
     { id: 8, name: "Vitamin C Gummies", emoji: "🍊", price: 699, orig: 1200 },
   ];
-  const wishlistData = (typeof window.__WISHLIST__ !== "undefined") ? window.__WISHLIST__ : FALLBACK_WISHLIST;
+  const WISHLIST_STORAGE_KEY = "luxe_profile_wishlist_v1";
+  function loadStoredProfileWishlist() {
+    try {
+      const raw = localStorage.getItem(WISHLIST_STORAGE_KEY);
+      if (raw === null) return null;
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return null;
+      return parsed.filter(w => w && w.id != null && typeof w.name === "string");
+    } catch (_e) {
+      return null;
+    }
+  }
+  const serverWishlistSeed = (typeof window.__WISHLIST__ !== "undefined" && Array.isArray(window.__WISHLIST__) && window.__WISHLIST__.length)
+    ? window.__WISHLIST__
+    : FALLBACK_WISHLIST;
+  let profileWishlistItems = (() => {
+    const stored = loadStoredProfileWishlist();
+    if (stored !== null) return stored;
+    return serverWishlistSeed.map(w => ({
+      id: w.id,
+      name: w.name,
+      emoji: w.emoji,
+      price: w.price,
+      orig: w.orig,
+    }));
+  })();
+  function persistProfileWishlist() {
+    try {
+      localStorage.setItem(WISHLIST_STORAGE_KEY, JSON.stringify(profileWishlistItems));
+    } catch (_e) {}
+  }
+  let wishlistGridDelegateAttached = false;
+  function wishlistEscapeHtml(str) {
+    return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+  }
+  function removeProfileWishlistItem(productId) {
+    const id = Number(productId);
+    const next = profileWishlistItems.filter(w => Number(w.id) !== id);
+    if (next.length === profileWishlistItems.length) return;
+    profileWishlistItems = next;
+    persistProfileWishlist();
+    showToast("Removed from wishlist");
+    renderWishlist();
+  }
+  function syncProfileWishlistStat() {
+    const el = document.getElementById("profileStatWishlist");
+    if (el) el.textContent = String(profileWishlistItems.length);
+  }
   function renderWishlist() {
-    const grid = document.getElementById("wishlistGrid"); if (!grid) return;
-    grid.innerHTML = wishlistData.map(w => `<div class="wishlist-item"><a href="${luxeProductUrl(w.id)}" class="wi-img">${w.emoji}</a><div class="wi-body"><a href="${luxeProductUrl(w.id)}" class="wi-name" style="text-decoration:none;color:inherit">${w.name}</a><div><span class="wi-price">₹${w.price.toLocaleString()}</span><span class="wi-orig">₹${w.orig.toLocaleString()}</span></div><div class="wi-actions"><button class="wi-cart-btn" onclick="showToast('🛒 ${w.name} added to cart!')">Add to Cart</button><button class="wi-rm-btn" onclick="showToast('💔 Removed from wishlist!')">✕</button></div></div></div>`).join("");
+    const grid = document.getElementById("wishlistGrid");
+    if (!grid) return;
+    if (!wishlistGridDelegateAttached) {
+      wishlistGridDelegateAttached = true;
+      grid.addEventListener("click", function(e) {
+        const rm = e.target.closest(".wi-rm-btn");
+        if (rm) {
+          const pid = parseInt(rm.getAttribute("data-wishlist-id"), 10);
+          if (Number.isNaN(pid)) return;
+          e.preventDefault();
+          removeProfileWishlistItem(pid);
+          return;
+        }
+        const add = e.target.closest(".wi-cart-btn");
+        if (add) {
+          e.preventDefault();
+          const row = add.closest(".wishlist-item");
+          const nameEl = row && row.querySelector(".wi-name");
+          showToast("🛒 " + (nameEl ? nameEl.textContent.trim() : "Item") + " added to cart!");
+        }
+      });
+    }
+    if (profileWishlistItems.length === 0) {
+      grid.innerHTML = "<p class=\"wishlist-empty\">Your wishlist is empty. <a href=\"index.php\">Browse products</a></p>";
+      refreshCursorTargets();
+      syncProfileWishlistStat();
+      return;
+    }
+    grid.innerHTML = profileWishlistItems.map(w => {
+      const nameEsc = wishlistEscapeHtml(w.name);
+      return `<div class="wishlist-item"><a href="${luxeProductUrl(w.id)}" class="wi-img">${w.emoji}</a><div class="wi-body"><a href="${luxeProductUrl(w.id)}" class="wi-name" style="text-decoration:none;color:inherit">${nameEsc}</a><div><span class="wi-price">₹${Number(w.price).toLocaleString()}</span><span class="wi-orig">₹${Number(w.orig).toLocaleString()}</span></div><div class="wi-actions"><button type="button" class="wi-cart-btn">Add to Cart</button><button type="button" class="wi-rm-btn" data-wishlist-id="${w.id}" aria-label="Remove from wishlist">✕</button></div></div></div>`;
+    }).join("");
     refreshCursorTargets();
+    syncProfileWishlistStat();
   }
 
   // ---- Rewards ----
@@ -2663,6 +2741,17 @@ function initThemeToggle() {
   document.addEventListener("DOMContentLoaded", () => {
     renderAddresses();
     if (profileForm) {
+      const allowedProfileTabs = ["personal", "addresses", "wishlist", "rewards", "settings"];
+      const params = new URLSearchParams(window.location.search);
+      let deepTab = params.get("tab");
+      if (!deepTab) {
+        const h = (window.location.hash || "").replace(/^#/, "").toLowerCase();
+        if (h === "wishlist" || h === "tab-wishlist") deepTab = "wishlist";
+      }
+      if (deepTab && allowedProfileTabs.includes(deepTab)) {
+        const tabBtn = document.querySelector('.smenu-item[data-tab="' + deepTab + '"]');
+        if (tabBtn) switchTab(tabBtn);
+      }
       renderWishlist();
       renderRewards();
       refreshCursorTargets();

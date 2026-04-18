@@ -751,6 +751,55 @@ function db_ensure_orders_platform_fee_column(PDO $pdo): void
     }
 }
 
+function db_ensure_orders_delivered_at_column(PDO $pdo): void
+{
+    try {
+        $dbName = (string) $pdo->query('SELECT DATABASE()')->fetchColumn();
+        if ($dbName === '') {
+            return;
+        }
+        $chk = $pdo->prepare(
+            'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $chk->execute([$dbName, 'orders', 'delivered_at']);
+        if (!$chk->fetchColumn()) {
+            $pdo->exec(
+                'ALTER TABLE orders ADD COLUMN delivered_at DATETIME NULL DEFAULT NULL AFTER shipping_address'
+            );
+        }
+        $pdo->exec(
+            "UPDATE orders SET delivered_at = COALESCE(delivered_at, created_at)
+             WHERE status = 'delivered' AND delivered_at IS NULL"
+        );
+    } catch (Throwable) {
+        // Missing permissions or non-MySQL
+    }
+}
+
+function db_ensure_user_loyalty_redeemed_column(PDO $pdo): void
+{
+    try {
+        $dbName = (string) $pdo->query('SELECT DATABASE()')->fetchColumn();
+        if ($dbName === '') {
+            return;
+        }
+        $chk = $pdo->prepare(
+            'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $chk->execute([$dbName, 'users', 'loyalty_points_redeemed']);
+        if ($chk->fetchColumn()) {
+            return;
+        }
+        $pdo->exec(
+            'ALTER TABLE users ADD COLUMN loyalty_points_redeemed INT UNSIGNED NOT NULL DEFAULT 0'
+        );
+    } catch (Throwable) {
+        // Missing permissions or non-MySQL
+    }
+}
+
 function db_ensure_site_settings_table(PDO $pdo): void
 {
     try {
@@ -828,5 +877,7 @@ function db(): PDO
     db_ensure_user_order_cancel_requests_table($pdo);
     db_ensure_site_settings_table($pdo);
     db_ensure_orders_platform_fee_column($pdo);
+    db_ensure_orders_delivered_at_column($pdo);
+    db_ensure_user_loyalty_redeemed_column($pdo);
     return $pdo;
 }

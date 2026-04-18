@@ -62,7 +62,7 @@ if ($initials === '') {
             <div class="admin-sidebar__user-email"><?= h((string) $admin['email']) ?></div>
           </div>
         </div>
-        <a class="admin-sidebar__signout" href="logout.php">Sign out</a>
+        <a class="admin-sidebar__signout" href="logout.php">Sign Out</a>
       </div>
       <nav class="admin-nav">
         <div class="admin-nav__label">Main menu</div>
@@ -126,7 +126,7 @@ if ($initials === '') {
         <div class="admin-nav__label">Account</div>
         <a class="admin-nav__link" href="logout.php">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-          Logout
+          Sign Out
         </a>
       </nav>
     </aside>
@@ -283,7 +283,7 @@ if ($initials === '') {
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
                       </span>
                       <span class="admin-user-dropdown__text">
-                        <span class="admin-user-dropdown__label">Log out</span>
+                        <span class="admin-user-dropdown__label">Sign Out</span>
                         <span class="admin-user-dropdown__hint">End session</span>
                       </span>
                     </a>

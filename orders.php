@@ -3,6 +3,10 @@ require_once __DIR__ . '/includes/bootstrap.php';
 $pdo = db();
 $uid = auth_user_id();
 $userLoggedIn = $uid !== null;
+$cartNavCount = 0;
+foreach ($_SESSION['cart'] ?? [] as $ci) {
+    $cartNavCount += (int) ($ci['qty'] ?? 1);
+}
 
 $flashMessage = '';
 $flashType = 'success';
@@ -345,12 +349,12 @@ $ordersData = $uid ? orders_fetch_for_user($pdo, $uid) : [];
         <?php endif; ?>
         <a href="cart.php" class="nav-icon-link" aria-label="Cart" style="position:relative">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-          <span class="nav-cart-dot">3</span>
+          <span class="nav-cart-dot" id="cartCount"><?= (int) $cartNavCount ?></span>
         </a>
         <?php if ($userLoggedIn): ?>
-        <a href="actions/logout.php" class="nav-login-btn">
+        <a href="actions/logout.php" class="nav-login-btn" aria-label="Sign out">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-          Logout
+          Sign Out
         </a>
         <?php else: ?>
         <a href="login.php" class="nav-login-btn">
@@ -541,6 +545,8 @@ $ordersData = $uid ? orders_fetch_for_user($pdo, $uid) : [];
         'orders' => 'orders.php',
         'profile' => 'profile.php',
     ], JSON_THROW_ON_ERROR) ?>;
+    window.__API_CART__ = 'api/cart.php';
+    window.__CART_COUNT__ = <?= (int) $cartNavCount ?>;
     window.__ORDERS__ = <?= json_encode($ordersData, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
   </script>
   <script src="script/luxe.js"></script>

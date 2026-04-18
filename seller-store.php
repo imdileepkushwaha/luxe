@@ -104,7 +104,7 @@ $productCount = count($products);
       </ul>
       <div class="nav-actions">
         <?php if ($user): ?>
-        <a href="actions/logout.php" class="nav-login-btn" aria-label="Logout">Logout</a>
+        <a href="actions/logout.php" class="nav-login-btn" aria-label="Sign out">Sign Out</a>
         <?php else: ?>
         <a href="login.php" class="nav-login-btn" aria-label="Login">Sign In</a>
         <?php endif; ?>

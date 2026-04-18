@@ -7,6 +7,7 @@ require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/products.php';
 require_once __DIR__ . '/orders_repo.php';
+require_once __DIR__ . '/loyalty_points.php';
 require_once __DIR__ . '/addresses.php';
 require_once __DIR__ . '/account_deletion.php';
 

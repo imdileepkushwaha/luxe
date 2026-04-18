@@ -54,13 +54,18 @@ foreach ($_SESSION['cart'] ?? [] as $ci) {
         <button class="icon-btn" id="searchBtn" aria-label="Search">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
         </button>
-        <button class="icon-btn" aria-label="Wishlist">
+        <?php
+        $wishlistNavHref = $user
+            ? 'profile.php?tab=wishlist'
+            : 'login.php?redirect=' . rawurlencode('profile.php?tab=wishlist');
+        ?>
+        <a href="<?= h($wishlistNavHref) ?>" class="icon-btn" aria-label="Wishlist">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-        </button>
+        </a>
         <?php if ($user): ?>
-        <a href="actions/logout.php" class="nav-login-btn" aria-label="Logout">
+        <a href="actions/logout.php" class="nav-login-btn" aria-label="Sign out">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-          Logout
+          Sign Out
         </a>
         <?php else: ?>
         <a href="login.php" class="nav-login-btn" aria-label="Login">

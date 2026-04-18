@@ -7,10 +7,16 @@ if (!$user) {
     exit;
 }
 $pendingDeletion = account_deletion_pending_for_user($pdo, (int) $user['id']);
+$cartNavCount = 0;
+foreach ($_SESSION['cart'] ?? [] as $ci) {
+    $cartNavCount += (int) ($ci['qty'] ?? 1);
+}
 $addresses = [];
 $wishlistArr = [];
+$orderStats = ['order_count' => 0, 'lifetime_spend_rupees' => 0, 'total_saved_rupees' => 0];
 if ($user) {
     $addresses = addresses_fetch_for_user($pdo, (int) $user['id']);
+    $orderStats = profile_order_stats_for_user($pdo, (int) $user['id']);
 }
 foreach (array_slice(products_fetch_all($pdo), 0, 8) as $p) {
     $wishlistArr[] = [
@@ -21,6 +27,15 @@ foreach (array_slice(products_fetch_all($pdo), 0, 8) as $p) {
         'orig' => $p['original'],
     ];
 }
+$wishlistCountInitial = count($wishlistArr);
+$luxPoints = (int) max(0, (int) floor($orderStats['lifetime_spend_rupees'] / 100));
+$memberSinceLabel = '—';
+$createdRaw = (string) ($user['created_at'] ?? '');
+if ($createdRaw !== '') {
+    $ts = strtotime($createdRaw);
+    $memberSinceLabel = $ts !== false ? date('M Y', $ts) : $createdRaw;
+}
+$profileBadgeLabel = $orderStats['order_count'] > 0 ? '⭐ LUXE Premium Member' : 'LUXE Member';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -50,9 +65,9 @@ foreach (array_slice(products_fetch_all($pdo), 0, 8) as $p) {
         </a>
         <a href="cart.php" class="nav-icon-link" style="position:relative" aria-label="Cart">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-          <span class="nav-cart-dot">3</span>
+          <span class="nav-cart-dot" id="cartCount"><?= (int) $cartNavCount ?></span>
         </a>
-        <a href="actions/logout.php" class="nav-login-btn">
+        <a href="actions/logout.php" class="nav-login-btn" aria-label="Sign out">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
           Sign Out
         </a>
@@ -84,18 +99,18 @@ foreach (array_slice(products_fetch_all($pdo), 0, 8) as $p) {
             <h1 id="profileName"><?= $user ? h($user['first_name'] . ' ' . $user['last_name']) : 'Guest' ?></h1>
             <p id="profileEmail"><?= $user ? h($user['email']) : 'Sign in to sync your account' ?></p>
             <div class="profile-meta">
-              <span class="profile-badge">⭐ LUXE Premium Member</span>
-              <span class="profile-join">Member since Jan 2024</span>
+              <span class="profile-badge"><?= h($profileBadgeLabel) ?></span>
+              <span class="profile-join">Member since <?= h($memberSinceLabel) ?></span>
             </div>
           </div>
           <div class="profile-stats">
-            <div class="pstat"><strong>12</strong><span>Orders</span></div>
+            <div class="pstat"><strong id="profileStatOrders"><?= (int) $orderStats['order_count'] ?></strong><span>Orders</span></div>
             <div class="pstat-div"></div>
-            <div class="pstat"><strong>8</strong><span>Wishlist</span></div>
+            <div class="pstat"><strong id="profileStatWishlist"><?= (int) $wishlistCountInitial ?></strong><span>Wishlist</span></div>
             <div class="pstat-div"></div>
-            <div class="pstat"><strong>2,450</strong><span>LUXE Points</span></div>
+            <div class="pstat"><strong id="profileStatPoints"><?= h(number_format($luxPoints)) ?></strong><span>LUXE Points</span></div>
             <div class="pstat-div"></div>
-            <div class="pstat"><strong>₹12,840</strong><span>Total Saved</span></div>
+            <div class="pstat"><strong id="profileStatSaved">&#8377;<?= h(number_format((int) $orderStats['total_saved_rupees'])) ?></strong><span>Total Saved</span></div>
           </div>
         </div>
       </div>
@@ -298,6 +313,8 @@ foreach (array_slice(products_fetch_all($pdo), 0, 8) as $p) {
         'orders' => 'orders.php',
         'profile' => 'profile.php',
     ], JSON_THROW_ON_ERROR) ?>;
+    window.__API_CART__ = 'api/cart.php';
+    window.__CART_COUNT__ = <?= (int) $cartNavCount ?>;
     window.__ADDRESSES__ = <?= json_encode($addresses, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
     window.__WISHLIST__ = <?= json_encode($wishlistArr, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
     window.__API_PROFILE_UPDATE__ = 'actions/update-profile.php';

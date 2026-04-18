@@ -11,6 +11,7 @@ CREATE TABLE users (
   phone VARCHAR(40) NOT NULL DEFAULT '',
   dob DATE NULL,
   gender VARCHAR(16) NULL,
+  loyalty_points_redeemed INT UNSIGNED NOT NULL DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
@@ -247,6 +248,7 @@ CREATE TABLE orders (
   platform_fee_rupees INT UNSIGNED NOT NULL DEFAULT 0,
   payment_method VARCHAR(128) NOT NULL DEFAULT '',
   shipping_address VARCHAR(512) NOT NULL DEFAULT '',
+  delivered_at DATETIME NULL DEFAULT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_orders_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;

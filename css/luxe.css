@@ -7611,6 +7611,23 @@ ul {
     grid-template-columns: repeat(2, 1fr);
     gap: 16px;
 }
+.wishlist-empty {
+    grid-column: 1 / -1;
+    margin: 0;
+    padding: 2rem 1rem;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+.wishlist-empty a {
+    color: var(--primary-light);
+    text-decoration: none;
+    font-weight: 600;
+}
+.wishlist-empty a:hover {
+    text-decoration: underline;
+}
 .wishlist-item {
     background: var(--bg3);
     border: 1px solid var(--border);
