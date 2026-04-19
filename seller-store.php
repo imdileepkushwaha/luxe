@@ -78,6 +78,7 @@ $productCount = count($products);
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <?php require __DIR__ . '/includes/luxe_theme_head.php'; ?>
   <title><?= h($pageTitle) ?></title>
   <meta name="description" content="<?= h('Shop ' . $displayName . ' on LUXE — curated products from a verified seller.') ?>" />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,400&display=swap" rel="stylesheet" />

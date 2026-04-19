@@ -42,6 +42,7 @@ $profileBadgeLabel = $orderStats['order_count'] > 0 ? '⭐ LUXE Premium Member' 
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <?php require __DIR__ . '/includes/luxe_theme_head.php'; ?>
   <title>LUXE — My Profile</title>
   <meta name="description" content="Manage your LUXE profile, addresses, and preferences." />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,700;1,400&display=swap" rel="stylesheet" />
@@ -213,7 +214,17 @@ $profileBadgeLabel = $orderStats['order_count'] > 0 ? '⭐ LUXE Premium Member' 
 
           <!-- Wishlist Tab -->
           <div class="tab-panel hidden" id="tab-wishlist">
-            <div class="panel-header"><h2>My Wishlist</h2><a href="index.php" class="ghost-btn" style="font-size:0.85rem;padding:10px 18px">Browse More →</a></div>
+            <header class="wishlist-panel-head">
+              <div class="wishlist-panel-head__main">
+                <span class="wishlist-kicker">Your edit</span>
+                <div class="wishlist-title-row">
+                  <h2 class="wishlist-title">My Wishlist</h2>
+                  <span class="wishlist-count-chip" id="wishlistCountPill">0</span>
+                </div>
+                <p class="wishlist-lede">Saved pieces from across LUXE — tap a card to view full details.</p>
+              </div>
+              <a href="index.php" class="wishlist-cta-outline">Browse collection</a>
+            </header>
             <div class="wishlist-grid" id="wishlistGrid"></div>
           </div>
 

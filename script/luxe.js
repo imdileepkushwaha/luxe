@@ -10,11 +10,125 @@ const LUXE_URLS = (typeof window.LUXE_URLS !== "undefined" && window.LUXE_URLS) 
 };
 function luxeProductUrl(id) { return LUXE_URLS.product + "?id=" + encodeURIComponent(String(id)); }
 
+function luxeEscapeHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/** When `window.__PRODUCTS__` is missing (static preview), search still works with demo rows. */
+const LUXE_DEMO_CATALOG = [
+  { id: 1, name: "AirMax Pro 2026", category: "fashion", price: 8999, original: 14500, emoji: "👟", badge: "Best Seller", rating: 4.8, reviews: 2140, brand: "" },
+  { id: 2, name: "Sony WH-1000XM5", category: "electronics", price: 18999, original: 34990, emoji: "🎧", badge: "Sale", rating: 4.9, reviews: 5621, brand: "" },
+  { id: 3, name: "Retinol Serum Kit", category: "beauty", price: 1899, original: 3500, emoji: "🧴", badge: "New", rating: 4.6, reviews: 890, brand: "" },
+  { id: 4, name: "Smart Coffee Maker", category: "home", price: 5499, original: 8999, emoji: "☕", badge: "Sale", rating: 4.7, reviews: 432, brand: "" },
+  { id: 5, name: "Apple Watch SE", category: "electronics", price: 19500, original: 29900, emoji: "⌚", badge: "Hot", rating: 4.8, reviews: 3210, brand: "" },
+  { id: 6, name: "Linen Co-ord Set", category: "fashion", price: 3299, original: 5500, emoji: "👗", badge: "New", rating: 4.5, reviews: 678, brand: "" },
+  { id: 7, name: "Vitamin C Gummies", category: "beauty", price: 699, original: 1200, emoji: "🍊", badge: "Sale", rating: 4.4, reviews: 1230, brand: "" },
+  { id: 8, name: "LED Desk Lamp", category: "home", price: 1599, original: 2800, emoji: "💡", badge: "Best Seller", rating: 4.7, reviews: 980, brand: "" },
+];
+
+function luxeGetSearchCatalog() {
+  if (typeof window.__PRODUCTS__ !== "undefined" && window.__PRODUCTS__ && window.__PRODUCTS__.length) {
+    return window.__PRODUCTS__;
+  }
+  return LUXE_DEMO_CATALOG;
+}
+
+function luxeProductMatchesSearchQuery(p, query) {
+  const rawQ = String(query || "").trim().toLowerCase();
+  if (!rawQ) return true;
+  const words = rawQ.split(/\s+/).filter(Boolean);
+  const hay = [p.name, p.brand, p.category, p.badge, p.emoji]
+    .map(x => String(x ?? "").toLowerCase())
+    .join(" ");
+  return words.every(w => hay.indexOf(w) !== -1);
+}
+
+function luxeSearchLiveRank(p, q) {
+  const raw = String(q || "").trim().toLowerCase();
+  const token = raw.split(/\s+/).filter(Boolean)[0] || raw;
+  const name = String(p.name || "").toLowerCase();
+  const brand = String(p.brand || "").toLowerCase();
+  if (!token) return 50;
+  if (name.startsWith(token)) return 0;
+  if (name.indexOf(token) !== -1) return 10;
+  if (brand.indexOf(token) !== -1) return 20;
+  return 30;
+}
+
 function luxeWishlistIconSvg(active) {
   if (active) {
     return `<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 21.35 10.55 20.03C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3A6.12 6.12 0 0 1 12 5.09 6.12 6.12 0 0 1 16.5 3C19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54Z"/></svg>`;
   }
   return `<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16"><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" d="M12.1 20.85 10.8 19.67C5.91 15.24 2.69 12.32 2.69 8.69 2.69 5.75 4.99 3.45 7.93 3.45a5.38 5.38 0 0 1 4.17 1.93 5.38 5.38 0 0 1 4.17-1.93 5.24 5.24 0 0 1 5.24 5.24c0 3.63-3.22 6.55-8.11 10.98Z"/></svg>`;
+}
+
+/** Same key as profile wishlist — shared across index, product.php, profile. */
+const LUXE_WISHLIST_STORAGE_KEY = "luxe_profile_wishlist_v1";
+
+/**
+ * @returns {Array<{id:number,name:string,emoji:string,price:number,orig:number}>|null} null if user never saved wishlist
+ */
+function luxeWishlistGetItems() {
+  try {
+    const raw = localStorage.getItem(LUXE_WISHLIST_STORAGE_KEY);
+    if (raw === null) return null;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(w => w && w.id != null && typeof w.name === "string").map(w => ({
+      id: Number(w.id),
+      name: String(w.name),
+      emoji: typeof w.emoji === "string" ? w.emoji : "📦",
+      price: Number(w.price) || 0,
+      orig: Number(w.orig != null ? w.orig : w.price) || 0,
+    }));
+  } catch (_e) {
+    return [];
+  }
+}
+
+function luxeWishlistSetItems(items) {
+  try {
+    localStorage.setItem(LUXE_WISHLIST_STORAGE_KEY, JSON.stringify(items));
+  } catch (_e) {}
+}
+
+/**
+ * @param {{id:number,name?:string,emoji?:string,price?:number,original?:number,orig?:number}} product
+ * @returns {boolean} true if now in wishlist
+ */
+function luxeWishlistToggleProduct(product) {
+  const id = Number(product && product.id);
+  if (!id) return false;
+  let list = luxeWishlistGetItems();
+  if (list === null) list = [];
+  const idx = list.findIndex(w => Number(w.id) === id);
+  if (idx >= 0) {
+    list.splice(idx, 1);
+    luxeWishlistSetItems(list);
+    return false;
+  }
+  const orig = product.original != null ? product.original : (product.orig != null ? product.orig : product.price);
+  list.push({
+    id,
+    name: String(product.name || ""),
+    emoji: typeof product.emoji === "string" ? product.emoji : "📦",
+    price: Number(product.price) || 0,
+    orig: Number(orig) || 0,
+  });
+  luxeWishlistSetItems(list);
+  return true;
+}
+
+function luxeWishlistIsInList(productId) {
+  const id = Number(productId);
+  if (!id) return false;
+  const list = luxeWishlistGetItems();
+  const rows = list === null ? [] : list;
+  return rows.some(w => Number(w.id) === id);
 }
 
 /** Prefer seller upload path; then category-based stock photos. */
@@ -305,23 +419,125 @@ function initSearchOverlay() {
   const searchClose = document.getElementById("searchClose");
   const searchOverlay = document.getElementById("searchOverlay");
   const searchInput = document.getElementById("searchInput");
+  const liveEl = document.getElementById("searchLiveResults");
 
   if (!searchBtn || !searchClose || !searchOverlay || !searchInput) return;
+
+  let liveDebounce = null;
+  function renderSearchLiveResults() {
+    if (!liveEl) return;
+    const q = (searchInput.value || "").trim();
+    if (!q) {
+      liveEl.hidden = true;
+      liveEl.innerHTML = "";
+      return;
+    }
+    const catalog = luxeGetSearchCatalog();
+    const allMatches = catalog.filter(p => luxeProductMatchesSearchQuery(p, q));
+    const matches = allMatches
+      .slice()
+      .sort((a, b) => luxeSearchLiveRank(a, q) - luxeSearchLiveRank(b) || String(a.name).localeCompare(String(b.name)))
+      .slice(0, 8);
+    const total = allMatches.length;
+    if (matches.length === 0) {
+      liveEl.hidden = false;
+      liveEl.innerHTML = `<div class="search-live-results__empty" role="status">No products match “${luxeEscapeHtml(q)}”. Try another word.</div>`;
+      return;
+    }
+    const more = total > matches.length ? `<span class="search-live-results__more">+${total - matches.length} more on the shop</span>` : "";
+    liveEl.hidden = false;
+    liveEl.innerHTML = `
+      <div class="search-live-results__head">
+        <span class="search-live-results__label">Matching products</span>
+        <span class="search-live-results__count">${total} found</span>
+      </div>
+      <ul class="search-live-results__list" role="list">
+        ${matches.map(p => {
+    const brand = String(p.brand || "").trim();
+    const cat = String(p.category || "").trim();
+    const bits = [brand, cat].filter(Boolean);
+    const metaPrefix = bits.length ? luxeEscapeHtml(bits.join(" · ")) + " · " : "";
+    const img = luxeEscapeHtml(luxeProductImageUrl(p));
+    const name = luxeEscapeHtml(p.name);
+    return `<li>
+            <a class="search-live-hit" href="${luxeProductUrl(p.id)}">
+              <span class="search-live-hit__thumb"><img src="${img}" alt="" loading="lazy" decoding="async" /></span>
+              <span class="search-live-hit__body">
+                <span class="search-live-hit__name">${name}</span>
+                <span class="search-live-hit__meta">${metaPrefix}₹${Number(p.price).toLocaleString()}</span>
+              </span>
+            </a>
+          </li>`;
+  }).join("")}
+      </ul>
+      ${more ? `<div class="search-live-results__foot">${more}</div>` : ""}`;
+  }
+
+  function scheduleSearchLiveResults() {
+    if (!liveEl) return;
+    clearTimeout(liveDebounce);
+    liveDebounce = setTimeout(renderSearchLiveResults, 100);
+  }
 
   searchBtn.addEventListener("click", () => {
     closeNavDrawer();
     searchOverlay.classList.add("open");
-    setTimeout(() => searchInput.focus(), 300);
+    setTimeout(() => {
+      searchInput.focus();
+      renderSearchLiveResults();
+    }, 320);
   });
-  searchClose.addEventListener("click", () => searchOverlay.classList.remove("open"));
+  searchClose.addEventListener("click", () => {
+    searchOverlay.classList.remove("open");
+    if (liveEl) {
+      liveEl.hidden = true;
+      liveEl.innerHTML = "";
+    }
+  });
   document.addEventListener("keydown", e => {
-    if (e.key === "Escape") searchOverlay.classList.remove("open");
+    if (e.key === "Escape") {
+      searchOverlay.classList.remove("open");
+      if (liveEl) {
+        liveEl.hidden = true;
+        liveEl.innerHTML = "";
+      }
+    }
   });
   document.querySelectorAll(".tag").forEach(tag => {
     tag.addEventListener("click", () => {
       searchInput.value = tag.textContent.replace(/^.{2}/, "").trim();
       searchInput.focus();
+      searchInput.dispatchEvent(new Event("input", { bubbles: true }));
     });
+  });
+
+  searchInput.addEventListener("input", scheduleSearchLiveResults);
+  searchInput.addEventListener("search", scheduleSearchLiveResults);
+
+  if (liveEl) {
+    liveEl.addEventListener("click", e => {
+      if (e.target.closest("a.search-live-hit")) searchOverlay.classList.remove("open");
+    });
+  }
+
+  searchInput.addEventListener("keydown", e => {
+    if (e.key !== "Enter") return;
+    const q = (searchInput.value || "").trim();
+    const trending = document.getElementById("trending");
+    if (trending) {
+      searchOverlay.classList.remove("open");
+      if (liveEl) {
+        liveEl.hidden = true;
+        liveEl.innerHTML = "";
+      }
+      trending.scrollIntoView({ behavior: "smooth", block: "start" });
+      e.preventDefault();
+      return;
+    }
+    if (q) {
+      window.location.href = `index.php?q=${encodeURIComponent(q)}#trending`;
+      e.preventDefault();
+    }
   });
 }
 
@@ -333,7 +549,7 @@ const THEME_KEY = "luxe-theme";
 function getPreferredTheme() {
   const saved = localStorage.getItem(THEME_KEY);
   if (saved === "light" || saved === "dark") return saved;
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  return "light";
 }
 
 function applyTheme(theme) {
@@ -372,7 +588,7 @@ function ensureThemeToggleButton() {
 function initThemeToggle() {
   applyTheme(getPreferredTheme());
   ensureThemeToggleButton();
-  updateThemeToggleIcon(document.documentElement.getAttribute("data-theme") || "dark");
+  updateThemeToggleIcon(document.documentElement.getAttribute("data-theme") || "light");
 }
 
 
@@ -385,19 +601,19 @@ function initThemeToggle() {
   if (!document.getElementById("loader")) return;
 
   // ---- Products Data (MySQL via PHP or fallback) ----
-  const FALLBACK_PRODUCTS = [
-    { id: 1, name: "AirMax Pro 2026", category: "fashion", price: 8999, original: 14500, emoji: "👟", badge: "Best Seller", rating: 4.8, reviews: 2140 },
-    { id: 2, name: "Sony WH-1000XM5", category: "electronics", price: 18999, original: 34990, emoji: "🎧", badge: "Sale", rating: 4.9, reviews: 5621 },
-    { id: 3, name: "Retinol Serum Kit", category: "beauty", price: 1899, original: 3500, emoji: "🧴", badge: "New", rating: 4.6, reviews: 890 },
-    { id: 4, name: "Smart Coffee Maker", category: "home", price: 5499, original: 8999, emoji: "☕", badge: "Sale", rating: 4.7, reviews: 432 },
-    { id: 5, name: "Apple Watch SE", category: "electronics", price: 19500, original: 29900, emoji: "⌚", badge: "Hot", rating: 4.8, reviews: 3210 },
-    { id: 6, name: "Linen Co-ord Set", category: "fashion", price: 3299, original: 5500, emoji: "👗", badge: "New", rating: 4.5, reviews: 678 },
-    { id: 7, name: "Vitamin C Gummies", category: "beauty", price: 699, original: 1200, emoji: "🍊", badge: "Sale", rating: 4.4, reviews: 1230 },
-    { id: 8, name: "LED Desk Lamp", category: "home", price: 1599, original: 2800, emoji: "💡", badge: "Best Seller", rating: 4.7, reviews: 980 },
-  ];
-  const products = (typeof window.__PRODUCTS__ !== "undefined" && window.__PRODUCTS__ && window.__PRODUCTS__.length)
-    ? window.__PRODUCTS__
-    : FALLBACK_PRODUCTS;
+  const products = luxeGetSearchCatalog();
+
+  let currentCategoryFilter = "all";
+  let currentSearchQuery = "";
+
+  function applyUrlSearchQueryParam() {
+    const q = new URLSearchParams(window.location.search).get("q");
+    if (q == null || q === "") return;
+    currentSearchQuery = q;
+    const si = document.getElementById("searchInput");
+    if (si) si.value = q;
+  }
+  applyUrlSearchQueryParam();
 
   let cart = [];
   (async function hydrateCartFromSession() {
@@ -434,12 +650,26 @@ function initThemeToggle() {
   });
 
   // ---- Render Products ----
-  function renderProducts(filter = "all") {
+  function renderProducts() {
     const grid = document.getElementById("productsGrid");
     if (!grid) return;
-    const filtered = filter === "all" ? products : products.filter(p => p.category === filter);
+    let filtered = currentCategoryFilter === "all"
+      ? products.slice()
+      : products.filter(p => p.category === currentCategoryFilter);
+    const rawQ = currentSearchQuery.trim().toLowerCase();
+    if (rawQ) {
+      filtered = filtered.filter(p => luxeProductMatchesSearchQuery(p, currentSearchQuery));
+    }
     grid.innerHTML = "";
+    if (filtered.length === 0) {
+      const hint = rawQ
+        ? `Try other keywords, clear the search, or pick a different category.`
+        : `Try another category tab.`;
+      grid.innerHTML = `<div class="products-grid-empty" role="status"><p>No products match your filters.</p><p class="products-grid-empty-hint">${hint}</p></div>`;
+      return;
+    }
     filtered.forEach((p, i) => {
+      const inWish = luxeWishlistIsInList(p.id);
       const card = document.createElement("div");
       card.className = "product-card reveal";
       card.style.transitionDelay = (i * 0.06) + "s";
@@ -448,8 +678,8 @@ function initThemeToggle() {
           <div class="product-card-img">
             <img class="card-emoji" src="${luxeProductImageUrl(p)}" alt="${p.name}" loading="lazy" decoding="async" />
             <div class="product-card-badge ${p.badge === 'New' ? 'new' : ''}">${p.badge}</div>
-            <button class="wishlist-btn" data-id="${p.id}" aria-label="Add to wishlist">
-              ${luxeWishlistIconSvg(false)}
+            <button class="wishlist-btn${inWish ? " active" : ""}" data-id="${p.id}" aria-label="${inWish ? "Remove from wishlist" : "Add to wishlist"}">
+              ${luxeWishlistIconSvg(inWish)}
             </button>
           </div>
         </a>
@@ -473,7 +703,8 @@ function initThemeToggle() {
 
       card.querySelector(".wishlist-btn").addEventListener("click", function(e) {
         e.preventDefault(); e.stopPropagation();
-        const isActive = this.classList.toggle("active");
+        const isActive = luxeWishlistToggleProduct(p);
+        this.classList.toggle("active", isActive);
         this.innerHTML = luxeWishlistIconSvg(isActive);
         this.setAttribute("aria-label", isActive ? "Remove from wishlist" : "Add to wishlist");
         showToast(isActive ? `❤️ Added to Wishlist` : `Removed from Wishlist`);
@@ -497,9 +728,20 @@ function initThemeToggle() {
     btn.addEventListener("click", () => {
       document.querySelector(".filter-btn.active")?.classList.remove("active");
       btn.classList.add("active");
-      renderProducts(btn.dataset.filter);
+      currentCategoryFilter = btn.dataset.filter || "all";
+      renderProducts();
     });
   });
+
+  const searchInput = document.getElementById("searchInput");
+  function syncProductSearchFromInput() {
+    currentSearchQuery = searchInput ? String(searchInput.value || "") : "";
+    renderProducts();
+  }
+  if (searchInput) {
+    searchInput.addEventListener("input", syncProductSearchFromInput);
+    searchInput.addEventListener("search", syncProductSearchFromInput);
+  }
 
   // ---- Cart Sidebar ----
   const cartSidebar = document.getElementById("cartSidebar");
@@ -1189,6 +1431,17 @@ function initThemeToggle() {
       stockWrap.innerHTML = `Only <strong id="productStockQty">${maxQty}</strong> left in stock`;
     }
 
+    const specStockLine = document.getElementById("specStockLine");
+    if (specStockLine) {
+      if (!canPurchaseAny) {
+        specStockLine.textContent = isDiscontinuedBadge ? "Discontinued" : "Out of stock";
+      } else if (maxQty <= 0) {
+        specStockLine.textContent = hasVariantInventory ? "Not available for this variant" : "Out of stock";
+      } else {
+        specStockLine.textContent = maxQty + " units";
+      }
+    }
+
     document.querySelectorAll(".size-btn").forEach(b => {
       const sz = readSizeFromButton(b);
       const v = getVariantStock(sz, colorTxt);
@@ -1325,18 +1578,52 @@ function initThemeToggle() {
     applyPurchaseControls(canPurchaseAnyFn());
   };
 
-  // ---- Wishlist ----
-  let wished = false;
-  window.toggleWishlist = function() {
-    wished = !wished;
+  // ---- Wishlist (shared localStorage with profile + index) ----
+  function applyProductWishlistUi(active) {
     const btn = document.getElementById("wishlistBtn");
     const icon = document.getElementById("wishIcon");
     const navIcon = document.getElementById("wishNavIcon");
-    btn.classList.toggle("active", wished);
-    if (wished) { icon.setAttribute("fill", "#ec4899"); navIcon?.setAttribute("fill", "#ec4899"); showToast("❤️ Added to Wishlist!"); }
-    else { icon.setAttribute("fill", "none"); navIcon?.setAttribute("fill", "none"); showToast("Removed from Wishlist"); }
-    btn.style.transform = "scale(1.3)";
-    setTimeout(() => btn.style.transform = "", 300);
+    if (btn) btn.classList.toggle("active", active);
+    if (icon) {
+      if (active) {
+        icon.setAttribute("fill", "#ec4899");
+        icon.setAttribute("stroke", "none");
+      } else {
+        icon.setAttribute("fill", "none");
+        icon.setAttribute("stroke", "currentColor");
+      }
+    }
+    if (navIcon) {
+      if (active) {
+        navIcon.setAttribute("fill", "#ec4899");
+        navIcon.setAttribute("stroke", "none");
+      } else {
+        navIcon.setAttribute("fill", "none");
+        navIcon.setAttribute("stroke", "currentColor");
+      }
+    }
+  }
+
+  let wished = luxeWishlistIsInList(P.id);
+  applyProductWishlistUi(wished);
+
+  window.toggleWishlist = function() {
+    const Pb = window.__PRODUCT_PAGE__ || P;
+    wished = luxeWishlistToggleProduct({
+      id: Pb.id,
+      name: Pb.name,
+      emoji: Pb.emoji,
+      price: Pb.price,
+      original: Pb.original,
+    });
+    applyProductWishlistUi(wished);
+    const btn = document.getElementById("wishlistBtn");
+    if (wished) showToast("❤️ Added to Wishlist!");
+    else showToast("Removed from Wishlist");
+    if (btn) {
+      btn.style.transform = "scale(1.3)";
+      setTimeout(() => { btn.style.transform = ""; }, 300);
+    }
   };
 
   // ---- Add to Cart / Buy Now ----
@@ -1575,6 +1862,24 @@ function initThemeToggle() {
     refreshCursorTargets();
     hydrateProductCartCount();
     if (typeof changeQty === "function") changeQty(0);
+
+    const reviewWriteToggle = document.getElementById("reviewWriteToggle");
+    const reviewFormPanel = document.getElementById("reviewFormPanel");
+    if (reviewWriteToggle && reviewFormPanel) {
+      const labelEl = reviewWriteToggle.querySelector(".review-write-toggle__label");
+      reviewWriteToggle.addEventListener("click", () => {
+        const open = !reviewFormPanel.classList.contains("is-open");
+        reviewFormPanel.classList.toggle("is-open", open);
+        reviewWriteToggle.setAttribute("aria-expanded", open ? "true" : "false");
+        if (labelEl) labelEl.textContent = open ? "Close" : "Write a review";
+        if (open) {
+          requestAnimationFrame(() => {
+            reviewFormPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            document.getElementById("review_text")?.focus();
+          });
+        }
+      });
+    }
   });
 })();
 
@@ -2597,23 +2902,11 @@ function initThemeToggle() {
     { id: 7, name: "Smart Coffee Maker", emoji: "☕", price: 5499, orig: 8999 },
     { id: 8, name: "Vitamin C Gummies", emoji: "🍊", price: 699, orig: 1200 },
   ];
-  const WISHLIST_STORAGE_KEY = "luxe_profile_wishlist_v1";
-  function loadStoredProfileWishlist() {
-    try {
-      const raw = localStorage.getItem(WISHLIST_STORAGE_KEY);
-      if (raw === null) return null;
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) return null;
-      return parsed.filter(w => w && w.id != null && typeof w.name === "string");
-    } catch (_e) {
-      return null;
-    }
-  }
   const serverWishlistSeed = (typeof window.__WISHLIST__ !== "undefined" && Array.isArray(window.__WISHLIST__) && window.__WISHLIST__.length)
     ? window.__WISHLIST__
     : FALLBACK_WISHLIST;
   let profileWishlistItems = (() => {
-    const stored = loadStoredProfileWishlist();
+    const stored = luxeWishlistGetItems();
     if (stored !== null) return stored;
     return serverWishlistSeed.map(w => ({
       id: w.id,
@@ -2624,9 +2917,7 @@ function initThemeToggle() {
     }));
   })();
   function persistProfileWishlist() {
-    try {
-      localStorage.setItem(WISHLIST_STORAGE_KEY, JSON.stringify(profileWishlistItems));
-    } catch (_e) {}
+    luxeWishlistSetItems(profileWishlistItems);
   }
   let wishlistGridDelegateAttached = false;
   function wishlistEscapeHtml(str) {
@@ -2642,8 +2933,11 @@ function initThemeToggle() {
     renderWishlist();
   }
   function syncProfileWishlistStat() {
+    const n = profileWishlistItems.length;
     const el = document.getElementById("profileStatWishlist");
-    if (el) el.textContent = String(profileWishlistItems.length);
+    if (el) el.textContent = String(n);
+    const chip = document.getElementById("wishlistCountPill");
+    if (chip) chip.textContent = String(n);
   }
   function renderWishlist() {
     const grid = document.getElementById("wishlistGrid");
@@ -2669,14 +2963,40 @@ function initThemeToggle() {
       });
     }
     if (profileWishlistItems.length === 0) {
-      grid.innerHTML = "<p class=\"wishlist-empty\">Your wishlist is empty. <a href=\"index.php\">Browse products</a></p>";
+      grid.innerHTML = `<div class="wishlist-empty wishlist-empty--premium">
+        <div class="wishlist-empty__glow" aria-hidden="true"></div>
+        <span class="wishlist-empty__mark" aria-hidden="true">✦</span>
+        <h3 class="wishlist-empty__title">Your wishlist is ready</h3>
+        <p class="wishlist-empty__text">Heart items on trending or product pages — they sync here instantly.</p>
+        <a href="index.php" class="wishlist-empty__cta">Discover products</a>
+      </div>`;
       refreshCursorTargets();
       syncProfileWishlistStat();
       return;
     }
     grid.innerHTML = profileWishlistItems.map(w => {
       const nameEsc = wishlistEscapeHtml(w.name);
-      return `<div class="wishlist-item"><a href="${luxeProductUrl(w.id)}" class="wi-img">${w.emoji}</a><div class="wi-body"><a href="${luxeProductUrl(w.id)}" class="wi-name" style="text-decoration:none;color:inherit">${nameEsc}</a><div><span class="wi-price">₹${Number(w.price).toLocaleString()}</span><span class="wi-orig">₹${Number(w.orig).toLocaleString()}</span></div><div class="wi-actions"><button type="button" class="wi-cart-btn">Add to Cart</button><button type="button" class="wi-rm-btn" data-wishlist-id="${w.id}" aria-label="Remove from wishlist">✕</button></div></div></div>`;
+      const price = Number(w.price);
+      const orig = Number(w.orig);
+      const showStrike = orig > price && orig > 0;
+      const pct = showStrike ? Math.round((1 - price / orig) * 100) : 0;
+      const badge = pct > 0 ? `<span class="wi-save-badge">${pct}% off</span>` : "";
+      const origHtml = showStrike ? `<span class="wi-orig">₹${orig.toLocaleString("en-IN")}</span>` : "";
+      const pUrl = luxeProductUrl(w.id);
+      return `<article class="wishlist-item wi-card">
+        <a href="${pUrl}" class="wi-media">${badge}<span class="wi-emoji" aria-hidden="true">${wishlistEscapeHtml(w.emoji)}</span></a>
+        <div class="wi-body">
+          <a href="${pUrl}" class="wi-name">${nameEsc}</a>
+          <div class="wi-pricing"><span class="wi-price">₹${price.toLocaleString("en-IN")}</span>${origHtml}</div>
+          <div class="wi-actions">
+            <a href="${pUrl}" class="wi-view-link">Details</a>
+            <button type="button" class="wi-cart-btn">Add to bag</button>
+            <button type="button" class="wi-rm-btn" data-wishlist-id="${w.id}" aria-label="Remove from wishlist">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+            </button>
+          </div>
+        </div>
+      </article>`;
     }).join("");
     refreshCursorTargets();
     syncProfileWishlistStat();

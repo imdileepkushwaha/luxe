@@ -13,6 +13,7 @@ foreach ($_SESSION['cart'] ?? [] as $ci) {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <?php require __DIR__ . '/includes/luxe_theme_head.php'; ?>
   <title>LUXE — Premium Shopping Experience</title>
   <meta name="description" content="Discover curated luxury fashion, electronics & lifestyle products at LUXE. Free shipping on orders over ₹999. Shop the latest trends today." />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,700;1,400&display=swap" rel="stylesheet" />
@@ -87,20 +88,37 @@ foreach ($_SESSION['cart'] ?? [] as $ci) {
   </nav>
 
   <!-- Search Overlay -->
-  <div class="search-overlay" id="searchOverlay">
-    <button class="search-close" id="searchClose">✕</button>
+  <div class="search-overlay" id="searchOverlay" role="dialog" aria-modal="true" aria-labelledby="searchOverlayTitle">
+    <div class="search-overlay__ambient" aria-hidden="true"></div>
+    <button class="search-close" id="searchClose" type="button" aria-label="Close search">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
     <div class="search-inner">
-      <h2>What are you looking for?</h2>
-      <div class="search-box">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        <input type="text" id="searchInput" placeholder="Search products, brands..." />
+      <p class="search-kicker">LUXE catalog</p>
+      <h2 id="searchOverlayTitle" class="search-title">Find your next favorite</h2>
+      <p class="search-lead">Search by product name, brand, or category — matches show below; the trending section updates too.</p>
+      <div class="search-panel">
+        <label class="search-box" for="searchInput">
+          <span class="search-box__icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          </span>
+          <input type="search" id="searchInput" name="q" placeholder="Try Nike, watch, serum…" autocomplete="off" enterkeyhint="search" />
+        </label>
+        <p class="search-hint">
+          <span class="search-hint__desktop"><kbd>Enter</kbd><span class="search-hint__text">Jumps to trending results</span></span>
+          <span class="search-hint__mobile">Submit search to scroll to results</span>
+        </p>
+        <div class="search-live-results" id="searchLiveResults" hidden aria-live="polite"></div>
       </div>
-      <div class="search-tags">
-        <span class="tag">👟 Sneakers</span>
-        <span class="tag">👜 Bags</span>
-        <span class="tag">⌚ Watches</span>
-        <span class="tag">💻 Laptops</span>
-        <span class="tag">🧴 Skincare</span>
+      <div class="search-tags-block">
+        <span class="search-tags-label">Popular picks</span>
+        <div class="search-tags">
+          <button type="button" class="tag">👟 Sneakers</button>
+          <button type="button" class="tag">👜 Bags</button>
+          <button type="button" class="tag">⌚ Watches</button>
+          <button type="button" class="tag">💻 Laptops</button>
+          <button type="button" class="tag">🧴 Skincare</button>
+        </div>
       </div>
     </div>
   </div>
