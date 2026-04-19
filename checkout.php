@@ -73,6 +73,17 @@ $checkoutItemsPayload = array_map(static function (array $x): array {
 }, $toCheckout);
 
 $couponDefsJs = coupons_defs_for_frontend($pdo);
+$couponFeaturedCodes = coupons_featured_tag_codes($pdo, 10);
+$checkoutCouponOfferLines = [];
+foreach ($couponFeaturedCodes as $c) {
+    $d = $couponDefsJs[$c] ?? null;
+    if (is_array($d) && isset($d['desc'])) {
+        $checkoutCouponOfferLines[] = '✦ ' . $c . ' — ' . (string) $d['desc'];
+    }
+    if (count($checkoutCouponOfferLines) >= 6) {
+        break;
+    }
+}
 
 $initialTotal = $subtotal + $platformFeeRupees + $baseDelivery;
 $itemCount = count($toCheckout);
@@ -317,9 +328,14 @@ $itemCount = count($toCheckout);
           </div>
 
           <div class="offers-box">
-            <div class="offers-title">🎁 Available Offers</div>
-            <div class="offer-line">✦ 10% off with LUXE10 — up to ₹500</div>
-            <div class="offer-line">✦ 50% off on first order with FIRST50</div>
+            <div class="offers-title">🎁 Seller coupons</div>
+            <?php if ($checkoutCouponOfferLines !== []): ?>
+              <?php foreach ($checkoutCouponOfferLines as $offerLine): ?>
+                <div class="offer-line"><?= h($offerLine) ?></div>
+              <?php endforeach; ?>
+            <?php else: ?>
+              <div class="offer-line">Abhi koi live seller coupon chip nahi — cart par code enter karke try karein jab seller ne offer banaya ho.</div>
+            <?php endif; ?>
             <div class="offer-line">✦ Extra 5% cashback on HDFC cards</div>
           </div>
         </div>

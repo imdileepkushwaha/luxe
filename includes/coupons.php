@@ -3,41 +3,8 @@
 declare(strict_types=1);
 
 /**
- * Platform + seller coupon definitions for cart/checkout/order.
+ * Seller coupon definitions for cart/checkout/order (database-backed only).
  */
-
-/**
- * @return array<string, array{type:string,val:int,max:?int,desc:string,seller_id:?int,min_order:int}>
- */
-function coupons_builtin_defs(): array
-{
-    return [
-        'LUXE10' => [
-            'type' => 'percent',
-            'val' => 10,
-            'max' => 500,
-            'desc' => '10% off (max ₹500)',
-            'seller_id' => null,
-            'min_order' => 0,
-        ],
-        'FIRST50' => [
-            'type' => 'percent',
-            'val' => 50,
-            'max' => 2000,
-            'desc' => '50% off first order!',
-            'seller_id' => null,
-            'min_order' => 0,
-        ],
-        'SALE20' => [
-            'type' => 'flat',
-            'val' => 200,
-            'max' => null,
-            'desc' => '₹200 flat off',
-            'seller_id' => null,
-            'min_order' => 0,
-        ],
-    ];
-}
 
 function coupons_normalize_code(string $code): string
 {
@@ -117,13 +84,13 @@ function seller_coupons_list_active(PDO $pdo): array
 }
 
 /**
- * Merged defs keyed by uppercase code (DB overrides same key as builtin if ever collided).
+ * Active seller coupon defs keyed by uppercase code (for cart/checkout JSON).
  *
  * @return array<string, array{type:string,val:int,max:?int,desc:string,seller_id:?int,min_order:int}>
  */
 function coupons_defs_for_frontend(PDO $pdo): array
 {
-    $merged = coupons_builtin_defs();
+    $merged = [];
     foreach (seller_coupons_list_active($pdo) as $row) {
         $code = coupons_normalize_code((string) ($row['code'] ?? ''));
         if ($code === '') {
@@ -144,13 +111,13 @@ function coupons_defs_for_frontend(PDO $pdo): array
 }
 
 /**
- * Codes to show as quick-apply chips (platform first, then recent seller codes).
+ * Codes to show as quick-apply chips (recent active seller coupons).
  *
  * @return list<string>
  */
 function coupons_featured_tag_codes(PDO $pdo, int $maxTags = 10): array
 {
-    $tags = array_keys(coupons_builtin_defs());
+    $tags = [];
     foreach (seller_coupons_list_active($pdo) as $row) {
         $c = coupons_normalize_code((string) ($row['code'] ?? ''));
         if ($c !== '' && !in_array($c, $tags, true)) {
@@ -201,10 +168,6 @@ function coupons_resolve_def(PDO $pdo, string $code): ?array
     $code = coupons_normalize_code($code);
     if ($code === '') {
         return null;
-    }
-    $built = coupons_builtin_defs();
-    if (isset($built[$code])) {
-        return $built[$code];
     }
 
     $st = $pdo->prepare(

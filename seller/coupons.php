@@ -44,9 +44,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($type === 'percent' && $maxDiscSql !== null && $maxDiscSql < 1) {
             $flash = 'Max discount must be at least ₹1 when set.';
             $flashOk = false;
-        } elseif (coupons_builtin_defs()[$code] ?? null) {
-            $flash = 'This code is reserved for a platform coupon. Choose another code.';
-            $flashOk = false;
         } else {
             try {
                 $ins = $pdo->prepare(
@@ -168,7 +165,7 @@ require __DIR__ . '/partials/shell-top.php';
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                 </span>
                 <div>
-                  <strong>Reserved codes</strong> — <code class="seller-coupon-tip__code">LUXE10</code>, <code class="seller-coupon-tip__code">FIRST50</code>, <code class="seller-coupon-tip__code">SALE20</code> are platform offers. Choose something else.
+                  <strong>Unique code</strong> — Har code poori site par unique hona chahiye. Agar save fail ho to shayad kisi aur seller ne wahi code use kiya ho; naya code try karein.
                 </div>
               </div>
 

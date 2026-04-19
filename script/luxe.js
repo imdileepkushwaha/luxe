@@ -1889,14 +1889,10 @@ function initThemeToggle() {
 (function initCartPage() {
   if (!document.getElementById("itemsContainer")) return;
 
-  const COUPONS_FALLBACK = {
-    "LUXE10": { type: "percent", val: 10, max: 500, desc: "10% off (max ₹500)", seller_id: null, min_order: 0 },
-    "FIRST50": { type: "percent", val: 50, max: 2000, desc: "50% off first order!", seller_id: null, min_order: 0 },
-    "SALE20": { type: "flat", val: 200, desc: "₹200 flat off", seller_id: null, min_order: 0 },
-  };
-  const COUPONS = (typeof window.__COUPON_DEFS__ === "object" && window.__COUPON_DEFS__ && Object.keys(window.__COUPON_DEFS__).length)
-    ? window.__COUPON_DEFS__
-    : COUPONS_FALLBACK;
+  const COUPONS =
+    typeof window.__COUPON_DEFS__ === "object" && window.__COUPON_DEFS__ && !Array.isArray(window.__COUPON_DEFS__)
+      ? window.__COUPON_DEFS__
+      : {};
 
   function cartApplicableSubtotalForCoupon(items, sellerScope) {
     const checked = items.filter(i => i.checked);

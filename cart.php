@@ -138,11 +138,13 @@ foreach ($couponFeaturedCodes as $c) {
                 <input type="text" id="couponInput" placeholder="Enter coupon code" />
                 <button class="coupon-btn" onclick="applyCoupon()">Apply</button>
               </div>
+              <?php if ($couponFeaturedCodes !== []): ?>
               <div class="coupon-tags">
                 <?php foreach ($couponFeaturedCodes as $coupCode): ?>
                 <span class="ctag" onclick="fillCoupon('<?= htmlspecialchars($coupCode, ENT_QUOTES, 'UTF-8') ?>')"><?= htmlspecialchars($coupCode, ENT_QUOTES, 'UTF-8') ?></span>
                 <?php endforeach; ?>
               </div>
+              <?php endif; ?>
               <div class="coupon-msg" id="couponMsg"></div>
             </div>
 
@@ -191,10 +193,14 @@ foreach ($couponFeaturedCodes as $c) {
 
           <!-- Offers box -->
           <div class="offers-box">
-            <div class="offers-title">🎁 Available Offers</div>
-            <?php foreach ($couponOfferLines as $line): ?>
-            <div class="offer-line"><?= htmlspecialchars($line, ENT_QUOTES, 'UTF-8') ?></div>
-            <?php endforeach; ?>
+            <div class="offers-title">🎁 Seller coupons</div>
+            <?php if ($couponOfferLines !== []): ?>
+              <?php foreach ($couponOfferLines as $line): ?>
+                <div class="offer-line"><?= htmlspecialchars($line, ENT_QUOTES, 'UTF-8') ?></div>
+              <?php endforeach; ?>
+            <?php else: ?>
+              <div class="offer-line">Jab sellers live coupons banayenge, yahan chips dikhengi — ya neeche code type karke apply karein.</div>
+            <?php endif; ?>
             <div class="offer-line">✦ Extra 5% cashback on HDFC cards</div>
           </div>
         </div>
