@@ -329,7 +329,7 @@ document.addEventListener("mousemove", e => {
 })();
 
 function refreshCursorTargets() {
-  document.querySelectorAll("a, button, input, select, label, .product-card, .collection-card, .brand-logo, .tag, .strip-item, .filter-btn, .ctag, .action-btn, .smenu-item, .wishlist-item, .address-card, .order-card, .cart-item, .thumb, .swatch, .size-btn, .review-card, .perk-item, .delivery-card, .ptab, .spec-row, .f-card").forEach(el => {
+  document.querySelectorAll("a, button, input, select, label, .product-card, .collection-card, .brand-logo, .tag, .strip-item, .filter-btn, .ctag, .action-btn, .smenu-item, .wishlist-item, .address-card, .order-card, .cart-item, .thumb, .swatch, .size-btn, .review-card, .perk-item, .delivery-card, .ptab, .spec-row, .f-card, .nav-menu-btn, .nav-drawer__close").forEach(el => {
     el.addEventListener("mouseenter", () => ring?.classList.add("hover"));
     el.addEventListener("mouseleave", () => ring?.classList.remove("hover"));
   });
@@ -352,42 +352,36 @@ window.addEventListener("scroll", () => {
   document.getElementById("navbar")?.classList.toggle("scrolled", window.scrollY > 40);
 });
 
-// ===================== SHARED: MOBILE NAV DRAWER (index nav-has-drawer) =====================
+// ===================== SHARED: MOBILE NAV DRAWER (#navMenuBtn + #navDrawer) =====================
 function closeNavDrawer() {
-  const drawer = document.getElementById("navMobileDrawer");
-  const overlay = document.getElementById("navDrawerOverlay");
-  const toggle = document.getElementById("navMenuToggle");
-  if (!drawer || !overlay || !drawer.classList.contains("is-open")) return;
-  overlay.classList.remove("is-open");
+  const drawer = document.getElementById("navDrawer");
+  const btn = document.getElementById("navMenuBtn");
+  if (!drawer || !drawer.classList.contains("is-open")) return;
   drawer.classList.remove("is-open");
   document.body.classList.remove("nav-drawer-open");
-  toggle?.setAttribute("aria-expanded", "false");
+  if (btn) btn.setAttribute("aria-expanded", "false");
   drawer.setAttribute("aria-hidden", "true");
-  overlay.setAttribute("aria-hidden", "true");
 }
 
-function initMobileNavDrawer() {
-  const toggle = document.getElementById("navMenuToggle");
-  const drawer = document.getElementById("navMobileDrawer");
-  const overlay = document.getElementById("navDrawerOverlay");
-  const closeBtn = document.getElementById("navDrawerClose");
-  if (!toggle || !drawer || !overlay) return;
+function initNavSiteDrawer() {
+  const btn = document.getElementById("navMenuBtn");
+  const drawer = document.getElementById("navDrawer");
+  if (!btn || !drawer) return;
 
   function openNavDrawer() {
-    overlay.classList.add("is-open");
     drawer.classList.add("is-open");
     document.body.classList.add("nav-drawer-open");
-    toggle.setAttribute("aria-expanded", "true");
+    btn.setAttribute("aria-expanded", "true");
     drawer.setAttribute("aria-hidden", "false");
-    overlay.setAttribute("aria-hidden", "false");
   }
 
-  toggle.addEventListener("click", () => {
+  btn.addEventListener("click", () => {
     if (drawer.classList.contains("is-open")) closeNavDrawer();
     else openNavDrawer();
   });
-  closeBtn?.addEventListener("click", () => closeNavDrawer());
-  overlay.addEventListener("click", () => closeNavDrawer());
+  drawer.querySelectorAll("[data-nav-drawer-close]").forEach(el => {
+    el.addEventListener("click", () => closeNavDrawer());
+  });
   drawer.querySelectorAll("a[href]").forEach(a => {
     a.addEventListener("click", () => closeNavDrawer());
   });
@@ -399,7 +393,7 @@ function initMobileNavDrawer() {
   });
 }
 
-initMobileNavDrawer();
+initNavSiteDrawer();
 
 // ===================== SHARED: SCROLL REVEAL =====================
 const revealObserver = new IntersectionObserver(entries => {
@@ -852,7 +846,7 @@ function initThemeToggle() {
     const obs = new IntersectionObserver(entries => {
       entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add("visible"); obs.unobserve(e.target); } });
     }, { threshold: 0.12 });
-    document.querySelectorAll(".section-header, .collection-card, .testimonial-card, .feature-item, .brand-logo, .deals-card, .newsletter-inner, .reveal").forEach(el => {
+    document.querySelectorAll(".section-header, .collection-card, .testimonial-card, .feature-item, .brand-logo, .deals-inner, .newsletter-inner, .reveal").forEach(el => {
       el.classList.add("reveal");
       obs.observe(el);
     });
@@ -933,6 +927,10 @@ function initThemeToggle() {
     }
     clearErrors();
   };
+
+  if (location.hash === "#register" || location.hash === "#signup") {
+    window.switchTab("register");
+  }
 
   // ---- Validation Helpers ----
   function setError(groupId, errId, msg) {
@@ -2651,6 +2649,68 @@ function initThemeToggle() {
         showToast("❌ Network error. Try again.");
       }
     };
+
+    window.openChangePasswordModal = function() {
+      document.getElementById("changePasswordModal")?.classList.remove("hidden");
+      setTimeout(() => document.getElementById("pchCurrent")?.focus(), 50);
+    };
+    window.closeChangePasswordModal = function() {
+      document.getElementById("changePasswordModal")?.classList.add("hidden");
+      document.getElementById("changePasswordForm")?.reset();
+    };
+
+    window.savePasswordChange = async function(e) {
+      e.preventDefault();
+      const cur = document.getElementById("pchCurrent")?.value ?? "";
+      const nw = document.getElementById("pchNew")?.value ?? "";
+      const cf = document.getElementById("pchConfirm")?.value ?? "";
+      if (!cur || !nw || !cf) {
+        showToast("❌ Please fill all password fields.");
+        return;
+      }
+      if (nw !== cf) {
+        showToast("❌ New password and confirmation do not match.");
+        return;
+      }
+      if (nw.length < 8) {
+        showToast("❌ New password must be at least 8 characters.");
+        return;
+      }
+      const letter = /[A-Za-z]/.test(nw);
+      const digit = /[0-9]/.test(nw);
+      if (!letter || !digit) {
+        showToast("❌ New password must include at least one letter and one number.");
+        return;
+      }
+      if (nw === cur) {
+        showToast("❌ New password must be different from your current password.");
+        return;
+      }
+      const url = typeof window.__API_CHANGE_PASSWORD__ === "string"
+        ? window.__API_CHANGE_PASSWORD__
+        : "actions/change-password.php";
+      const btn = document.getElementById("pchSubmit");
+      if (btn) btn.disabled = true;
+      try {
+        const r = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ current_password: cur, new_password: nw }),
+          credentials: "same-origin",
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!j.ok) {
+          showToast("❌ " + (j.message || "Could not update password."));
+          return;
+        }
+        window.closeChangePasswordModal();
+        showToast("✅ " + (j.message || "Password updated successfully."));
+      } catch (_err) {
+        showToast("❌ Network error. Try again.");
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    };
   }
 
   // ---- Addresses (server-backed) ----
@@ -2890,6 +2950,7 @@ function initThemeToggle() {
   };
 
   document.getElementById("addressModal")?.addEventListener("click", e => { if (e.target === e.currentTarget) closeAddressModal(); });
+  document.getElementById("changePasswordModal")?.addEventListener("click", e => { if (e.target === e.currentTarget) closeChangePasswordModal(); });
 
   // ---- Wishlist ----
   const FALLBACK_WISHLIST = [
@@ -3003,23 +3064,92 @@ function initThemeToggle() {
   }
 
   // ---- Rewards ----
-  const rewardsHistory = [
-    { desc: "Order #LUXE83920741", date: "Apr 10, 2026", pts: "+280", type: "earn" },
-    { desc: "Signup Bonus", date: "Jan 05, 2024", pts: "+500", type: "earn" },
-    { desc: "Redeemed for discount", date: "Mar 01, 2026", pts: "-200", type: "spend" },
-    { desc: "Order #LUXE77541238", date: "Mar 28, 2026", pts: "+68", type: "earn" },
-    { desc: "Referral Bonus", date: "Feb 14, 2026", pts: "+100", type: "earn" },
-  ];
-  function renderRewards() {
-    const list = document.getElementById("rewardsHistory"); if (!list) return;
-    list.innerHTML = rewardsHistory.map(r => `<div class="rh-item"><div><div class="rh-desc">${r.desc}</div><div class="rh-date">${r.date}</div></div><span class="rh-pts ${r.type}">${r.pts} pts</span></div>`).join("");
+  function luxeLoyaltyUiFromBalance(balance) {
+    const cfg = window.__LOYALTY__;
+    const g = typeof cfg?.goldAt === "number" ? cfg.goldAt : 2000;
+    const p = typeof cfg?.platinumAt === "number" ? cfg.platinumAt : 3000;
+    let tierTitle; let leadHtml; let pct;
+    if (balance >= p) {
+      tierTitle = "LUXE Platinum Member";
+      leadHtml = "You've reached <strong>Platinum</strong> — enjoy exclusive perks! 🏆";
+      pct = 100;
+    } else if (balance >= g) {
+      tierTitle = "LUXE Gold Member";
+      const away = p - balance;
+      leadHtml = `You're <strong>${away.toLocaleString("en-IN")} points</strong> away from Platinum status! 🏆`;
+      pct = Math.min(100, ((balance - g) / (p - g)) * 100);
+    } else {
+      tierTitle = "LUXE Member";
+      const away = g - balance;
+      leadHtml = `You're <strong>${away.toLocaleString("en-IN")} points</strong> away from Gold status! 🏆`;
+      pct = g > 0 ? Math.min(100, (balance / g) * 100) : 0;
+    }
+    return { tierTitle, leadHtml, pct };
   }
-  window.redeemPoints = function() {
-    const pts = parseInt(document.getElementById("redeemInput").value);
+
+  function luxeApplyLoyaltyUi(balance) {
+    const ui = luxeLoyaltyUiFromBalance(balance);
+    const circle = document.getElementById("rewardsPtsCircle");
+    const tierEl = document.getElementById("rewardsTierTitle");
+    const leadEl = document.getElementById("rewardsLeadLine");
+    const fill = document.getElementById("rewardsProgressFill");
+    const stat = document.getElementById("profileStatPoints");
+    const redeemIn = document.getElementById("redeemInput");
+    if (circle) circle.textContent = balance.toLocaleString("en-IN");
+    if (tierEl) tierEl.textContent = ui.tierTitle;
+    if (leadEl) leadEl.innerHTML = ui.leadHtml;
+    if (fill) fill.style.width = `${Math.round(ui.pct * 10) / 10}%`;
+    if (stat) stat.textContent = balance.toLocaleString("en-IN");
+    if (redeemIn) {
+      redeemIn.max = String(Math.max(100, balance));
+      if (balance < 100) redeemIn.value = "";
+    }
+    if (window.__LOYALTY__) window.__LOYALTY__.balance = balance;
+  }
+
+  function renderRewards() {
+    const list = document.getElementById("rewardsHistory");
+    if (!list) return;
+    const rows = Array.isArray(window.__LOYALTY__?.history) ? window.__LOYALTY__.history : [];
+    if (rows.length === 0) {
+      list.innerHTML = "<div class=\"rh-item\"><div><div class=\"rh-desc\">No points activity yet. Delivered orders earn points after the credit period.</div></div></div>";
+      return;
+    }
+    list.innerHTML = rows.map(r => {
+      const desc = luxeEscapeHtml(r.desc || "");
+      const date = luxeEscapeHtml(r.date || "");
+      const pts = luxeEscapeHtml(r.pts || "");
+      const t = (r.type === "pending" ? "pending" : r.type === "spend" ? "spend" : "earn");
+      return `<div class="rh-item"><div><div class="rh-desc">${desc}</div><div class="rh-date">${date}</div></div><span class="rh-pts ${t}">${pts} pts</span></div>`;
+    }).join("");
+  }
+  window.redeemPoints = async function() {
+    const input = document.getElementById("redeemInput");
+    const pts = parseInt(input && input.value, 10);
+    const bal = typeof window.__LOYALTY__?.balance === "number" ? window.__LOYALTY__.balance : 0;
     if (!pts || pts < 100) { showToast("⚠️ Minimum 100 points required!"); return; }
-    if (pts > 2450) { showToast("⚠️ You only have 2,450 points!"); return; }
-    showToast(`🎉 ${pts} points redeemed! ₹${Math.floor(pts / 100) * 10} off on next order!`);
-    document.getElementById("redeemInput").value = "";
+    if (pts % 100 !== 0) { showToast("⚠️ Redeem in multiples of 100."); return; }
+    if (pts > bal) { showToast("⚠️ Not enough points."); return; }
+    const url = typeof window.__API_REDEEM_LOYALTY__ === "string" ? window.__API_REDEEM_LOYALTY__ : "actions/redeem-loyalty-points.php";
+    try {
+      const r = await fetch(url, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ points: pts })
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!j.ok) {
+        showToast("❌ " + (j.message || "Could not redeem."));
+        return;
+      }
+      const newBal = typeof j.balance === "number" ? j.balance : bal - pts;
+      luxeApplyLoyaltyUi(newBal);
+      showToast(j.message || `🎉 ${pts} points redeemed!`);
+      if (input) input.value = "";
+    } catch (_e) {
+      showToast("❌ Network error. Try again.");
+    }
   };
 
   // ---- Settings Toggles ----
@@ -3076,8 +3206,8 @@ function initThemeToggle() {
       renderRewards();
       refreshCursorTargets();
       setTimeout(() => {
-        const bar = document.querySelector(".points-fill");
-        if (bar) { const w = bar.style.width; bar.style.width = "0"; setTimeout(() => bar.style.width = w, 100); }
+        const bar = document.getElementById("rewardsProgressFill") || document.querySelector(".points-fill");
+        if (bar) { const w = bar.style.width; bar.style.width = "0"; setTimeout(() => { bar.style.width = w; }, 100); }
       }, 300);
     } else {
       refreshCursorTargets();

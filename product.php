@@ -474,7 +474,10 @@ $pageProduct = [
   <!-- Navbar -->
   <nav class="navbar" id="navbar">
     <div class="nav-container">
-      <a href="index.php" class="nav-logo">LUXE</a>
+      <div class="nav-brand-cluster">
+        <?php require __DIR__ . '/includes/nav_hamburger_btn.php'; ?>
+        <a href="index.php" class="nav-logo">LUXE</a>
+      </div>
       <div class="nav-breadcrumb">
         <a href="index.php">Home</a>
         <span>/</span>
@@ -491,7 +494,7 @@ $pageProduct = [
             ? 'profile.php?tab=wishlist'
             : 'login.php?redirect=' . rawurlencode('profile.php?tab=wishlist');
         ?>
-        <a href="<?= h($wishlistNavHref) ?>" class="icon-btn" id="wishlistNavBtn" aria-label="Wishlist">
+        <a href="<?= h($wishlistNavHref) ?>" class="icon-btn" id="wishlistNavBtn" aria-label="Wishlist" data-nav-mobile="drawer">
           <svg id="wishNavIcon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
         </a>
         <button class="cart-btn" id="cartNavBtn" type="button" aria-label="Cart" onclick="window.location.href='cart.php'">
@@ -501,6 +504,7 @@ $pageProduct = [
       </div>
     </div>
   </nav>
+  <?php require __DIR__ . '/includes/nav_drawer.php'; ?>
 
   <!-- Search Overlay -->
   <div class="search-overlay" id="searchOverlay" role="dialog" aria-modal="true" aria-labelledby="searchOverlayTitle">

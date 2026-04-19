@@ -112,6 +112,7 @@ if (isset($_GET['redirect'])) {
 
     <!-- Right Panel — Login Form -->
     <div class="right-panel">
+      <a href="index.php" class="back-link login-back-mobile">← Back to Store</a>
       <div class="form-card" id="formCard">
 
         <!-- Tabs -->

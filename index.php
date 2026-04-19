@@ -44,7 +44,10 @@ foreach ($_SESSION['cart'] ?? [] as $ci) {
   <!-- Navbar -->
   <nav class="navbar" id="navbar">
     <div class="nav-container">
-      <a href="index.php" class="nav-logo">LUXE</a>
+      <div class="nav-brand-cluster">
+        <?php require __DIR__ . '/includes/nav_hamburger_btn.php'; ?>
+        <a href="index.php" class="nav-logo">LUXE</a>
+      </div>
       <ul class="nav-links">
         <li><a href="#collections">Collections</a></li>
         <li><a href="#trending">Trending</a></li>
@@ -60,22 +63,22 @@ foreach ($_SESSION['cart'] ?? [] as $ci) {
             ? 'profile.php?tab=wishlist'
             : 'login.php?redirect=' . rawurlencode('profile.php?tab=wishlist');
         ?>
-        <a href="<?= h($wishlistNavHref) ?>" class="icon-btn" aria-label="Wishlist">
+        <a href="<?= h($wishlistNavHref) ?>" class="icon-btn" aria-label="Wishlist" data-nav-mobile="drawer">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
         </a>
         <?php if ($user): ?>
-        <a href="actions/logout.php" class="nav-login-btn" aria-label="Sign out">
+        <a href="actions/logout.php" class="nav-login-btn" aria-label="Sign out" data-nav-mobile="drawer">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
           Sign Out
         </a>
         <?php else: ?>
-        <a href="login.php" class="nav-login-btn" aria-label="Login">
+        <a href="login.php" class="nav-login-btn" aria-label="Login" data-nav-mobile="drawer">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           Sign In
         </a>
         <?php endif; ?>
         <?php if ($user): ?>
-        <a href="profile.php" class="icon-btn" aria-label="Profile">
+        <a href="profile.php" class="icon-btn" aria-label="Profile" data-nav-mobile="drawer">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         </a>
         <?php endif; ?>
@@ -86,6 +89,7 @@ foreach ($_SESSION['cart'] ?? [] as $ci) {
       </div>
     </div>
   </nav>
+  <?php require __DIR__ . '/includes/nav_drawer.php'; ?>
 
   <!-- Search Overlay -->
   <div class="search-overlay" id="searchOverlay" role="dialog" aria-modal="true" aria-labelledby="searchOverlayTitle">
@@ -376,37 +380,6 @@ foreach ($_SESSION['cart'] ?? [] as $ci) {
             <div class="time-block"><span id="secs">30</span><label>Secs</label></div>
           </div>
           <a href="product.php" class="btn-primary deals-cta"><span>Shop the edit</span><span class="deals-cta__arrow" aria-hidden="true">→</span></a>
-        </div>
-        <div class="deals-visual">
-          <div class="deals-card">
-            <header class="deals-card__head">
-              <span class="deals-card__label">Spotlight picks</span>
-              <span class="deals-card__mark" aria-hidden="true">✦</span>
-            </header>
-            <div class="deals-products">
-              <a href="product.php" class="deal-item deal-item-link">
-                <span class="deal-emoji" aria-hidden="true">👟</span>
-                <div class="deal-item__body">
-                  <strong>Nike Air Max 270</strong>
-                  <div class="deal-price"><s>₹12,995</s><b>₹5,499</b></div>
-                </div>
-              </a>
-              <a href="product.php" class="deal-item deal-item-link">
-                <span class="deal-emoji" aria-hidden="true">🎧</span>
-                <div class="deal-item__body">
-                  <strong>Sony WH‑1000XM5</strong>
-                  <div class="deal-price"><s>₹34,990</s><b>₹18,999</b></div>
-                </div>
-              </a>
-              <a href="product.php" class="deal-item deal-item-link">
-                <span class="deal-emoji" aria-hidden="true">⌚</span>
-                <div class="deal-item__body">
-                  <strong>Apple Watch SE</strong>
-                  <div class="deal-price"><s>₹29,900</s><b>₹19,500</b></div>
-                </div>
-              </a>
-            </div>
-          </div>
         </div>
       </div>
     </div>
