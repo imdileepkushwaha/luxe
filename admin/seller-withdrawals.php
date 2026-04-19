@@ -110,7 +110,7 @@ require __DIR__ . '/partials/shell-top.php';
         <?php endif; ?>
 
         <div class="admin-page-head" style="margin-bottom:16px">
-          <h1>Seller withdraw requests</h1>
+          <h1>Seller withdraw Requests</h1>
           <p style="margin:6px 0 0;font-size:0.9rem;color:var(--admin-text-muted)">
             Pending requests approve karke <strong>Mark as paid</strong> karein jab payout complete ho. Reject par seller ko reason dikhega.
             <?php if ($pendingCount > 0): ?>

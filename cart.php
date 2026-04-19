@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/includes/bootstrap.php';
 require_once __DIR__ . '/includes/cart_session.php';
+require_once __DIR__ . '/includes/coupons.php';
 
 $pdo = db();
 $cartItems = $_SESSION['cart'] ?? [];
@@ -26,6 +27,18 @@ if ($cartItems !== []) {
 }
 
 $userLoggedIn = auth_user_id() !== null;
+$couponDefsJs = coupons_defs_for_frontend($pdo);
+$couponFeaturedCodes = coupons_featured_tag_codes($pdo, 10);
+$couponOfferLines = [];
+foreach ($couponFeaturedCodes as $c) {
+    $d = $couponDefsJs[$c] ?? null;
+    if (is_array($d) && isset($d['desc'])) {
+        $couponOfferLines[] = '✦ ' . $c . ' — ' . (string) $d['desc'];
+    }
+    if (count($couponOfferLines) >= 6) {
+        break;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -126,9 +139,9 @@ $userLoggedIn = auth_user_id() !== null;
                 <button class="coupon-btn" onclick="applyCoupon()">Apply</button>
               </div>
               <div class="coupon-tags">
-                <span class="ctag" onclick="fillCoupon('LUXE10')">LUXE10</span>
-                <span class="ctag" onclick="fillCoupon('FIRST50')">FIRST50</span>
-                <span class="ctag" onclick="fillCoupon('SALE20')">SALE20</span>
+                <?php foreach ($couponFeaturedCodes as $coupCode): ?>
+                <span class="ctag" onclick="fillCoupon('<?= htmlspecialchars($coupCode, ENT_QUOTES, 'UTF-8') ?>')"><?= htmlspecialchars($coupCode, ENT_QUOTES, 'UTF-8') ?></span>
+                <?php endforeach; ?>
               </div>
               <div class="coupon-msg" id="couponMsg"></div>
             </div>
@@ -179,8 +192,9 @@ $userLoggedIn = auth_user_id() !== null;
           <!-- Offers box -->
           <div class="offers-box">
             <div class="offers-title">🎁 Available Offers</div>
-            <div class="offer-line">✦ 10% off with LUXE10 — up to ₹500</div>
-            <div class="offer-line">✦ 50% off on first order with FIRST50</div>
+            <?php foreach ($couponOfferLines as $line): ?>
+            <div class="offer-line"><?= htmlspecialchars($line, ENT_QUOTES, 'UTF-8') ?></div>
+            <?php endforeach; ?>
             <div class="offer-line">✦ Extra 5% cashback on HDFC cards</div>
           </div>
         </div>
@@ -228,6 +242,7 @@ $userLoggedIn = auth_user_id() !== null;
     window.__PLATFORM_FEE_RUPEES__ = <?= (int) $platformFeeRupees ?>;
     window.__CART_SPEED_FEES__ = <?= json_encode(['express' => $expressFeeRu, 'same_day' => $sameDayFeeRu], JSON_THROW_ON_ERROR) ?>;
     window.__CART_ITEMS__ = <?= json_encode($cartItems, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
+    window.__COUPON_DEFS__ = <?= json_encode($couponDefsJs, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
     window.__AUTH_USER_ID__ = <?= json_encode(auth_user_id()) ?>;
   </script>
   <script src="script/luxe.js"></script>

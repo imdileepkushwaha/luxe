@@ -34,52 +34,59 @@ $debitSt = $pdo->prepare(
 $debitSt->execute([(int) $seller['id']]);
 $debits = $debitSt->fetchAll();
 
-$txns = [];
-foreach ($credits as $c) {
-    $txns[] = [
-        'type' => 'credit',
-        'title' => 'Order earning',
-        'reference' => (string) ($c['order_ref'] ?? '-'),
-        'status' => 'delivered',
-        'amount' => (int) ($c['amount'] ?? 0),
-        'date' => (string) ($c['created_at'] ?? ''),
-        'meta' => 'Credited from delivered order',
-    ];
-}
-foreach ($debits as $d) {
-    $status = strtolower((string) ($d['status'] ?? 'pending'));
-    $effectiveDate = (string) ($d['reviewed_at'] ?: $d['requested_at']);
-    $meta = 'Withdraw request via ' . (string) ($d['method'] ?? 'bank');
-    if ($status === 'rejected' && trim((string) ($d['rejection_reason'] ?? '')) !== '') {
-        $meta .= ' | Reason: ' . (string) $d['rejection_reason'];
+function seller_txn_format_dt(?string $raw): string
+{
+    if ($raw === null || trim($raw) === '') {
+        return '—';
     }
-    $txns[] = [
-        'type' => 'debit',
-        'title' => 'Withdraw request',
-        'reference' => 'WR' . (int) ($d['id'] ?? 0),
-        'status' => $status,
-        'amount' => (int) ($d['amount'] ?? 0),
-        'date' => $effectiveDate,
-        'meta' => $meta,
-    ];
+    try {
+        return (new DateTimeImmutable($raw))->format('M j, Y · g:i A');
+    } catch (Throwable) {
+        return $raw;
+    }
 }
 
-usort($txns, static function (array $a, array $b): int {
-    return strtotime((string) ($b['date'] ?? '')) <=> strtotime((string) ($a['date'] ?? ''));
-});
+function seller_txn_withdraw_chip_mod(string $status): string
+{
+    return match (strtolower(trim($status))) {
+        'paid', 'approved' => 'seller-status-chip--delivered',
+        'rejected' => 'seller-status-chip--rejected',
+        'pending' => 'seller-status-chip--pending',
+        default => '',
+    };
+}
+
+function seller_txn_withdraw_status_label(string $status): string
+{
+    $s = strtolower(trim($status));
+
+    return match ($s) {
+        'paid' => 'Paid',
+        'approved' => 'Approved',
+        'rejected' => 'Rejected',
+        'pending' => 'Pending',
+        default => $s !== '' ? ucfirst($s) : '—',
+    };
+}
 
 require __DIR__ . '/partials/shell-top.php';
 ?>
 
-        <div class="admin-page-head">
-          <h1>Transaction history</h1>
+        <div class="admin-page-head seller-txn-head">
+          <div>
+            <h1>Transaction history</h1>
+            <p class="seller-txn-subtitle">Order earnings and withdrawal requests are listed separately. Credits appear when an order is <strong>delivered</strong>; debits when a withdraw request is approved or paid.</p>
+          </div>
+          <div class="admin-page-head__actions">
+            <a class="admin-btn admin-btn--ghost-light" href="withdraw-requests.php">Withdraw</a>
+          </div>
         </div>
 
-        <div class="seller-kpi">
+        <div class="seller-kpi seller-txn-kpi">
           <div class="seller-kpi-card seller-kpi-card--revenue">
             <div>
               <div class="seller-kpi-card__label">Total credited</div>
-              <div class="seller-kpi-card__value">Rs <?= number_format((int) $summary['delivered_total']) ?></div>
+              <div class="seller-kpi-card__value">₹<?= number_format((int) $summary['delivered_total'], 0, '.', ',') ?></div>
               <div class="seller-kpi-card__hint">Delivered order earnings</div>
             </div>
             <div class="seller-kpi-card__icon" aria-hidden="true">
@@ -89,8 +96,8 @@ require __DIR__ . '/partials/shell-top.php';
           <div class="seller-kpi-card seller-kpi-card--orders">
             <div>
               <div class="seller-kpi-card__label">Total debited</div>
-              <div class="seller-kpi-card__value">Rs <?= number_format((int) $summary['paid_out_total']) ?></div>
-              <div class="seller-kpi-card__hint">Approved/Paid withdrawals</div>
+              <div class="seller-kpi-card__value">₹<?= number_format((int) $summary['paid_out_total'], 0, '.', ',') ?></div>
+              <div class="seller-kpi-card__hint">Approved / paid withdrawals</div>
             </div>
             <div class="seller-kpi-card__icon" aria-hidden="true">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20"/><path d="m7 17 5 5 5-5"/><path d="M5 7h14"/></svg>
@@ -98,8 +105,8 @@ require __DIR__ . '/partials/shell-top.php';
           </div>
           <div class="seller-kpi-card seller-kpi-card--products">
             <div>
-              <div class="seller-kpi-card__label">Current withdrawable</div>
-              <div class="seller-kpi-card__value">Rs <?= number_format((int) $summary['withdrawable_balance']) ?></div>
+              <div class="seller-kpi-card__label">Withdrawable balance</div>
+              <div class="seller-kpi-card__value">₹<?= number_format((int) $summary['withdrawable_balance'], 0, '.', ',') ?></div>
               <div class="seller-kpi-card__hint">Available now</div>
             </div>
             <div class="seller-kpi-card__icon" aria-hidden="true">
@@ -108,44 +115,260 @@ require __DIR__ . '/partials/shell-top.php';
           </div>
         </div>
 
-        <div class="card" style="margin-top:16px">
-          <div class="card-header">
-            <h2 class="card-title">All transactions</h2>
+        <div class="card seller-txn-card">
+          <div class="card-header seller-txn-card-head">
+            <div>
+              <h2 class="card-title">Order earnings</h2>
+              <p class="card-subtitle seller-txn-card-sub">Your line-item total per order after status is <strong>delivered</strong>. This is what counts toward your balance.</p>
+            </div>
+            <span class="seller-txn-count-pill"><?= count($credits) ?> order<?= count($credits) === 1 ? '' : 's' ?></span>
           </div>
           <div class="card-body card-body--flush">
-            <div class="admin-table-wrap">
-              <table class="admin-table">
+            <div class="seller-txn-search-bar">
+              <label class="seller-inventory-search-wrap seller-txn-search" for="sellerTxnCreditsSearch">
+                <span class="seller-inventory-search-icon" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                </span>
+                <input
+                  type="search"
+                  id="sellerTxnCreditsSearch"
+                  class="seller-inventory-search-input"
+                  placeholder="Search order ref, ID, amount, date…"
+                  autocomplete="off"
+                  aria-label="Search order earnings"
+                  <?= $credits === [] ? 'disabled' : '' ?>
+                >
+              </label>
+            </div>
+            <div class="admin-table-wrap seller-txn-table-wrap">
+              <table class="admin-table seller-txn-table">
                 <thead>
                   <tr>
                     <th>Date</th>
-                    <th>Type</th>
-                    <th>Reference</th>
-                    <th>Status</th>
-                    <th>Amount</th>
-                    <th>Details</th>
+                    <th>Order</th>
+                    <th class="seller-txn-th-amount">Amount</th>
+                    <th class="seller-txn-th-actions"></th>
                   </tr>
                 </thead>
                 <tbody>
-                  <?php foreach ($txns as $t): ?>
-                    <?php $isCredit = (string) ($t['type'] ?? '') === 'credit'; ?>
-                    <tr>
-                      <td><?= h((string) ($t['date'] ?? '-')) ?></td>
-                      <td><?= h((string) ($t['title'] ?? '-')) ?></td>
-                      <td><?= h((string) ($t['reference'] ?? '-')) ?></td>
-                      <td><span class="seller-status-chip seller-status-chip--<?= h(strtolower((string) ($t['status'] ?? 'pending'))) ?>"><?= h((string) ($t['status'] ?? '-')) ?></span></td>
-                      <td class="<?= $isCredit ? 'seller-txn-amount--credit' : 'seller-txn-amount--debit' ?>">
-                        <?= $isCredit ? '+' : '-' ?>Rs <?= number_format((int) ($t['amount'] ?? 0)) ?>
+                  <?php foreach ($credits as $c): ?>
+                    <?php
+                    $oid = (int) ($c['id'] ?? 0);
+                    $amt = (int) ($c['amount'] ?? 0);
+                    $ref = trim((string) ($c['order_ref'] ?? ''));
+                    $createdRaw = trim((string) ($c['created_at'] ?? ''));
+                    $createdFmt = seller_txn_format_dt($createdRaw);
+                    $creditSearchBlob = mb_strtolower(
+                        $ref . ' '
+                        . (string) $oid . ' '
+                        . (string) $amt . ' '
+                        . preg_replace('/[^\d]/', '', (string) $amt) . ' '
+                        . $createdRaw . ' '
+                        . $createdFmt . ' '
+                        . 'delivered earning order'
+                    );
+                    ?>
+                    <tr class="seller-txn-credit-row" data-txn-search="<?= h($creditSearchBlob) ?>">
+                      <td class="seller-txn-td-muted"><?= h($createdFmt) ?></td>
+                      <td>
+                        <span class="seller-orders-ref"><?= h($ref !== '' ? $ref : '—') ?></span>
+                        <span class="seller-orders-id-tag">#<?= $oid ?></span>
                       </td>
-                      <td><?= h((string) ($t['meta'] ?? '-')) ?></td>
+                      <td class="seller-txn-td-amount seller-txn-amount--credit">+₹<?= number_format($amt, 0, '.', ',') ?></td>
+                      <td class="seller-txn-td-actions">
+                        <?php if ($oid > 0): ?>
+                          <a class="seller-edit-btn" href="order-details.php?id=<?= $oid ?>">Order detail</a>
+                        <?php endif; ?>
+                      </td>
                     </tr>
                   <?php endforeach; ?>
-                  <?php if ($txns === []): ?>
-                    <tr><td colspan="6">No transactions found.</td></tr>
+                  <?php if ($credits !== []): ?>
+                    <tr id="sellerTxnCreditsNoMatch" class="seller-txn-no-match-row" style="display:none">
+                      <td colspan="4">
+                        <div class="seller-txn-no-match-inner">
+                          <span class="seller-txn-no-match-icon" aria-hidden="true">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                          </span>
+                          <div>
+                            <strong>No matching orders</strong>
+                            <p>Try another keyword — reference, order ID, or amount.</p>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  <?php endif; ?>
+                  <?php if ($credits === []): ?>
+                    <tr>
+                      <td colspan="4">
+                        <div class="seller-txn-empty">
+                          <p class="seller-txn-empty__title">No delivered earnings yet</p>
+                          <p class="seller-txn-empty__text">Credits appear here when orders containing your products are marked <strong>delivered</strong>.</p>
+                        </div>
+                      </td>
+                    </tr>
                   <?php endif; ?>
                 </tbody>
               </table>
             </div>
           </div>
         </div>
+
+        <div class="card seller-txn-card seller-txn-card--withdraw">
+          <div class="card-header seller-txn-card-head">
+            <div>
+              <h2 class="card-title">Withdraw requests</h2>
+              <p class="card-subtitle seller-txn-card-sub">Payout requests you submitted. Pending amounts reduce withdrawable balance until approved, rejected, or paid.</p>
+            </div>
+            <div class="seller-txn-card-head-actions">
+              <span class="seller-txn-count-pill"><?= count($debits) ?> request<?= count($debits) === 1 ? '' : 's' ?></span>
+              <a class="admin-btn admin-btn--primary" href="withdraw-requests.php">New request</a>
+            </div>
+          </div>
+          <div class="card-body card-body--flush">
+            <div class="seller-txn-search-bar">
+              <label class="seller-inventory-search-wrap seller-txn-search" for="sellerTxnDebitsSearch">
+                <span class="seller-inventory-search-icon" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                </span>
+                <input
+                  type="search"
+                  id="sellerTxnDebitsSearch"
+                  class="seller-inventory-search-input"
+                  placeholder="Search WR ref, amount, method, status, notes…"
+                  autocomplete="off"
+                  aria-label="Search withdraw requests"
+                  <?= $debits === [] ? 'disabled' : '' ?>
+                >
+              </label>
+            </div>
+            <div class="admin-table-wrap seller-txn-table-wrap">
+              <table class="admin-table seller-txn-table">
+                <thead>
+                  <tr>
+                    <th>Requested</th>
+                    <th>Reference</th>
+                    <th class="seller-txn-th-amount">Amount</th>
+                    <th>Method</th>
+                    <th>Status</th>
+                    <th>Processed</th>
+                    <th>Details</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <?php foreach ($debits as $d): ?>
+                    <?php
+                    $wid = (int) ($d['id'] ?? 0);
+                    $stRaw = (string) ($d['status'] ?? '');
+                    $stMod = seller_txn_withdraw_chip_mod($stRaw);
+                    $stLabel = seller_txn_withdraw_status_label($stRaw);
+                    $reviewed = trim((string) ($d['reviewed_at'] ?? ''));
+                    $note = trim((string) ($d['note'] ?? ''));
+                    $rej = trim((string) ($d['rejection_reason'] ?? ''));
+                    $acct = trim((string) ($d['account_ref'] ?? ''));
+                    $detailParts = [];
+                    if ($note !== '') {
+                        $detailParts[] = $note;
+                    }
+                    if ($acct !== '') {
+                        $detailParts[] = 'Ref: ' . $acct;
+                    }
+                    if ($rej !== '') {
+                        $detailParts[] = 'Rejection: ' . $rej;
+                    }
+                    $detailText = $detailParts !== [] ? implode(' · ', $detailParts) : '—';
+                    $reqRaw = trim((string) ($d['requested_at'] ?? ''));
+                    $reqFmt = seller_txn_format_dt($reqRaw);
+                    $revFmt = $reviewed !== '' ? seller_txn_format_dt($reviewed) : '';
+                    $wamt = (int) ($d['amount'] ?? 0);
+                    $method = trim((string) ($d['method'] ?? ''));
+                    $debitSearchBlob = mb_strtolower(
+                        'wr' . (string) $wid . ' '
+                        . (string) $wid . ' '
+                        . (string) $wamt . ' '
+                        . preg_replace('/[^\d]/', '', (string) $wamt) . ' '
+                        . strtolower($stRaw) . ' '
+                        . strtolower($stLabel) . ' '
+                        . $method . ' '
+                        . $note . ' '
+                        . $acct . ' '
+                        . $rej . ' '
+                        . $reqRaw . ' '
+                        . $reqFmt . ' '
+                        . $reviewed . ' '
+                        . $revFmt . ' '
+                        . $detailText
+                    );
+                    ?>
+                    <tr class="seller-txn-debit-row" data-txn-search="<?= h($debitSearchBlob) ?>">
+                      <td class="seller-txn-td-muted"><?= h($reqFmt) ?></td>
+                      <td><span class="seller-product-list-sku">WR<?= $wid ?></span></td>
+                      <td class="seller-txn-td-amount seller-txn-amount--debit">−₹<?= number_format($wamt, 0, '.', ',') ?></td>
+                      <td><?= h($method !== '' ? $method : '—') ?></td>
+                      <td><span class="seller-status-chip <?= h($stMod !== '' ? $stMod : '') ?>"><?= h($stLabel) ?></span></td>
+                      <td class="seller-txn-td-muted"><?= $reviewed !== '' ? h($revFmt) : '—' ?></td>
+                      <td class="seller-txn-td-details"><?= h($detailText) ?></td>
+                    </tr>
+                  <?php endforeach; ?>
+                  <?php if ($debits !== []): ?>
+                    <tr id="sellerTxnDebitsNoMatch" class="seller-txn-no-match-row" style="display:none">
+                      <td colspan="7">
+                        <div class="seller-txn-no-match-inner">
+                          <span class="seller-txn-no-match-icon" aria-hidden="true">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                          </span>
+                          <div>
+                            <strong>No matching requests</strong>
+                            <p>Try WR number, amount, bank method, or status.</p>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  <?php endif; ?>
+                  <?php if ($debits === []): ?>
+                    <tr>
+                      <td colspan="7">
+                        <div class="seller-txn-empty">
+                          <p class="seller-txn-empty__title">No withdraw requests</p>
+                          <p class="seller-txn-empty__text">Submit a payout from <a href="withdraw-requests.php">Withdraw requests</a> when you have withdrawable balance.</p>
+                        </div>
+                      </td>
+                    </tr>
+                  <?php endif; ?>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <script>
+          (function () {
+            function wireTxnSearch(inputId, rowSelector, noMatchId) {
+              var input = document.getElementById(inputId);
+              if (!input || input.disabled) return;
+              var rows = document.querySelectorAll(rowSelector);
+              var noMatch = document.getElementById(noMatchId);
+              function apply() {
+                var q = (input.value || '').trim().toLowerCase();
+                var words = q.split(/\s+/).filter(Boolean);
+                var anyShown = false;
+                rows.forEach(function (tr) {
+                  var hay = (tr.getAttribute('data-txn-search') || '').toLowerCase();
+                  var show = words.length === 0 || words.every(function (w) {
+                    return hay.indexOf(w) !== -1;
+                  });
+                  tr.style.display = show ? '' : 'none';
+                  if (show) anyShown = true;
+                });
+                if (noMatch) {
+                  noMatch.style.display = (words.length > 0 && !anyShown) ? '' : 'none';
+                }
+              }
+              input.addEventListener('input', apply);
+              input.addEventListener('search', apply);
+            }
+            wireTxnSearch('sellerTxnCreditsSearch', 'tr.seller-txn-credit-row', 'sellerTxnCreditsNoMatch');
+            wireTxnSearch('sellerTxnDebitsSearch', 'tr.seller-txn-debit-row', 'sellerTxnDebitsNoMatch');
+          })();
+        </script>
 
 <?php require __DIR__ . '/partials/shell-bottom.php'; ?>

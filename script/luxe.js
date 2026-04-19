@@ -1889,11 +1889,26 @@ function initThemeToggle() {
 (function initCartPage() {
   if (!document.getElementById("itemsContainer")) return;
 
-  const COUPONS = {
-    "LUXE10": { type: "percent", val: 10, max: 500, desc: "10% off (max ₹500)" },
-    "FIRST50": { type: "percent", val: 50, max: 2000, desc: "50% off first order!" },
-    "SALE20": { type: "flat", val: 200, desc: "₹200 flat off" },
+  const COUPONS_FALLBACK = {
+    "LUXE10": { type: "percent", val: 10, max: 500, desc: "10% off (max ₹500)", seller_id: null, min_order: 0 },
+    "FIRST50": { type: "percent", val: 50, max: 2000, desc: "50% off first order!", seller_id: null, min_order: 0 },
+    "SALE20": { type: "flat", val: 200, desc: "₹200 flat off", seller_id: null, min_order: 0 },
   };
+  const COUPONS = (typeof window.__COUPON_DEFS__ === "object" && window.__COUPON_DEFS__ && Object.keys(window.__COUPON_DEFS__).length)
+    ? window.__COUPON_DEFS__
+    : COUPONS_FALLBACK;
+
+  function cartApplicableSubtotalForCoupon(items, sellerScope) {
+    const checked = items.filter(i => i.checked);
+    if (sellerScope == null || sellerScope === "" || !Number.isFinite(Number(sellerScope))) {
+      return checked.reduce((a, i) => a + i.price * i.qty, 0);
+    }
+    const sid = Number(sellerScope);
+    return checked.reduce((a, i) => {
+      const ls = i.seller_id != null ? Number(i.seller_id) : 0;
+      return ls === sid ? a + i.price * i.qty : a;
+    }, 0);
+  }
 
   const DEFAULT_CART_ITEMS = [
     { id: 1, name: "AirMax Pro 2026", brand: "Nike × LUXE", emoji: "👟", price: 8999, orig: 14500, qty: 1, max_qty: 99, size: "UK 8", color: "Cosmic Purple", checked: true },
@@ -2135,10 +2150,41 @@ function initThemeToggle() {
   window.applyCoupon = function() {
     const code = document.getElementById("couponInput").value.trim().toUpperCase();
     const msg = document.getElementById("couponMsg");
-    if (!code) { msg.textContent = ""; return; }
+    if (!code) {
+      msg.textContent = "";
+      appliedCoupon = null;
+      try { sessionStorage.removeItem("luxeCheckoutCoupon"); } catch (_e) {}
+      void updateTotal();
+      return;
+    }
     const coupon = COUPONS[code];
-    if (!coupon) { msg.className = "coupon-msg error"; msg.textContent = "❌ Invalid coupon code"; appliedCoupon = null; }
-    else { appliedCoupon = { ...coupon, code }; msg.className = "coupon-msg success"; msg.textContent = `✅ "${code}" applied — ${coupon.desc}`; showToast(`🏷️ Coupon "${code}" applied!`); }
+    if (!coupon) {
+      msg.className = "coupon-msg error";
+      msg.textContent = "❌ Invalid coupon code";
+      appliedCoupon = null;
+      try { sessionStorage.removeItem("luxeCheckoutCoupon"); } catch (_e) {}
+    } else {
+      const sellerScope = coupon.seller_id != null && coupon.seller_id !== "" ? Number(coupon.seller_id) : null;
+      const minOrder = coupon.min_order != null ? Number(coupon.min_order) : 0;
+      const base = cartApplicableSubtotalForCoupon(cartItems, sellerScope);
+      if (sellerScope != null && Number.isFinite(sellerScope) && base <= 0) {
+        msg.className = "coupon-msg error";
+        msg.textContent = "❌ Add items from this seller's store to use this coupon";
+        appliedCoupon = null;
+        try { sessionStorage.removeItem("luxeCheckoutCoupon"); } catch (_e) {}
+      } else if (base < minOrder) {
+        msg.className = "coupon-msg error";
+        msg.textContent = `❌ Minimum ₹${minOrder.toLocaleString("en-IN")} from eligible items for this coupon`;
+        appliedCoupon = null;
+        try { sessionStorage.removeItem("luxeCheckoutCoupon"); } catch (_e) {}
+      } else {
+        appliedCoupon = { ...coupon, code };
+        msg.className = "coupon-msg success";
+        msg.textContent = `✅ "${code}" applied — ${coupon.desc}`;
+        showToast(`🏷️ Coupon "${code}" applied!`);
+        try { sessionStorage.setItem("luxeCheckoutCoupon", code); } catch (_e) {}
+      }
+    }
     void updateTotal();
   };
 
@@ -2207,8 +2253,18 @@ function initThemeToggle() {
     const platformFee = cartPlatformFeeAmount();
     let discount = 0;
     if (appliedCoupon) {
-      if (appliedCoupon.type === "percent") discount = Math.min(Math.round(subtotal * appliedCoupon.val / 100), appliedCoupon.max || Infinity);
-      else discount = appliedCoupon.val;
+      const sellerScope = appliedCoupon.seller_id != null && appliedCoupon.seller_id !== "" ? Number(appliedCoupon.seller_id) : null;
+      const minOrder = appliedCoupon.min_order != null ? Number(appliedCoupon.min_order) : 0;
+      const base = cartApplicableSubtotalForCoupon(cartItems, sellerScope);
+      if (base >= minOrder && base > 0) {
+        if (appliedCoupon.type === "percent") {
+          const cap = appliedCoupon.max != null && appliedCoupon.max !== "" ? Number(appliedCoupon.max) : Infinity;
+          discount = Math.min(Math.round(base * appliedCoupon.val / 100), cap);
+        } else {
+          discount = appliedCoupon.val;
+        }
+        discount = Math.min(discount, base);
+      }
     }
     const total = subtotal - discount + shippingTotal + platformFee;
     const saved = (origTotal - subtotal) + discount;
@@ -2252,6 +2308,11 @@ function initThemeToggle() {
 
   window.proceedToCheckout = function() {
     if (!cartItems.some(i => i.checked)) { showToast("⚠️ Select at least one item!"); return; }
+    try {
+      const inp = document.getElementById("couponInput");
+      const raw = inp ? inp.value.trim().toUpperCase() : "";
+      if (raw && COUPONS[raw]) sessionStorage.setItem("luxeCheckoutCoupon", raw);
+    } catch (_e) {}
     if (!window.__AUTH_USER_ID__) {
       showToast("🔐 Please sign in to continue to checkout.");
       const loginBase = LUXE_URLS.login || "login.php";

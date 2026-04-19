@@ -437,46 +437,46 @@ $nextStatuses = seller_next_statuses((string) $order['status']);
 require __DIR__ . '/partials/shell-top.php';
 ?>
 
-        <div class="admin-page-head">
-          <h1>Order details</h1>
+        <div class="admin-page-head seller-order-detail-page-head">
+          <div>
+            <h1>Order details</h1>
+            <p class="seller-order-detail-page-kicker">Order <strong>#<?= h((string) $order['order_ref']) ?></strong> · Placed <?= h((string) $order['created_at']) ?></p>
+          </div>
           <div class="admin-page-head__actions">
             <a class="seller-preview-btn" href="orders.php">Back to orders</a>
           </div>
         </div>
 
+        <div class="seller-order-detail">
         <?php if ($flash !== ''): ?>
-          <div class="seller-alert<?= $flashOk ? ' seller-alert--success' : ' seller-alert--error' ?>" style="margin-bottom:14px"><?= h($flash) ?></div>
+          <div class="seller-alert seller-order-detail-flash<?= $flashOk ? ' seller-alert--success' : ' seller-alert--error' ?>"><?= h($flash) ?></div>
         <?php endif; ?>
 
-        <div class="card">
-          <div class="card-header">
-            <h2 class="card-title">Order #<?= h((string) $order['order_ref']) ?></h2>
+        <div class="card seller-txn-card seller-order-detail-card seller-order-detail-summary">
+          <div class="card-header seller-txn-card-head">
+            <div>
+              <h2 class="card-title">Summary</h2>
+              <p class="card-subtitle seller-txn-card-sub">Customer, payment, amounts, aur shipping — ek nazar me.</p>
+            </div>
+            <span class="<?= seller_order_status_class_detail((string) $order['status']) ?> seller-order-detail-status-pill"><?= h((string) $order['status']) ?></span>
           </div>
-          <div class="card-body">
-            <div class="seller-order-meta-grid">
+          <div class="card-body seller-order-detail-summary-body">
+            <div class="seller-order-meta-grid seller-order-meta-grid--detail">
               <div class="seller-order-meta-item">
                 <span class="seller-order-meta-label">Customer</span>
                 <strong><?= h((string) $order['customer_name']) ?></strong>
               </div>
               <div class="seller-order-meta-item">
                 <span class="seller-order-meta-label">Email</span>
-                <strong><?= h((string) $order['customer_email']) ?></strong>
-              </div>
-              <div class="seller-order-meta-item">
-                <span class="seller-order-meta-label">Current status</span>
-                <span class="<?= seller_order_status_class_detail((string) $order['status']) ?>"><?= h((string) $order['status']) ?></span>
-              </div>
-              <div class="seller-order-meta-item">
-                <span class="seller-order-meta-label">Order date</span>
-                <strong><?= h((string) $order['created_at']) ?></strong>
+                <strong class="seller-order-meta-value seller-order-meta-value--break"><?= h((string) $order['customer_email']) ?></strong>
               </div>
               <div class="seller-order-meta-item">
                 <span class="seller-order-meta-label">Order total</span>
-                <strong>Rs <?= number_format((int) ($order['total_amount'] ?? 0)) ?></strong>
+                <strong class="seller-order-meta-value seller-order-meta-value--money">Rs <?= number_format((int) ($order['total_amount'] ?? 0)) ?></strong>
               </div>
-              <div class="seller-order-meta-item">
+              <div class="seller-order-meta-item seller-order-meta-item--seller-total">
                 <span class="seller-order-meta-label">Your items total</span>
-                <strong>Rs <?= number_format($sellerSubtotal) ?></strong>
+                <strong class="seller-order-meta-value seller-order-meta-value--money">Rs <?= number_format($sellerSubtotal) ?></strong>
               </div>
               <div class="seller-order-meta-item">
                 <span class="seller-order-meta-label">Payment method</span>
@@ -484,38 +484,51 @@ require __DIR__ . '/partials/shell-top.php';
               </div>
               <div class="seller-order-meta-item seller-order-meta-item--wide">
                 <span class="seller-order-meta-label">Shipping address</span>
-                <strong><?= h((string) ($order['shipping_address'] ?? '-')) ?></strong>
+                <strong class="seller-order-meta-value seller-order-meta-value--break"><?= h((string) ($order['shipping_address'] ?? '-')) ?></strong>
               </div>
             </div>
           </div>
         </div>
 
-        <div class="card" style="margin-top:16px">
-          <div class="card-header">
-            <h2 class="card-title">Update order status</h2>
+        <div class="card seller-txn-card seller-order-detail-card seller-order-detail-status-card">
+          <div class="card-header seller-txn-card-head">
+            <div>
+              <h2 class="card-title">Update order status</h2>
+              <p class="card-subtitle seller-txn-card-sub">Allowed next step choose karke order ko aage badhayein.</p>
+            </div>
           </div>
           <div class="card-body">
-            <p class="seller-help" style="margin-bottom:10px">Stock deduction checkout/order placement ke time par ho chuki hoti hai.</p>
+            <div class="seller-order-status-callout" role="note">
+              <span class="seller-order-status-callout__icon" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+              </span>
+              <p class="seller-order-status-callout__text">Stock deduction checkout / order placement ke time par ho chuki hoti hai.</p>
+            </div>
             <?php if ($nextStatuses === []): ?>
-              <p class="seller-help">Is order ka status ab आगे update nahi kiya ja sakta.</p>
+              <p class="seller-help seller-order-status-done-msg">Is order ka status ab aage update nahi kiya ja sakta.</p>
             <?php else: ?>
-              <form method="post" class="seller-order-status-form">
+              <form method="post" class="seller-order-status-form seller-order-status-form--detail">
                 <input type="hidden" name="action" value="update_status">
-                <label for="newStatus">Next status</label>
-                <select id="newStatus" name="new_status" required>
-                  <?php foreach ($nextStatuses as $status): ?>
-                    <option value="<?= h($status) ?>"><?= h(ucfirst($status)) ?></option>
-                  <?php endforeach; ?>
-                </select>
-                <button type="submit" class="admin-btn admin-btn--primary">Update status</button>
+                <div class="seller-order-status-form__field">
+                  <label for="newStatus">Next status</label>
+                  <select id="newStatus" name="new_status" required>
+                    <?php foreach ($nextStatuses as $status): ?>
+                      <option value="<?= h($status) ?>"><?= h(ucfirst($status)) ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+                <button type="submit" class="admin-btn admin-btn--primary seller-order-status-submit">Update status</button>
               </form>
             <?php endif; ?>
           </div>
         </div>
 
-        <div class="card" id="return-details-card" style="margin-top:16px">
-          <div class="card-header">
-            <h2 class="card-title">Return details</h2>
+        <div class="card seller-txn-card seller-order-detail-card seller-order-detail-returns" id="return-details-card">
+          <div class="card-header seller-txn-card-head">
+            <div>
+              <h2 class="card-title">Return details</h2>
+              <p class="card-subtitle seller-txn-card-sub">Table me quick actions; expandable panels me poora return flow.</p>
+            </div>
           </div>
           <div class="card-body card-body--flush">
             <?php if ($orderReturnRows !== []): ?>
@@ -733,22 +746,25 @@ require __DIR__ . '/partials/shell-top.php';
           </div>
         </div>
 
-        <div class="card" style="margin-top:16px">
-          <div class="card-header">
-            <h2 class="card-title">Order items (your products)</h2>
+        <div class="card seller-txn-card seller-order-detail-card seller-order-detail-items">
+          <div class="card-header seller-txn-card-head">
+            <div>
+              <h2 class="card-title">Order items</h2>
+              <p class="card-subtitle seller-txn-card-sub">Sirf aapke catalogue ki lines — price, qty, aur live product link.</p>
+            </div>
           </div>
           <div class="card-body card-body--flush">
-            <div class="admin-table-wrap">
-              <table class="admin-table">
+            <div class="admin-table-wrap seller-order-items-table-wrap">
+              <table class="admin-table seller-order-items-table">
                 <thead>
                   <tr>
                     <th>Item</th>
                     <th>Category</th>
                     <th>Variant</th>
-                    <th>Price</th>
-                    <th>Qty</th>
-                    <th>Line total</th>
-                    <th>Product</th>
+                    <th class="seller-order-items-th-num">Price</th>
+                    <th class="seller-order-items-th-num">Qty</th>
+                    <th class="seller-order-items-th-num">Line total</th>
+                    <th class="seller-order-items-th-actions">Product</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -758,27 +774,30 @@ require __DIR__ . '/partials/shell-top.php';
                     $variant = trim((string) ($it['variant_text'] ?? ''));
                     ?>
                     <tr>
-                      <td>
-                        <strong><?= h((string) ($it['name'] ?? 'Item')) ?></strong>
-                        <div style="font-size:0.82rem;color:var(--admin-text-muted)"><?= h((string) ($it['emoji'] ?? '📦')) ?></div>
+                      <td class="seller-order-items-td-item">
+                        <div class="seller-order-item-name-row">
+                          <span class="seller-order-item-emoji" aria-hidden="true"><?= h((string) ($it['emoji'] ?? '📦')) ?></span>
+                          <strong class="seller-order-item-title"><?= h((string) ($it['name'] ?? 'Item')) ?></strong>
+                        </div>
                       </td>
                       <td><?= h((string) ($it['product_category'] ?? '-')) ?></td>
-                      <td><?= h($variant !== '' ? $variant : '-') ?></td>
-                      <td>Rs <?= number_format((int) ($it['price'] ?? 0)) ?></td>
-                      <td><?= (int) ($it['qty'] ?? 0) ?></td>
-                      <td>Rs <?= number_format($lineTotal) ?></td>
-                      <td>
-                        <a class="seller-preview-btn" href="../product.php?id=<?= (int) ($it['product_id'] ?? 0) ?>" target="_blank" rel="noopener">View product</a>
+                      <td class="seller-order-items-td-muted"><?= h($variant !== '' ? $variant : '—') ?></td>
+                      <td class="seller-order-items-td-num">Rs <?= number_format((int) ($it['price'] ?? 0)) ?></td>
+                      <td class="seller-order-items-td-num"><?= (int) ($it['qty'] ?? 0) ?></td>
+                      <td class="seller-order-items-td-num seller-order-items-td-line">Rs <?= number_format($lineTotal) ?></td>
+                      <td class="seller-order-items-td-actions">
+                        <a class="seller-preview-btn seller-preview-btn--compact" href="../product.php?id=<?= (int) ($it['product_id'] ?? 0) ?>" target="_blank" rel="noopener">View</a>
                       </td>
                     </tr>
                   <?php endforeach; ?>
                   <?php if ($items === []): ?>
-                    <tr><td colspan="7">No order items found for your catalogue.</td></tr>
+                    <tr class="seller-order-items-empty-row"><td colspan="7">No order items found for your catalogue.</td></tr>
                   <?php endif; ?>
                 </tbody>
               </table>
             </div>
           </div>
+        </div>
         </div>
 
 <?php if ($orderReturnRows !== []): ?>
