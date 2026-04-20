@@ -393,6 +393,7 @@ a {
   width: 100%;
   height: 40px;
   border: 1px solid transparent;
+  margin: 0;
 }
 
 .admin-search:focus-within {
@@ -4945,5 +4946,23 @@ html.admin-theme-dark .admin-del-pill--muted {
     padding-top: 0;
     z-index: 85;
   }
+}
+
+/* Global admin search (search.php) */
+.admin-search-page__block {
+  margin-bottom: 1.25rem;
+}
+
+.admin-search-page-form {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+  width: 100%;
+}
+
+.admin-search-page-form__input {
+  flex: 1;
+  min-width: 200px;
 }
 

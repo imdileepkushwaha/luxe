@@ -3,20 +3,34 @@
 declare(strict_types=1);
 
 /**
+ * Read page and per-page from query string using custom GET keys (e.g. multiple tables on one page).
+ *
+ * @return array{page: int, perPage: int}
+ */
+function admin_pagination_read_keys(
+    string $pageKey = 'page',
+    string $perPageKey = 'per_page',
+    int $defaultPerPage = 25,
+    int $maxPerPage = 100,
+): array {
+    $raw = (int) ($_GET[$perPageKey] ?? $defaultPerPage);
+    $perPage = $raw;
+    if ($perPage < 5 || $perPage > $maxPerPage) {
+        $perPage = $defaultPerPage;
+    }
+    $page = max(1, (int) ($_GET[$pageKey] ?? 1));
+
+    return ['page' => $page, 'perPage' => $perPage];
+}
+
+/**
  * Read page and per-page from query string.
  *
  * @return array{page: int, perPage: int}
  */
 function admin_pagination_read(int $defaultPerPage = 25, int $maxPerPage = 100): array
 {
-    $raw = (int) ($_GET['per_page'] ?? $defaultPerPage);
-    $perPage = $raw;
-    if ($perPage < 5 || $perPage > $maxPerPage) {
-        $perPage = $defaultPerPage;
-    }
-    $page = max(1, (int) ($_GET['page'] ?? 1));
-
-    return ['page' => $page, 'perPage' => $perPage];
+    return admin_pagination_read_keys('page', 'per_page', $defaultPerPage, $maxPerPage);
 }
 
 /**

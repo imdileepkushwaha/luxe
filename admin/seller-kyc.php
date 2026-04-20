@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/_auth.php';
+require_once __DIR__ . '/_pagination.php';
 
 $pdo = db();
 $admin = admin_require_login($pdo);
@@ -213,22 +214,38 @@ if ($statusFilter !== 'all') {
     $params[] = $statusFilter;
 }
 
-$requestsSt = $pdo->prepare(
-    "SELECT r.id, r.full_name, r.email, r.phone, r.requested_categories, r.note,
-            r.business_name, r.gst_number, r.pan_number, r.aadhaar_number,
-            r.bank_account_name, r.bank_account_number, r.bank_ifsc,
-            r.address_line1, r.city, r.state, r.pin_code,
-            r.id_proof_type, r.id_proof_number, r.status, r.reviewed_at, r.rejection_reason,
-            r.created_at, s.id AS seller_id, a.full_name AS reviewed_by_name
-     FROM seller_create_requests r
-     LEFT JOIN seller_users s ON s.id = r.seller_id
-     LEFT JOIN admin_users a ON a.id = r.reviewed_by
-     {$whereSql}
-     ORDER BY r.id DESC
-     LIMIT 100"
-);
-$requestsSt->execute($params);
-$requests = $requestsSt->fetchAll();
+$countRegSt = $pdo->prepare("SELECT COUNT(*) FROM seller_create_requests r {$whereSql}");
+$countRegSt->execute($params);
+$totalRegRequests = (int) $countRegSt->fetchColumn();
+
+['page' => $regReqPage, 'perPage' => $regPerPage] = admin_pagination_read_keys('reg_page', 'reg_per_page', 25);
+$pReg = admin_pagination_resolve($totalRegRequests, $regReqPage, $regPerPage);
+$regPage = $pReg['page'];
+$regOffset = $pReg['offset'];
+$regPerPage = $pReg['perPage'];
+$regTotalPages = $pReg['totalPages'];
+
+if ($totalRegRequests === 0) {
+    $requests = [];
+} else {
+    $requestsSt = $pdo->prepare(
+        "SELECT r.id, r.full_name, r.email, r.phone, r.requested_categories, r.note,
+                r.business_name, r.gst_number, r.pan_number, r.aadhaar_number,
+                r.bank_account_name, r.bank_account_number, r.bank_ifsc,
+                r.address_line1, r.city, r.state, r.pin_code,
+                r.id_proof_type, r.id_proof_number, r.status, r.reviewed_at, r.rejection_reason,
+                r.created_at, s.id AS seller_id, a.full_name AS reviewed_by_name
+         FROM seller_create_requests r
+         LEFT JOIN seller_users s ON s.id = r.seller_id
+         LEFT JOIN admin_users a ON a.id = r.reviewed_by
+         {$whereSql}
+         ORDER BY r.id DESC
+         LIMIT ? OFFSET ?"
+    );
+    $execReg = array_merge($params, [$regPerPage, $regOffset]);
+    $requestsSt->execute($execReg);
+    $requests = $requestsSt->fetchAll();
+}
 
 $pendingCount = (int) $pdo->query("SELECT COUNT(*) FROM seller_create_requests WHERE status = 'pending'")->fetchColumn();
 $approvedCount = (int) $pdo->query("SELECT COUNT(*) FROM seller_create_requests WHERE status = 'approved'")->fetchColumn();
@@ -237,31 +254,55 @@ $kycPendingFinalCount = (int) $pdo->query("SELECT COUNT(*) FROM seller_users WHE
 $kycFinalApprovedCount = (int) $pdo->query("SELECT COUNT(*) FROM seller_users WHERE is_active = 1 AND kyc_completed = 1 AND kyc_final_approved = 1")->fetchColumn();
 $pendingEditCount = (int) $pdo->query("SELECT COUNT(*) FROM seller_users WHERE is_active = 1 AND kyc_final_approved = 1 AND kyc_edit_request_status = 'pending'")->fetchColumn();
 
-$finalKycRows = $pdo->query(
-    "SELECT s.id, s.full_name, s.email, s.business_name, s.gst_number, s.pan_number, s.aadhaar_number,
-            s.gst_doc_path, s.pan_doc_path, s.aadhaar_doc_path,
-            s.bank_name, s.bank_account_name, s.bank_account_number, s.bank_ifsc,
-            s.address_line1, s.city, s.state, s.pin_code,
-            s.id_proof_type, s.id_proof_number,
-            s.kyc_completed, s.kyc_updated_at, s.kyc_final_approved, s.kyc_final_reviewed_at, s.kyc_rejection_reason,
-            s.kyc_edit_request_status, s.kyc_edit_requested_at, s.kyc_edit_reviewed_at, s.kyc_edit_rejection_reason, s.kyc_edit_unlocked,
-            a.full_name AS reviewed_by_name
-     FROM seller_users s
-     LEFT JOIN admin_users a ON a.id = s.kyc_final_reviewed_by
-     WHERE s.is_active = 1
-     ORDER BY s.id DESC
-     LIMIT 100"
-)->fetchAll();
+$totalFinalKyc = (int) $pdo->query('SELECT COUNT(*) FROM seller_users WHERE is_active = 1')->fetchColumn();
 
-$pendingEditRows = $pdo->query(
-    "SELECT s.id, s.full_name, s.email, s.kyc_edit_requested_at, s.kyc_updated_at
-     FROM seller_users s
-     WHERE s.is_active = 1
-       AND s.kyc_final_approved = 1
-       AND s.kyc_edit_request_status = 'pending'
-     ORDER BY s.kyc_edit_requested_at DESC, s.id DESC
-     LIMIT 100"
-)->fetchAll();
+['page' => $finReqPage, 'perPage' => $finPerPage] = admin_pagination_read_keys('fin_page', 'fin_per_page', 25);
+$pFin = admin_pagination_resolve($totalFinalKyc, $finReqPage, $finPerPage);
+
+if ($totalFinalKyc === 0) {
+    $finalKycRows = [];
+} else {
+    $finalKycSt = $pdo->prepare(
+        "SELECT s.id, s.full_name, s.email, s.business_name, s.gst_number, s.pan_number, s.aadhaar_number,
+                s.gst_doc_path, s.pan_doc_path, s.aadhaar_doc_path,
+                s.bank_name, s.bank_account_name, s.bank_account_number, s.bank_ifsc,
+                s.address_line1, s.city, s.state, s.pin_code,
+                s.id_proof_type, s.id_proof_number,
+                s.kyc_completed, s.kyc_updated_at, s.kyc_final_approved, s.kyc_final_reviewed_at, s.kyc_rejection_reason,
+                s.kyc_edit_request_status, s.kyc_edit_requested_at, s.kyc_edit_reviewed_at, s.kyc_edit_rejection_reason, s.kyc_edit_unlocked,
+                a.full_name AS reviewed_by_name
+         FROM seller_users s
+         LEFT JOIN admin_users a ON a.id = s.kyc_final_reviewed_by
+         WHERE s.is_active = 1
+         ORDER BY s.id DESC
+         LIMIT ? OFFSET ?"
+    );
+    $finalKycSt->bindValue(1, $pFin['perPage'], PDO::PARAM_INT);
+    $finalKycSt->bindValue(2, $pFin['offset'], PDO::PARAM_INT);
+    $finalKycSt->execute();
+    $finalKycRows = $finalKycSt->fetchAll();
+}
+
+['page' => $editReqPage, 'perPage' => $editPerPage] = admin_pagination_read_keys('edit_page', 'edit_per_page', 25);
+$pEdit = admin_pagination_resolve($pendingEditCount, $editReqPage, $editPerPage);
+
+if ($pendingEditCount === 0) {
+    $pendingEditRows = [];
+} else {
+    $pendingEditSt = $pdo->prepare(
+        "SELECT s.id, s.full_name, s.email, s.kyc_edit_requested_at, s.kyc_updated_at
+         FROM seller_users s
+         WHERE s.is_active = 1
+           AND s.kyc_final_approved = 1
+           AND s.kyc_edit_request_status = 'pending'
+         ORDER BY s.kyc_edit_requested_at DESC, s.id DESC
+         LIMIT ? OFFSET ?"
+    );
+    $pendingEditSt->bindValue(1, $pEdit['perPage'], PDO::PARAM_INT);
+    $pendingEditSt->bindValue(2, $pEdit['offset'], PDO::PARAM_INT);
+    $pendingEditSt->execute();
+    $pendingEditRows = $pendingEditSt->fetchAll();
+}
 
 /**
  * @param mixed $raw
@@ -498,7 +539,7 @@ require __DIR__ . '/partials/shell-top.php';
             <div class="admin-kyc-section-head">
               <div class="admin-kyc-section-head-text">
                 <h2 class="card-title">Registration requests</h2>
-                <p class="card-subtitle admin-kyc-section-sub">Initial review before a <span class="admin-inline-code">seller_users</span> row is created. Up to 100 rows · Search filters this list only.</p>
+                <p class="card-subtitle admin-kyc-section-sub">Initial review before a <span class="admin-inline-code">seller_users</span> row is created. Paginated below · in-page search filters loaded rows only.</p>
               </div>
               <?php if ($requests !== []): ?>
                 <label class="admin-users-search-wrap admin-kyc-search-wrap" for="adminKycRegSearch">
@@ -667,6 +708,18 @@ require __DIR__ . '/partials/shell-top.php';
             })();
             </script>
             <?php endif; ?>
+            <?php if ($totalRegRequests > 0): ?>
+            <?php
+            $paginationScript = 'seller-kyc.php';
+            $paginationTotal = $totalRegRequests;
+            $paginationPage = $regPage;
+            $paginationPerPage = $regPerPage;
+            $paginationTotalPages = $regTotalPages;
+            $paginationPageKey = 'reg_page';
+            $paginationPerPageKey = 'reg_per_page';
+            require __DIR__ . '/partials/table-pagination.php';
+            ?>
+            <?php endif; ?>
           </div>
         </div>
 
@@ -776,6 +829,18 @@ require __DIR__ . '/partials/shell-top.php';
               searchInput.addEventListener('search', run);
             })();
             </script>
+            <?php endif; ?>
+            <?php if ($pendingEditCount > 0): ?>
+            <?php
+            $paginationScript = 'seller-kyc.php';
+            $paginationTotal = $pendingEditCount;
+            $paginationPage = $pEdit['page'];
+            $paginationPerPage = $pEdit['perPage'];
+            $paginationTotalPages = $pEdit['totalPages'];
+            $paginationPageKey = 'edit_page';
+            $paginationPerPageKey = 'edit_per_page';
+            require __DIR__ . '/partials/table-pagination.php';
+            ?>
             <?php endif; ?>
           </div>
         </div>
@@ -965,6 +1030,18 @@ require __DIR__ . '/partials/shell-top.php';
               searchInput.addEventListener('search', run);
             })();
             </script>
+            <?php endif; ?>
+            <?php if ($totalFinalKyc > 0): ?>
+            <?php
+            $paginationScript = 'seller-kyc.php';
+            $paginationTotal = $totalFinalKyc;
+            $paginationPage = $pFin['page'];
+            $paginationPerPage = $pFin['perPage'];
+            $paginationTotalPages = $pFin['totalPages'];
+            $paginationPageKey = 'fin_page';
+            $paginationPerPageKey = 'fin_per_page';
+            require __DIR__ . '/partials/table-pagination.php';
+            ?>
             <?php endif; ?>
           </div>
         </div>

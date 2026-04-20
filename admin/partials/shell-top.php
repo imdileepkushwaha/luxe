@@ -2,12 +2,15 @@
 declare(strict_types=1);
 
 /** @var string $pageTitle */
-/** @var string $activeNav dashboard|settings|users|orders|earnings|sellers|seller_kyc|seller_withdrawals|deletions|product_approvals */
+/** @var string $activeNav dashboard|settings|users|orders|earnings|sellers|seller_kyc|seller_withdrawals|deletions|product_approvals|search */
 /** @var array $admin */
+/** @var string $adminSearchQuery optional; top bar search input value */
 
 if (!isset($pageTitle, $activeNav, $admin) || !is_array($admin)) {
     throw new RuntimeException('shell-top: set $pageTitle, $activeNav, $admin');
 }
+
+$topbarSearchValue = isset($adminSearchQuery) && is_string($adminSearchQuery) ? $adminSearchQuery : '';
 
 $initials = '';
 $name = trim((string) ($admin['full_name'] ?? ''));
@@ -138,10 +141,10 @@ if ($initials === '') {
           <button type="button" class="admin-menu-btn" id="adminMenuBtn" aria-label="Open menu" aria-expanded="false" aria-controls="adminSidebar">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
           </button>
-          <div class="admin-search">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-            <input type="search" placeholder="Search keyword" name="q" autocomplete="off">
-          </div>
+          <form class="admin-search" method="get" action="search.php" role="search">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input type="search" name="q" value="<?= h($topbarSearchValue) ?>" placeholder="Search users, orders, sellers…" autocomplete="off" aria-label="Search admin">
+          </form>
         </div>
         <div class="admin-topbar__actions">
           <button type="button" class="admin-icon-btn" id="adminFullscreenBtn" title="Fullscreen" aria-label="Fullscreen" aria-pressed="false">
@@ -176,6 +179,7 @@ if ($initials === '') {
                 <a class="admin-apps-dropdown__item" role="menuitem" href="seller-kyc.php">Seller KYC</a>
                 <a class="admin-apps-dropdown__item" role="menuitem" href="seller-withdrawals.php">Seller withdrawals</a>
                 <a class="admin-apps-dropdown__item" role="menuitem" href="account-deletions.php">Deletion requests</a>
+                <a class="admin-apps-dropdown__item" role="menuitem" href="search.php">Search</a>
               </div>
             </div>
           </div>

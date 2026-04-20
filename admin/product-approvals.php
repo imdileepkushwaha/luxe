@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/_auth.php';
+require_once __DIR__ . '/_pagination.php';
 
 $pdo = db();
 $admin = admin_require_login($pdo);
@@ -133,24 +134,44 @@ $orderSql = match ($tab) {
     default => 'p.id ASC',
 };
 
-$limit = $tab === 'approved_recent' ? 30 : 500;
-$rows = $pdo->query(
-    "SELECT p.id, p.name, p.slug, p.sku, p.category, p.price, p.original_price, p.image_path, p.approval_status, p.active, p.created_at,
-            s.id AS seller_user_id, s.full_name AS seller_name, s.email AS seller_email, s.business_name AS seller_business
-     FROM products p
-     INNER JOIN seller_users s ON s.id = p.seller_id
-     WHERE p.seller_id IS NOT NULL
-       AND {$statusClause}
-       AND s.is_active = 1
-       AND NOT EXISTS (
-            SELECT 1
-            FROM seller_account_deletion_requests dr
-            WHERE dr.status = 'approved'
-              AND (dr.seller_id = s.id OR dr.email = s.email)
-       )
-     ORDER BY {$orderSql}
-     LIMIT " . (int) $limit
-)->fetchAll();
+$tabTotal = match ($tab) {
+    'pending' => $pendingCount,
+    'rejected' => $rejectedCount,
+    default => $approvedCount,
+};
+
+['page' => $reqPage, 'perPage' => $perPage] = admin_pagination_read(25);
+$pMeta = admin_pagination_resolve($tabTotal, $reqPage, $perPage);
+$page = $pMeta['page'];
+$offset = $pMeta['offset'];
+$perPage = $pMeta['perPage'];
+$totalPages = $pMeta['totalPages'];
+
+if ($tabTotal === 0) {
+    $rows = [];
+} else {
+    $rowsSt = $pdo->prepare(
+        "SELECT p.id, p.name, p.slug, p.sku, p.category, p.price, p.original_price, p.image_path, p.approval_status, p.active, p.created_at,
+                s.id AS seller_user_id, s.full_name AS seller_name, s.email AS seller_email, s.business_name AS seller_business
+         FROM products p
+         INNER JOIN seller_users s ON s.id = p.seller_id
+         WHERE p.seller_id IS NOT NULL
+           AND {$statusClause}
+           AND s.is_active = 1
+           AND NOT EXISTS (
+                SELECT 1
+                FROM seller_account_deletion_requests dr
+                WHERE dr.status = 'approved'
+                  AND (dr.seller_id = s.id OR dr.email = s.email)
+           )
+         ORDER BY {$orderSql}
+         LIMIT ? OFFSET ?"
+    );
+    $rowsSt->bindValue(1, $perPage, PDO::PARAM_INT);
+    $rowsSt->bindValue(2, $offset, PDO::PARAM_INT);
+    $rowsSt->execute();
+    $rows = $rowsSt->fetchAll();
+}
 
 /**
  * @param mixed $raw
@@ -218,16 +239,15 @@ $cardTitle = match ($tab) {
 };
 
 $cardSub = match ($tab) {
-    'pending' => 'Oldest pending first (up to 500). Approve or reject — search filters this page only.',
+    'pending' => 'Oldest pending first. Approve or reject — in-page search filters loaded rows only.',
     'rejected' => 'Rejections that sellers can fix and resubmit.',
-    default => 'Newest approved first (up to 30 rows).',
+    default => 'Newest approved first — paginated below.',
 };
 
-$listHint = match ($tab) {
-    'pending' => (string) count($rows) . ' row' . (count($rows) === 1 ? '' : 's') . ' loaded',
-    'rejected' => (string) count($rows) . ' row' . (count($rows) === 1 ? '' : 's') . ' loaded',
-    default => 'Showing up to 30 most recently approved',
-};
+$paRange = admin_pagination_visible_range($tabTotal, $page, $perPage);
+$listHint = $tabTotal > 0
+    ? 'Showing ' . (int) $paRange['from'] . '–' . (int) $paRange['to'] . ' of ' . (int) $tabTotal
+    : 'No rows';
 
 require __DIR__ . '/partials/shell-top.php';
 ?>
@@ -304,7 +324,7 @@ require __DIR__ . '/partials/shell-top.php';
           </a>
           <a class="admin-pa-tab<?= $tab === 'approved_recent' ? ' admin-pa-tab--active' : '' ?>" href="product-approvals.php?tab=approved_recent">
             <span class="admin-pa-tab__label">Recently approved</span>
-            <span class="admin-pa-tab__meta">30</span>
+            <span class="admin-pa-tab__meta"><?= (int) $approvedCount ?></span>
           </a>
         </nav>
 
@@ -464,6 +484,14 @@ require __DIR__ . '/partials/shell-top.php';
               searchInput.addEventListener('search', applyPaSearch);
             })();
             </script>
+            <?php
+            $paginationScript = 'product-approvals.php';
+            $paginationTotal = $tabTotal;
+            $paginationPage = $page;
+            $paginationPerPage = $perPage;
+            $paginationTotalPages = $totalPages;
+            require __DIR__ . '/partials/table-pagination.php';
+            ?>
             <?php endif; ?>
           </div>
         </div>
