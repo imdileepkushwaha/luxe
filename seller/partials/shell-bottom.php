@@ -50,17 +50,37 @@
         if (iconMoon) iconMoon.hidden = dark;
         if (iconSun) iconSun.hidden = !dark;
       }
-      function setTheme(dark) {
+      function metaForDark(dark) {
+        var tc = document.getElementById('adminThemeColorMeta');
+        if (tc) tc.setAttribute('content', dark ? '#121212' : '#f8f9fa');
+      }
+      function applyTheme(dark) {
         root.classList.toggle('admin-theme-dark', dark);
+        metaForDark(dark);
+        syncThemeUi();
+      }
+      function persistTheme(dark) {
         try {
           localStorage.setItem('luxeAdminTheme', dark ? 'dark' : 'light');
         } catch (e) {}
-        syncThemeUi();
+        applyTheme(dark);
       }
       themeBtn.addEventListener('click', function () {
-        setTheme(!isDark());
+        persistTheme(!isDark());
       });
       syncThemeUi();
+      try {
+        if (window.matchMedia && localStorage.getItem('luxeAdminTheme') === null) {
+          window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function (ev) {
+            try {
+              if (localStorage.getItem('luxeAdminTheme') !== null) return;
+            } catch (err) {
+              return;
+            }
+            applyTheme(ev.matches);
+          });
+        }
+      } catch (e) {}
     })();
     (function () {
       var wrap = document.querySelector('.admin-notify-wrap');

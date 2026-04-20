@@ -51,15 +51,7 @@ try {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script>
-    (function () {
-      try {
-        if (localStorage.getItem('luxeAdminTheme') === 'dark') {
-          document.documentElement.classList.add('admin-theme-dark');
-        }
-      } catch (e) {}
-    })();
-  </script>
+<?php require __DIR__ . '/../admin/partials/theme-head-script.php'; ?>
   <title><?= h($pageTitle) ?> - LUXE Seller</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -67,7 +59,7 @@ try {
   <link rel="stylesheet" href="../admin/css/admin.css">
   <link rel="stylesheet" href="css/seller.css">
 </head>
-<body class="admin-app">
+<body class="admin-app admin-app--merchant">
   <div class="admin-layout" id="adminLayout">
     <aside class="admin-sidebar" id="adminSidebar" aria-label="Main navigation">
       <div class="admin-sidebar__brand">

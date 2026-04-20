@@ -32,22 +32,14 @@ if ($initials === '') {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script>
-    (function () {
-      try {
-        if (localStorage.getItem('luxeAdminTheme') === 'dark') {
-          document.documentElement.classList.add('admin-theme-dark');
-        }
-      } catch (e) {}
-    })();
-  </script>
+<?php require __DIR__ . '/theme-head-script.php'; ?>
   <title><?= h($pageTitle) ?> — LUXE Admin</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/admin.css">
 </head>
-<body class="admin-app">
+<body class="admin-app admin-app--platform">
   <div class="admin-layout" id="adminLayout">
     <aside class="admin-sidebar" id="adminSidebar" aria-label="Main navigation">
       <div class="admin-sidebar__brand">

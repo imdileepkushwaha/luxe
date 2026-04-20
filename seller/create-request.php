@@ -104,6 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<?php require __DIR__ . '/../admin/partials/theme-head-script.php'; ?>
   <title>Seller Registration - LUXE</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -134,7 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     @media (max-width: 640px){.seller-category-grid{grid-template-columns:1fr}}
   </style>
 </head>
-<body class="admin-login">
+<body class="admin-login admin-app--merchant">
   <div class="admin-login-card" style="max-width:760px">
     <div class="admin-login-card__brand">
       <div class="admin-sidebar__logo" style="width:44px;height:44px" aria-hidden="true"><span class="admin-sidebar__logo-bit admin-sidebar__logo-bit--a"></span><span class="admin-sidebar__logo-bit admin-sidebar__logo-bit--b"></span><span class="admin-sidebar__logo-bit admin-sidebar__logo-bit--c"></span></div>
