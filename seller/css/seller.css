@@ -1,3 +1,26 @@
+/* Width */
+::-webkit-scrollbar {
+  width: 5px;
+}
+
+/* Track (background) */
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+/* Thumb (scroll handle) */
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #33333342, #0000005e);
+  border-radius: 3px;
+  transition: 0.3s;
+}
+
+/* Hover effect */
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #555, #222);
+}
+
 .seller-top-meta {
   color: var(--admin-text-muted);
   font-size: 0.9rem;

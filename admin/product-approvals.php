@@ -96,32 +96,30 @@ if ($msg === 'approved') {
     $flash = ['ok' => false, 'text' => 'Sirf pending product reject ho sakta hai.'];
 }
 
-$pendingCount = (int) $pdo->query(
-    "SELECT COUNT(*) FROM products p
+$sellerProductScope = "
      INNER JOIN seller_users s ON s.id = p.seller_id
      WHERE p.seller_id IS NOT NULL
-       AND p.approval_status = 'pending'
        AND s.is_active = 1
        AND NOT EXISTS (
             SELECT 1
             FROM seller_account_deletion_requests dr
             WHERE dr.status = 'approved'
               AND (dr.seller_id = s.id OR dr.email = s.email)
-       )"
+       )";
+
+$pendingCount = (int) $pdo->query(
+    "SELECT COUNT(*) FROM products p {$sellerProductScope}
+       AND p.approval_status = 'pending'"
 )->fetchColumn();
 
 $rejectedCount = (int) $pdo->query(
-    "SELECT COUNT(*) FROM products p
-     INNER JOIN seller_users s ON s.id = p.seller_id
-     WHERE p.seller_id IS NOT NULL
-       AND p.approval_status = 'rejected'
-       AND s.is_active = 1
-       AND NOT EXISTS (
-            SELECT 1
-            FROM seller_account_deletion_requests dr
-            WHERE dr.status = 'approved'
-              AND (dr.seller_id = s.id OR dr.email = s.email)
-       )"
+    "SELECT COUNT(*) FROM products p {$sellerProductScope}
+       AND p.approval_status = 'rejected'"
+)->fetchColumn();
+
+$approvedCount = (int) $pdo->query(
+    "SELECT COUNT(*) FROM products p {$sellerProductScope}
+       AND p.approval_status = 'approved'"
 )->fetchColumn();
 
 $statusClause = match ($tab) {
@@ -154,6 +152,56 @@ $rows = $pdo->query(
      LIMIT " . (int) $limit
 )->fetchAll();
 
+/**
+ * @param mixed $raw
+ */
+function admin_pa_fmt_created($raw): string
+{
+    if ($raw === null || $raw === '') {
+        return '—';
+    }
+    $s = (string) $raw;
+    try {
+        return (new DateTimeImmutable($s))->format('M j, Y · g:i A');
+    } catch (Throwable $e) {
+        return $s;
+    }
+}
+
+/**
+ * @param array<string, mixed> $row
+ */
+function admin_pa_search_haystack(array $row): string
+{
+    $parts = [
+        (string) ($row['id'] ?? ''),
+        (string) ($row['name'] ?? ''),
+        (string) ($row['slug'] ?? ''),
+        (string) ($row['sku'] ?? ''),
+        (string) ($row['category'] ?? ''),
+        (string) ($row['price'] ?? ''),
+        (string) ($row['original_price'] ?? ''),
+        (string) ($row['seller_name'] ?? ''),
+        (string) ($row['seller_email'] ?? ''),
+        (string) ($row['seller_business'] ?? ''),
+        (string) ($row['approval_status'] ?? ''),
+        (string) ($row['created_at'] ?? ''),
+    ];
+    $clean = [];
+    foreach ($parts as $p) {
+        $t = trim((string) $p);
+        if ($t !== '') {
+            $clean[] = $t;
+        }
+    }
+    $s = implode(' ', $clean);
+    if (function_exists('mb_strtolower')) {
+        return mb_strtolower($s, 'UTF-8');
+    }
+
+    return strtolower($s);
+}
+
 function admin_product_approval_badge(string $status): string
 {
     return match (strtolower($status)) {
@@ -163,47 +211,142 @@ function admin_product_approval_badge(string $status): string
     };
 }
 
+$cardTitle = match ($tab) {
+    'pending' => 'Awaiting approval',
+    'rejected' => 'Rejected listings',
+    default => 'Recently approved',
+};
+
+$cardSub = match ($tab) {
+    'pending' => 'Oldest pending first (up to 500). Approve or reject — search filters this page only.',
+    'rejected' => 'Rejections that sellers can fix and resubmit.',
+    default => 'Newest approved first (up to 30 rows).',
+};
+
+$listHint = match ($tab) {
+    'pending' => (string) count($rows) . ' row' . (count($rows) === 1 ? '' : 's') . ' loaded',
+    'rejected' => (string) count($rows) . ' row' . (count($rows) === 1 ? '' : 's') . ' loaded',
+    default => 'Showing up to 30 most recently approved',
+};
+
 require __DIR__ . '/partials/shell-top.php';
 ?>
 
+        <div class="admin-product-approvals-page">
         <?php if ($flash): ?>
-          <div class="admin-del-flash<?= !empty($flash['ok']) ? ' admin-del-flash--ok' : ' admin-del-flash--err' ?>" role="status" style="margin-bottom:14px">
+          <div class="admin-del-flash<?= !empty($flash['ok']) ? ' admin-del-flash--ok' : ' admin-del-flash--err' ?> admin-pa-flash" role="status">
             <?= h((string) ($flash['text'] ?? '')) ?>
           </div>
         <?php endif; ?>
 
         <div class="admin-page-head">
-          <h1>Product approvals</h1>
+          <div class="admin-page-head__intro">
+            <span class="admin-page-head__eyebrow">Catalog</span>
+            <h1>Product approvals</h1>
+            <p class="admin-page-head__lede">Review seller submissions before they appear in the shop catalog.</p>
+          </div>
           <div class="admin-page-head__actions">
-            <span class="admin-date-pill" title="Queue">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
-              Pending: <?= (int) $pendingCount ?>
-            </span>
+            <a class="admin-btn admin-btn--outline" href="sellers.php">Sellers</a>
           </div>
         </div>
 
-        <div class="admin-page-head" style="margin-top:-8px;margin-bottom:18px;flex-wrap:wrap;gap:10px">
-          <a class="admin-btn<?= $tab === 'pending' ? ' admin-btn--primary' : '' ?>" href="product-approvals.php?tab=pending" style="<?= $tab === 'pending' ? '' : 'border:1px solid var(--admin-border)' ?>">Pending (<?= (int) $pendingCount ?>)</a>
-          <a class="admin-btn<?= $tab === 'rejected' ? ' admin-btn--primary' : '' ?>" href="product-approvals.php?tab=rejected" style="<?= $tab === 'rejected' ? '' : 'border:1px solid var(--admin-border)' ?>">Rejected (<?= (int) $rejectedCount ?>)</a>
-          <a class="admin-btn<?= $tab === 'approved_recent' ? ' admin-btn--primary' : '' ?>" href="product-approvals.php?tab=approved_recent" style="<?= $tab === 'approved_recent' ? '' : 'border:1px solid var(--admin-border)' ?>">Recently approved</a>
+        <div class="admin-grid admin-grid--stats admin-grid--stats--flow admin-pa-kpi-grid" aria-label="Approval counts">
+          <div class="admin-card admin-stat admin-stat--stripe-amber admin-pa-kpi">
+            <div>
+              <div class="admin-stat__label admin-pa-kpi__label">Pending</div>
+              <div class="admin-stat__value"><?= (int) $pendingCount ?></div>
+              <div class="admin-stat__delta admin-stat__delta--muted">Needs review</div>
+            </div>
+            <div class="admin-stat__icon admin-stat__icon--pink" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            </div>
+          </div>
+          <div class="admin-card admin-stat admin-stat--stripe-red admin-pa-kpi">
+            <div>
+              <div class="admin-stat__label admin-pa-kpi__label">Rejected</div>
+              <div class="admin-stat__value"><?= (int) $rejectedCount ?></div>
+              <div class="admin-stat__delta admin-stat__delta--muted">Can be edited &amp; resubmitted</div>
+            </div>
+            <div class="admin-stat__icon admin-stat__icon--red" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+            </div>
+          </div>
+          <div class="admin-card admin-stat admin-stat--stripe-teal admin-pa-kpi">
+            <div>
+              <div class="admin-stat__label admin-pa-kpi__label">Approved</div>
+              <div class="admin-stat__value"><?= (int) $approvedCount ?></div>
+              <div class="admin-stat__delta admin-stat__delta--muted">Approved seller products (total)</div>
+            </div>
+            <div class="admin-stat__icon admin-stat__icon--blue" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+          </div>
+          <div class="admin-card admin-stat admin-stat--stripe-blue admin-pa-kpi">
+            <div>
+              <div class="admin-stat__label admin-pa-kpi__label">This list</div>
+              <div class="admin-stat__value"><?= (int) count($rows) ?></div>
+              <div class="admin-stat__delta admin-stat__delta--muted"><?= h($listHint) ?></div>
+            </div>
+            <div class="admin-stat__icon admin-stat__icon--purple" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            </div>
+          </div>
         </div>
 
-        <div class="card">
-          <div class="card-header">
-            <h2 class="card-title"><?= $tab === 'pending' ? 'Awaiting approval' : ($tab === 'rejected' ? 'Rejected — seller dubara edit kar sakta hai' : 'Latest approved seller products') ?></h2>
+        <nav class="admin-pa-tabs" aria-label="Approval queue">
+          <a class="admin-pa-tab<?= $tab === 'pending' ? ' admin-pa-tab--active' : '' ?>" href="product-approvals.php?tab=pending">
+            <span class="admin-pa-tab__label">Pending</span>
+            <span class="admin-pa-tab__meta"><?= (int) $pendingCount ?></span>
+          </a>
+          <a class="admin-pa-tab<?= $tab === 'rejected' ? ' admin-pa-tab--active' : '' ?>" href="product-approvals.php?tab=rejected">
+            <span class="admin-pa-tab__label">Rejected</span>
+            <span class="admin-pa-tab__meta"><?= (int) $rejectedCount ?></span>
+          </a>
+          <a class="admin-pa-tab<?= $tab === 'approved_recent' ? ' admin-pa-tab--active' : '' ?>" href="product-approvals.php?tab=approved_recent">
+            <span class="admin-pa-tab__label">Recently approved</span>
+            <span class="admin-pa-tab__meta">30</span>
+          </a>
+        </nav>
+
+        <div class="card admin-pa-table-card">
+          <div class="card-header admin-pa-table-header">
+            <div class="admin-pa-table-head">
+              <div class="admin-pa-table-head-text">
+                <h2 class="card-title"><?= h($cardTitle) ?></h2>
+                <p class="card-subtitle admin-pa-table-sub"><?= h($cardSub) ?></p>
+              </div>
+              <?php if ($rows !== []): ?>
+                <label class="admin-users-search-wrap admin-pa-search-wrap" for="adminPaSearch">
+                  <span class="admin-users-search-icon admin-pa-search-icon" aria-hidden="true">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                  </span>
+                  <input
+                    type="search"
+                    id="adminPaSearch"
+                    class="admin-users-search-input admin-pa-search-input"
+                    placeholder="Search name, SKU, seller, category…"
+                    autocomplete="off"
+                    aria-label="Search this list"
+                  >
+                </label>
+              <?php endif; ?>
+            </div>
           </div>
           <div class="card-body card-body--flush">
+            <?php if ($rows === []): ?>
+              <p class="admin-empty-hint admin-empty-hint--boxed">Is section me abhi koi product nahi.</p>
+            <?php else: ?>
             <div class="admin-table-wrap">
-              <table class="admin-table">
+              <table class="admin-table admin-pa-table">
                 <thead>
                   <tr>
                     <th>Product</th>
                     <th>Seller</th>
                     <th>Category</th>
-                    <th>Price</th>
-                    <th>Status</th>
+                    <th class="admin-table__th-money">Price</th>
+                    <th class="admin-table__th-narrow">Status</th>
                     <th>Added</th>
-                    <th>Actions</th>
+                    <th class="admin-table__th-narrow">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -212,77 +355,122 @@ require __DIR__ . '/partials/shell-top.php';
                     $pid = (int) ($row['id'] ?? 0);
                     $img = trim((string) ($row['image_path'] ?? ''));
                     $st = strtolower((string) ($row['approval_status'] ?? ''));
+                    $hay = admin_pa_search_haystack($row);
                     ?>
-                    <tr>
+                    <tr class="admin-pa-row" data-pa-search="<?= h($hay) ?>">
                       <td>
-                        <div style="display:flex;gap:10px;align-items:flex-start">
+                        <div class="admin-pa-product">
                           <?php if ($img !== ''): ?>
-                            <img src="../<?= h($img) ?>" alt="" width="48" height="48" style="object-fit:cover;border-radius:8px;border:1px solid var(--admin-border)">
+                            <img class="admin-pa-product__thumb" src="../<?= h($img) ?>" alt="" width="48" height="48" loading="lazy">
+                          <?php else: ?>
+                            <div class="admin-pa-product__thumb admin-pa-product__thumb--placeholder" aria-hidden="true">
+                              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                            </div>
                           <?php endif; ?>
-                          <div>
-                            <strong><?= h((string) ($row['name'] ?? '')) ?></strong><br>
-                            <small style="color:var(--admin-text-muted)">#<?= $pid ?> · <?= h((string) ($row['slug'] ?? '')) ?></small>
+                          <div class="admin-pa-product__text">
+                            <span class="admin-pa-product__name"><?= h((string) ($row['name'] ?? '')) ?></span>
+                            <span class="admin-pa-product__meta">#<?= $pid ?> · <?= h((string) ($row['slug'] ?? '')) ?></span>
                             <?php $sku = trim((string) ($row['sku'] ?? '')); ?>
                             <?php if ($sku !== ''): ?>
-                              <br><small>SKU: <?= h($sku) ?></small>
+                              <span class="admin-pa-product__sku">SKU <?= h($sku) ?></span>
                             <?php endif; ?>
                           </div>
                         </div>
                       </td>
                       <td>
-                        <div><?= h((string) ($row['seller_name'] ?? '')) ?></div>
-                        <small style="color:var(--admin-text-muted)"><?= h((string) ($row['seller_email'] ?? '')) ?></small>
-                        <?php $biz = trim((string) ($row['seller_business'] ?? '')); ?>
-                        <?php if ($biz !== ''): ?>
-                          <br><small><?= h($biz) ?></small>
-                        <?php endif; ?>
-                        <br><a href="seller-view.php?id=<?= (int) ($row['seller_user_id'] ?? 0) ?>" style="font-size:0.82rem">Seller profile →</a>
+                        <div class="admin-pa-seller">
+                          <span class="admin-pa-seller__name"><?= h((string) ($row['seller_name'] ?? '')) ?></span>
+                          <span class="admin-pa-seller__email"><?= h((string) ($row['seller_email'] ?? '')) ?></span>
+                          <?php $biz = trim((string) ($row['seller_business'] ?? '')); ?>
+                          <?php if ($biz !== ''): ?>
+                            <span class="admin-pa-seller__biz"><?= h($biz) ?></span>
+                          <?php endif; ?>
+                          <a class="admin-pa-seller__link" href="seller-view.php?id=<?= (int) ($row['seller_user_id'] ?? 0) ?>">Seller profile →</a>
+                        </div>
                       </td>
-                      <td><?= h((string) ($row['category'] ?? '')) ?></td>
-                      <td>Rs <?= number_format((int) ($row['price'] ?? 0)) ?><br><small>MRP Rs <?= number_format((int) ($row['original_price'] ?? 0)) ?></small></td>
+                      <td><span class="admin-badge admin-badge--muted"><?= h((string) ($row['category'] ?? '—')) ?></span></td>
+                      <td class="admin-table__td-money">
+                        <span class="admin-pa-price">₹<?= number_format((int) ($row['price'] ?? 0)) ?></span>
+                        <span class="admin-pa-mrp">MRP ₹<?= number_format((int) ($row['original_price'] ?? 0)) ?></span>
+                      </td>
                       <td>
                         <span class="<?= admin_product_approval_badge($st) ?>"><?= h(ucfirst($st)) ?></span>
                         <?php if ((int) ($row['active'] ?? 0) !== 1): ?>
-                          <br><small class="admin-stat__delta admin-stat__delta--muted">Inactive flag</small>
+                          <span class="admin-pa-inactive-flag">Inactive</span>
                         <?php endif; ?>
                       </td>
-                      <td><?= h((string) ($row['created_at'] ?? '—')) ?></td>
+                      <td class="admin-table__td-muted"><?= h(admin_pa_fmt_created($row['created_at'] ?? null)) ?></td>
                       <td>
-                        <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-start">
-                          <a class="admin-btn admin-btn--primary" style="padding:6px 10px" href="../product.php?id=<?= $pid ?>" target="_blank" rel="noopener">Preview</a>
+                        <div class="admin-pa-actions">
+                          <a class="admin-btn admin-btn--primary admin-pa-actions__btn" href="../product.php?id=<?= $pid ?>" target="_blank" rel="noopener">Preview</a>
                           <?php if ($tab === 'pending'): ?>
-                            <form method="post" onsubmit="return confirm('Is product ko approve karke live karwana hai?');">
+                            <form method="post" class="admin-pa-actions__form" onsubmit="return confirm('Is product ko approve karke live karwana hai?');">
                               <input type="hidden" name="action" value="approve_product">
                               <input type="hidden" name="product_id" value="<?= $pid ?>">
-                              <button type="submit" class="admin-btn" style="padding:6px 10px;border:1px solid var(--admin-border)">Approve</button>
+                              <button type="submit" class="admin-btn admin-btn--outline admin-pa-actions__btn">Approve</button>
                             </form>
-                            <form method="post" onsubmit="return confirm('Reject kar dena hai? Seller dubara edit kar sakta hai.');">
+                            <form method="post" class="admin-pa-actions__form" onsubmit="return confirm('Reject kar dena hai? Seller dubara edit kar sakta hai.');">
                               <input type="hidden" name="action" value="reject_product">
                               <input type="hidden" name="product_id" value="<?= $pid ?>">
-                              <button type="submit" class="admin-btn admin-btn--outline" style="padding:6px 10px;color:#b91c1c;border-color:#fecaca">Reject</button>
+                              <button type="submit" class="admin-btn admin-pa-actions__btn admin-pa-actions__btn--reject">Reject</button>
                             </form>
                           <?php elseif ($st === 'rejected'): ?>
-                            <form method="post" onsubmit="return confirm('Ab is product ko approve karna hai?');">
+                            <form method="post" class="admin-pa-actions__form" onsubmit="return confirm('Ab is product ko approve karna hai?');">
                               <input type="hidden" name="action" value="approve_product">
                               <input type="hidden" name="product_id" value="<?= $pid ?>">
-                              <button type="submit" class="admin-btn" style="padding:6px 10px;border:1px solid var(--admin-border)">Approve</button>
+                              <button type="submit" class="admin-btn admin-btn--outline admin-pa-actions__btn">Approve</button>
                             </form>
                           <?php endif; ?>
                         </div>
                       </td>
                     </tr>
                   <?php endforeach; ?>
-                  <?php if ($rows === []): ?>
-                    <tr><td colspan="7" class="admin-stat__delta admin-stat__delta--muted" style="padding:1.25rem">Is section me abhi koi product nahi.</td></tr>
-                  <?php endif; ?>
+                  <tr id="adminPaNoMatchRow" class="admin-pa-no-match-row">
+                    <td colspan="7">
+                      <div class="admin-pa-no-match">
+                        <strong class="admin-pa-no-match__title">No matches</strong>
+                        <p class="admin-pa-no-match__text">Try another keyword — this page only.</p>
+                      </div>
+                    </td>
+                  </tr>
                 </tbody>
               </table>
             </div>
+            <script>
+            (function () {
+              var searchInput = document.getElementById('adminPaSearch');
+              if (!searchInput) return;
+              var rowEls = document.querySelectorAll('tr.admin-pa-row');
+              var noMatchRow = document.getElementById('adminPaNoMatchRow');
+
+              function applyPaSearch() {
+                var q = (searchInput.value || '').trim().toLowerCase();
+                var words = q.split(/\s+/).filter(Boolean);
+                var anyShown = false;
+                rowEls.forEach(function (tr) {
+                  var hay = (tr.getAttribute('data-pa-search') || '').toLowerCase();
+                  var show = words.length === 0 || words.every(function (w) {
+                    return hay.indexOf(w) !== -1;
+                  });
+                  tr.style.display = show ? '' : 'none';
+                  if (show) anyShown = true;
+                });
+                if (noMatchRow) {
+                  noMatchRow.style.display = (words.length > 0 && !anyShown) ? 'table-row' : 'none';
+                }
+              }
+
+              searchInput.addEventListener('input', applyPaSearch);
+              searchInput.addEventListener('search', applyPaSearch);
+            })();
+            </script>
+            <?php endif; ?>
           </div>
         </div>
 
-        <p class="admin-stat__delta admin-stat__delta--muted" style="margin-top:14px">
+        <p class="admin-pa-footnote">
           Naye seller products <strong>pending</strong> se shuru hote hain; approve ke baad hi catalog / cart me dikhte hain. Seller changes ke baad dubara pending ho sakta hai.
         </p>
+        </div>
 
 <?php require __DIR__ . '/partials/shell-bottom.php'; ?>
