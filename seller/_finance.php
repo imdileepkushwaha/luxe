@@ -56,8 +56,26 @@ function seller_finance_summary(PDO $pdo, int $sellerId): array
     ];
 }
 
+function seller_finance_delivered_order_count(PDO $pdo, int $sellerId): int
+{
+    $st = $pdo->prepare(
+        "SELECT COUNT(*) FROM (
+             SELECT o.id
+             FROM order_items oi
+             INNER JOIN orders o ON o.id = oi.order_id
+             INNER JOIN products p ON p.id = oi.product_id
+             WHERE p.seller_id = ?
+               AND o.status = 'delivered'
+             GROUP BY o.id
+         ) x"
+    );
+    $st->execute([$sellerId]);
+
+    return (int) $st->fetchColumn();
+}
+
 /** @return list<array<string,mixed>> */
-function seller_finance_recent_delivered_orders(PDO $pdo, int $sellerId, int $limit = 10): array
+function seller_finance_recent_delivered_orders(PDO $pdo, int $sellerId, int $limit = 10, int $offset = 0): array
 {
     $st = $pdo->prepare(
         "SELECT o.id, o.order_ref, o.created_at,
@@ -70,21 +88,29 @@ function seller_finance_recent_delivered_orders(PDO $pdo, int $sellerId, int $li
            AND o.status = 'delivered'
          GROUP BY o.id, o.order_ref, o.created_at
          ORDER BY o.id DESC
-         LIMIT " . (int) $limit
+         LIMIT " . (int) $limit . ' OFFSET ' . (int) $offset
     );
     $st->execute([$sellerId]);
     return $st->fetchAll();
 }
 
+function seller_finance_withdraw_request_count(PDO $pdo, int $sellerId): int
+{
+    $st = $pdo->prepare('SELECT COUNT(*) FROM seller_withdraw_requests WHERE seller_id = ?');
+    $st->execute([$sellerId]);
+
+    return (int) $st->fetchColumn();
+}
+
 /** @return list<array<string,mixed>> */
-function seller_finance_withdraw_requests(PDO $pdo, int $sellerId, int $limit = 30): array
+function seller_finance_withdraw_requests(PDO $pdo, int $sellerId, int $limit = 30, int $offset = 0): array
 {
     $st = $pdo->prepare(
         "SELECT id, amount, method, account_ref, note, status, requested_at, reviewed_at, rejection_reason
          FROM seller_withdraw_requests
          WHERE seller_id = ?
          ORDER BY id DESC
-         LIMIT " . (int) $limit
+         LIMIT " . (int) $limit . ' OFFSET ' . (int) $offset
     );
     $st->execute([$sellerId]);
     return $st->fetchAll();

@@ -91,6 +91,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
     }
 }
 
+require_once __DIR__ . '/../admin/_pagination.php';
+
+$orderTotalSt = $pdo->prepare(
+    "SELECT COUNT(DISTINCT o.id)
+     FROM orders o
+     INNER JOIN order_items oi ON oi.order_id = o.id
+     INNER JOIN products p ON p.id = oi.product_id
+     WHERE p.seller_id = ?"
+);
+$orderTotalSt->execute([(int) $seller['id']]);
+$orderTotalCount = (int) $orderTotalSt->fetchColumn();
+
+$orderStatusSt = $pdo->prepare(
+    "SELECT o.status, COUNT(DISTINCT o.id) AS cnt
+     FROM orders o
+     INNER JOIN order_items oi ON oi.order_id = o.id
+     INNER JOIN products p ON p.id = oi.product_id
+     WHERE p.seller_id = ?
+     GROUP BY o.status"
+);
+$orderStatusSt->execute([(int) $seller['id']]);
+$processingCount = 0;
+$confirmedCount = 0;
+$inTransitCount = 0;
+$deliveredCount = 0;
+$cancelledCount = 0;
+while ($row = $orderStatusSt->fetch()) {
+    $s = strtolower(trim((string) ($row['status'] ?? '')));
+    $c = (int) ($row['cnt'] ?? 0);
+    match ($s) {
+        'processing' => $processingCount += $c,
+        'confirmed' => $confirmedCount += $c,
+        'shipped', 'out' => $inTransitCount += $c,
+        'delivered' => $deliveredCount += $c,
+        'cancelled' => $cancelledCount += $c,
+        default => null,
+    };
+}
+
+['page' => $ordersListPage, 'perPage' => $ordersPerPage] = admin_pagination_read(25);
+$ordersPageMeta = admin_pagination_resolve($orderTotalCount, $ordersListPage, $ordersPerPage);
+$ordersPage = $ordersPageMeta['page'];
+$ordersOffset = $ordersPageMeta['offset'];
+$ordersPerPage = $ordersPageMeta['perPage'];
+$ordersTotalPages = $ordersPageMeta['totalPages'];
+
 $st = $pdo->prepare(
     "SELECT o.id, o.order_ref, o.status, o.total_amount, o.payment_method, o.shipping_address, o.created_at,
             u.first_name, u.last_name, u.email,
@@ -102,7 +148,8 @@ $st = $pdo->prepare(
      WHERE p.seller_id = ?
      GROUP BY o.id, o.order_ref, o.status, o.total_amount, o.payment_method, o.shipping_address, o.created_at,
               u.first_name, u.last_name, u.email
-     ORDER BY o.id DESC"
+     ORDER BY o.id DESC
+     LIMIT " . (int) $ordersPerPage . ' OFFSET ' . (int) $ordersOffset
 );
 $st->execute([(int) $seller['id']]);
 $orders = $st->fetchAll();
@@ -140,23 +187,31 @@ $cancelReqSt = $pdo->prepare(
 $cancelReqSt->execute([(int) $seller['id']]);
 $cancelRequests = $cancelReqSt->fetchAll();
 
-$orderCount = count($orders);
-$processingCount = 0;
-$confirmedCount = 0;
-$inTransitCount = 0;
-$deliveredCount = 0;
-$cancelledCount = 0;
-foreach ($orders as $_o) {
-    $s = strtolower(trim((string) ($_o['status'] ?? '')));
-    match ($s) {
-        'processing' => $processingCount++,
-        'confirmed' => $confirmedCount++,
-        'shipped', 'out' => $inTransitCount++,
-        'delivered' => $deliveredCount++,
-        'cancelled' => $cancelledCount++,
-        default => null,
-    };
+$returnTotalCount = 0;
+$returnPendingCount = 0;
+$returnOpenCount = 0;
+try {
+    $returnKpiSt = $pdo->prepare(
+        "SELECT
+            COUNT(*) AS total,
+            SUM(CASE WHEN LOWER(TRIM(status)) = 'pending' THEN 1 ELSE 0 END) AS pending_n,
+            SUM(CASE WHEN LOWER(TRIM(status)) NOT IN ('rejected', 'refunded') THEN 1 ELSE 0 END) AS open_n
+         FROM user_return_requests
+         WHERE seller_id = ?"
+    );
+    $returnKpiSt->execute([(int) $seller['id']]);
+    $returnKpiRow = $returnKpiSt->fetch() ?: [];
+    $returnTotalCount = (int) ($returnKpiRow['total'] ?? 0);
+    $returnPendingCount = (int) ($returnKpiRow['pending_n'] ?? 0);
+    $returnOpenCount = (int) ($returnKpiRow['open_n'] ?? 0);
+} catch (Throwable) {
+    $returnTotalCount = 0;
+    $returnPendingCount = 0;
+    $returnOpenCount = 0;
 }
+
+$orderCount = $orderTotalCount;
+$ordersFormAction = 'orders.php?' . http_build_query(['page' => $ordersPage, 'per_page' => $ordersPerPage]);
 
 function seller_order_status_chip_modifier(string $status): string
 {
@@ -225,7 +280,7 @@ require __DIR__ . '/partials/shell-top.php';
         <div class="admin-page-head seller-orders-page-head">
           <div>
             <h1>Orders</h1>
-            <p class="seller-orders-subtitle">Track fulfilment for orders that include your products. Use search to filter by reference, buyer, or status. New orders may need a quick <strong>Confirm</strong> before you ship.</p>
+            <p class="seller-orders-subtitle">Track fulfilment for orders that include your products. Search filters <strong>this page</strong> only — use pagination for older orders. New orders may need a quick <strong>Confirm</strong> before you ship.</p>
           </div>
           <div class="admin-page-head__actions seller-orders-head-actions">
             <a class="admin-btn admin-btn--ghost-light" href="earnings.php">Earnings</a>
@@ -273,6 +328,36 @@ require __DIR__ . '/partials/shell-top.php';
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
             </div>
           </div>
+
+          <h2 class="seller-orders-kpi-section-heading">Returns</h2>
+          <div class="seller-kpi-card seller-kpi-card--products">
+            <div>
+              <div class="seller-kpi-card__label">Return requests</div>
+              <div class="seller-kpi-card__value"><?= (int) $returnTotalCount ?></div>
+              <div class="seller-kpi-card__hint">Customer returns linked to your products</div>
+            </div>
+            <div class="seller-kpi-card__icon" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            </div>
+          </div>
+          <div class="seller-kpi-card seller-kpi-card--revenue">
+            <div>
+              <div class="seller-kpi-card__label">Open returns</div>
+              <div class="seller-kpi-card__value"><?= (int) $returnOpenCount ?></div>
+              <div class="seller-kpi-card__hint">
+                <?php if ($returnPendingCount > 0): ?>
+                  <?= (int) $returnPendingCount ?> pending your review<?= $returnOpenCount > $returnPendingCount ? ' · baaki pickup/refund steps' : '' ?>
+                <?php elseif ($returnOpenCount > 0): ?>
+                  Pickup / refund in progress
+                <?php else: ?>
+                  None active — rejected/refunded closed
+                <?php endif; ?>
+              </div>
+            </div>
+            <div class="seller-kpi-card__icon" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+            </div>
+          </div>
         </div>
 
         <?php if ($cancelRequests !== []): ?>
@@ -315,13 +400,13 @@ require __DIR__ . '/partials/shell-top.php';
                       <td class="seller-cancel-cell-date"><?= h(seller_orders_format_datetime((string) ($req['requested_at'] ?? ''))) ?></td>
                       <td class="seller-cancel-cell-actions">
                         <div class="seller-cancel-actions">
-                          <form method="post" class="seller-cancel-action-form">
+                          <form method="post" class="seller-cancel-action-form" action="<?= h($ordersFormAction) ?>">
                             <input type="hidden" name="action" value="review_cancel_request">
                             <input type="hidden" name="request_id" value="<?= (int) ($req['id'] ?? 0) ?>">
                             <input type="hidden" name="decision" value="approve">
                             <button class="admin-btn admin-btn--primary seller-cancel-btn" type="submit">Approve cancel</button>
                           </form>
-                          <form method="post" class="seller-cancel-action-form">
+                          <form method="post" class="seller-cancel-action-form" action="<?= h($ordersFormAction) ?>">
                             <input type="hidden" name="action" value="review_cancel_request">
                             <input type="hidden" name="request_id" value="<?= (int) ($req['id'] ?? 0) ?>">
                             <input type="hidden" name="decision" value="reject">
@@ -343,7 +428,7 @@ require __DIR__ . '/partials/shell-top.php';
             <div class="seller-card-head seller-card-head--inventory seller-orders-card-head">
               <div>
                 <h2 class="card-title">Order list</h2>
-                <p class="card-subtitle seller-orders-card-sub"><?= $orderCount === 0 ? 'Orders with your products will show here.' : (int) $orderCount . ' order' . ($orderCount === 1 ? '' : 's') . ' · Auto-refresh keeps the list current.' ?></p>
+                <p class="card-subtitle seller-orders-card-sub"><?= $orderCount === 0 ? 'Orders with your products will show here.' : (int) $orderCount . ' order' . ($orderCount === 1 ? '' : 's') . ' total · Auto-refresh keeps the list current.' ?></p>
               </div>
               <div class="seller-inventory-toolbar seller-orders-toolbar">
                 <label class="seller-inventory-search-wrap seller-orders-search" for="sellerOrdersSearch">
@@ -434,7 +519,7 @@ require __DIR__ . '/partials/shell-top.php';
                       <td class="seller-orders-td-actions">
                         <div class="seller-order-actions">
                           <?php if (strtolower((string) ($o['status'] ?? '')) === 'processing'): ?>
-                            <form method="post" class="seller-order-action-form">
+                            <form method="post" class="seller-order-action-form" action="<?= h($ordersFormAction) ?>">
                               <input type="hidden" name="action" value="confirm_order">
                               <input type="hidden" name="order_id" value="<?= (int) $o['id'] ?>">
                               <button class="admin-btn admin-btn--primary seller-order-confirm-btn" type="submit">Confirm</button>
@@ -482,6 +567,14 @@ require __DIR__ . '/partials/shell-top.php';
                 </tbody>
               </table>
             </div>
+            <?php
+            $paginationScript = 'orders.php';
+            $paginationTotal = $orderTotalCount;
+            $paginationPage = $ordersPage;
+            $paginationPerPage = $ordersPerPage;
+            $paginationTotalPages = $ordersTotalPages;
+            require __DIR__ . '/partials/table-pagination.php';
+            ?>
           </div>
         </div>
 

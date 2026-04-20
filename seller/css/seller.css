@@ -693,7 +693,7 @@
 
 .seller-kpi {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 14px;
   margin-top: 14px;
 }
@@ -2954,6 +2954,34 @@ html.admin-theme-dark .seller-return-mono {
   padding: 16px 18px 20px !important;
 }
 
+.seller-coupons-search-bar {
+  margin-bottom: 14px;
+}
+
+.seller-coupons-no-match {
+  margin-top: 12px;
+  padding: 18px 16px;
+  border-radius: 12px;
+  border: 1px dashed var(--admin-border);
+  background: rgba(248, 250, 252, 0.55);
+}
+
+.seller-coupons-no-match__inner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.seller-coupons-no-match__icon {
+  flex-shrink: 0;
+  color: var(--admin-text-muted);
+  margin-top: 2px;
+}
+
+html.admin-theme-dark .seller-coupons-no-match {
+  background: rgba(15, 23, 42, 0.35);
+}
+
 .seller-coupons-empty {
   text-align: center;
   padding: 40px 20px 36px;
@@ -3205,6 +3233,21 @@ html.admin-theme-dark .seller-coupon-btn-danger {
 .seller-orders-kpis {
   margin-top: 4px;
   margin-bottom: 12px;
+}
+
+.seller-orders-kpi-section-heading {
+  grid-column: 1 / -1;
+  margin: 6px 0 0;
+  padding: 0 2px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #64748b;
+}
+
+html.admin-theme-dark .seller-orders-kpi-section-heading {
+  color: #94a3b8;
 }
 
 .seller-cancel-requests-card {

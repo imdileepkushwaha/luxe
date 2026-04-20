@@ -91,7 +91,22 @@ if ($msg === 'created') {
 }
 
 $summary = seller_finance_summary($pdo, (int) $seller['id']);
-$requests = seller_finance_withdraw_requests($pdo, (int) $seller['id'], 100);
+
+require_once __DIR__ . '/../admin/_pagination.php';
+
+$withdrawHistoryTotal = seller_finance_withdraw_request_count($pdo, (int) $seller['id']);
+$withdrawPendingCountSt = $pdo->prepare(
+    "SELECT COUNT(*) FROM seller_withdraw_requests WHERE seller_id = ? AND LOWER(TRIM(status)) = 'pending'"
+);
+$withdrawPendingCountSt->execute([(int) $seller['id']]);
+$withdrawHistoryPendingRows = (int) $withdrawPendingCountSt->fetchColumn();
+
+['page' => $withdrawListPage, 'perPage' => $withdrawPerPage] = admin_pagination_read(25);
+$withdrawPageMeta = admin_pagination_resolve($withdrawHistoryTotal, $withdrawListPage, $withdrawPerPage);
+$withdrawHistoryPage = $withdrawPageMeta['page'];
+$withdrawHistoryPerPage = $withdrawPageMeta['perPage'];
+$withdrawHistoryTotalPages = $withdrawPageMeta['totalPages'];
+$requests = seller_finance_withdraw_requests($pdo, (int) $seller['id'], $withdrawHistoryPerPage, $withdrawPageMeta['offset']);
 
 function seller_withdraw_format_dt(?string $raw): string
 {
@@ -128,13 +143,7 @@ function seller_withdraw_status_label(string $status): string
     };
 }
 
-$withdrawHistoryCount = count($requests);
-$withdrawHistoryPendingRows = 0;
-foreach ($requests as $_wr) {
-    if (strtolower((string) ($_wr['status'] ?? '')) === 'pending') {
-        $withdrawHistoryPendingRows++;
-    }
-}
+$withdrawHistoryCount = $withdrawHistoryTotal;
 
 require __DIR__ . '/partials/shell-top.php';
 ?>
@@ -189,7 +198,7 @@ require __DIR__ . '/partials/shell-top.php';
             <div>
               <div class="seller-kpi-card__label">History rows</div>
               <div class="seller-kpi-card__value"><?= (int) $withdrawHistoryCount ?></div>
-              <div class="seller-kpi-card__hint"><?= (int) $withdrawHistoryPendingRows ?> pending in list · max 100</div>
+              <div class="seller-kpi-card__hint"><?= (int) $withdrawHistoryPendingRows ?> pending · neeche pagination</div>
             </div>
             <div class="seller-kpi-card__icon" aria-hidden="true">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
@@ -276,7 +285,7 @@ require __DIR__ . '/partials/shell-top.php';
           <div class="card-header seller-txn-card-head">
             <div>
               <h2 class="card-title">Request history</h2>
-              <p class="card-subtitle seller-txn-card-sub">WR id, amount, method, account, status ya date se dhundh sakte ho.</p>
+              <p class="card-subtitle seller-txn-card-sub">WR id, amount, method, account, status ya date se dhundh sakte ho. Search sirf <strong>is page</strong> par filter karta hai.</p>
             </div>
             <span class="seller-txn-count-pill"><?= (int) $withdrawHistoryCount ?> row<?= $withdrawHistoryCount === 1 ? '' : 's' ?></span>
           </div>
@@ -407,6 +416,14 @@ require __DIR__ . '/partials/shell-top.php';
                 </tbody>
               </table>
             </div>
+            <?php
+            $paginationScript = 'withdraw-requests.php';
+            $paginationTotal = $withdrawHistoryTotal;
+            $paginationPage = $withdrawHistoryPage;
+            $paginationPerPage = $withdrawHistoryPerPage;
+            $paginationTotalPages = $withdrawHistoryTotalPages;
+            require __DIR__ . '/partials/table-pagination.php';
+            ?>
           </div>
         </div>
 

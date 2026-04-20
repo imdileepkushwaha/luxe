@@ -295,11 +295,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $del = $pdo->prepare('DELETE FROM products WHERE id = ? AND seller_id = ? LIMIT 1');
             $del->execute([$productId, (int) $seller['id']]);
             if ($del->rowCount() > 0) {
-                header('Location: products.php?msg=deleted');
+                $q = ['msg' => 'deleted'];
+                $lp = (int) ($_POST['list_page'] ?? 0);
+                $lper = (int) ($_POST['list_per_page'] ?? 0);
+                if ($lp > 0) {
+                    $q['page'] = $lp;
+                }
+                if ($lper >= 5 && $lper <= 100) {
+                    $q['per_page'] = $lper;
+                }
+                header('Location: products.php?' . http_build_query($q));
                 exit;
             }
         }
-        header('Location: products.php?msg=delete_fail');
+        $q = ['msg' => 'delete_fail'];
+        $lp = (int) ($_POST['list_page'] ?? 0);
+        $lper = (int) ($_POST['list_per_page'] ?? 0);
+        if ($lp > 0) {
+            $q['page'] = $lp;
+        }
+        if ($lper >= 5 && $lper <= 100) {
+            $q['per_page'] = $lper;
+        }
+        header('Location: products.php?' . http_build_query($q));
         exit;
     }
 
@@ -504,6 +522,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+require_once __DIR__ . '/../admin/_pagination.php';
+
+$productKpiSt = $pdo->prepare(
+    'SELECT
+        COUNT(*) AS total,
+        SUM(CASE WHEN LOWER(TRIM(COALESCE(p.approval_status, \'\'))) = \'approved\' THEN 1 ELSE 0 END) AS approved_cnt,
+        SUM(CASE WHEN LOWER(TRIM(COALESCE(p.approval_status, \'\'))) = \'pending\' THEN 1 ELSE 0 END) AS pending_cnt,
+        SUM(CASE WHEN LOWER(TRIM(COALESCE(p.approval_status, \'\'))) NOT IN (\'approved\', \'pending\') THEN 1 ELSE 0 END) AS rejected_cnt,
+        SUM(CASE WHEN LOWER(TRIM(COALESCE(p.approval_status, \'\'))) = \'approved\' AND p.active = 1 THEN 1 ELSE 0 END) AS store_live,
+        SUM(CASE WHEN COALESCE(v.variant_stock_sum, p.stock_qty) < 5 THEN 1 ELSE 0 END) AS low_stock
+     FROM products p
+     LEFT JOIN (
+         SELECT product_id, SUM(stock_qty) AS variant_stock_sum
+         FROM product_variant_inventory
+         GROUP BY product_id
+     ) v ON v.product_id = p.id
+     WHERE p.seller_id = ?'
+);
+$productKpiSt->execute([(int) $seller['id']]);
+$productKpi = $productKpiSt->fetch() ?: [];
+$productCount = (int) ($productKpi['total'] ?? 0);
+$approvedCount = (int) ($productKpi['approved_cnt'] ?? 0);
+$pendingCount = (int) ($productKpi['pending_cnt'] ?? 0);
+$rejectedCount = (int) ($productKpi['rejected_cnt'] ?? 0);
+$storeLiveCount = (int) ($productKpi['store_live'] ?? 0);
+$lowStockCount = (int) ($productKpi['low_stock'] ?? 0);
+
+['page' => $productsListPage, 'perPage' => $productsPerPage] = admin_pagination_read(25);
+$productsPageMeta = admin_pagination_resolve($productCount, $productsListPage, $productsPerPage);
+$productsPage = $productsPageMeta['page'];
+$productsOffset = $productsPageMeta['offset'];
+$productsPerPage = $productsPageMeta['perPage'];
+$productsTotalPages = $productsPageMeta['totalPages'];
+
 $productsSt = $pdo->prepare(
     'SELECT p.id, p.name, p.slug, p.sku, p.category, p.price, p.original_price, p.emoji, p.badge, p.brand, p.image_path, p.size_options, p.color_options, p.stock_qty, p.description, p.active,
             p.offer_flash_text, p.offer_countdown_seconds, p.offer_bank_text, p.approval_status,
@@ -515,53 +567,43 @@ $productsSt = $pdo->prepare(
          GROUP BY product_id
      ) v ON v.product_id = p.id
      WHERE p.seller_id = ?
-     ORDER BY p.id DESC'
+     ORDER BY p.id DESC
+     LIMIT ' . (int) $productsPerPage . ' OFFSET ' . (int) $productsOffset
 );
 $productsSt->execute([(int) $seller['id']]);
 $products = $productsSt->fetchAll();
-$productCount = count($products);
-$approvedCount = 0;
-$pendingCount = 0;
-$rejectedCount = 0;
-$storeLiveCount = 0;
-$lowStockCount = 0;
-foreach ($products as $_p) {
-    $ap = strtolower(trim((string) ($_p['approval_status'] ?? '')));
-    if ($ap === 'approved') {
-        $approvedCount++;
-    } elseif ($ap === 'pending') {
-        $pendingCount++;
-    } else {
-        $rejectedCount++;
-    }
-    if ($ap === 'approved' && (int) ($_p['active'] ?? 0) === 1) {
-        $storeLiveCount++;
-    }
-    $dq = (int) ($_p['display_stock_qty'] ?? $_p['stock_qty'] ?? 0);
-    if ($dq < 5) {
-        $lowStockCount++;
-    }
-}
+$productsFormAction = 'products.php?' . http_build_query(['page' => $productsPage, 'per_page' => $productsPerPage]);
 $productImagesMap = [];
 if ($products !== []) {
-    $gallerySt = $pdo->prepare(
-        'SELECT pi.product_id, pi.image_path
-         FROM product_images pi
-         INNER JOIN products p ON p.id = pi.product_id
-         WHERE p.seller_id = ?
-         ORDER BY pi.product_id ASC, pi.sort_order ASC, pi.id ASC'
-    );
-    $gallerySt->execute([(int) $seller['id']]);
-    foreach ($gallerySt->fetchAll() as $row) {
-        $pid = (int) ($row['product_id'] ?? 0);
-        $path = trim((string) ($row['image_path'] ?? ''));
-        if ($pid <= 0 || $path === '') {
-            continue;
+    $ids = [];
+    foreach ($products as $_p) {
+        $pid = (int) ($_p['id'] ?? 0);
+        if ($pid > 0) {
+            $ids[] = $pid;
         }
-        if (!isset($productImagesMap[$pid])) {
-            $productImagesMap[$pid] = [];
+    }
+    $ids = array_values(array_unique($ids));
+    if ($ids !== []) {
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $gallerySt = $pdo->prepare(
+            "SELECT pi.product_id, pi.image_path
+             FROM product_images pi
+             INNER JOIN products p ON p.id = pi.product_id
+             WHERE p.seller_id = ? AND pi.product_id IN ($placeholders)
+             ORDER BY pi.product_id ASC, pi.sort_order ASC, pi.id ASC"
+        );
+        $gallerySt->execute(array_merge([(int) $seller['id']], $ids));
+        foreach ($gallerySt->fetchAll() as $row) {
+            $pid = (int) ($row['product_id'] ?? 0);
+            $path = trim((string) ($row['image_path'] ?? ''));
+            if ($pid <= 0 || $path === '') {
+                continue;
+            }
+            if (!isset($productImagesMap[$pid])) {
+                $productImagesMap[$pid] = [];
+            }
+            $productImagesMap[$pid][] = $path;
         }
-        $productImagesMap[$pid][] = $path;
     }
 }
 $openProductDrawer = $error !== '' || $drawerMode === 'edit';
@@ -572,7 +614,7 @@ require __DIR__ . '/partials/shell-top.php';
         <div class="admin-page-head seller-products-page-head">
           <div>
             <h1>Products</h1>
-            <p class="seller-products-subtitle">Manage your catalogue — search, preview on the storefront, edit details, or add new listings. Discounts apply only after admin approves new items.</p>
+            <p class="seller-products-subtitle">Manage your catalogue — search filters <strong>this page</strong> only; use pagination to browse the full catalogue. Preview on the storefront, edit details, or add new listings. Discounts apply only after admin approves new items.</p>
           </div>
           <div class="admin-page-head__actions seller-products-head-actions">
             <a class="admin-btn admin-btn--ghost-light" href="inventory.php">Inventory</a>
@@ -807,9 +849,11 @@ require __DIR__ . '/partials/shell-top.php';
                             data-preview-url="../product.php?id=<?= (int) $p['id'] ?>"
                           >View</button>
                           <a href="products.php?edit=<?= (int) $p['id'] ?>" class="seller-edit-btn seller-product-actions__btn">Edit</a>
-                          <form method="post" class="seller-product-actions__form" onsubmit="return confirm('Kya aap is product ko delete karna chahte hain?');">
+                          <form method="post" class="seller-product-actions__form" action="<?= h($productsFormAction) ?>" onsubmit="return confirm('Kya aap is product ko delete karna chahte hain?');">
                             <input type="hidden" name="action" value="delete_product">
                             <input type="hidden" name="product_id" value="<?= (int) $p['id'] ?>">
+                            <input type="hidden" name="list_page" value="<?= (int) $productsPage ?>">
+                            <input type="hidden" name="list_per_page" value="<?= (int) $productsPerPage ?>">
                             <button type="submit" class="seller-delete-btn seller-product-actions__btn seller-product-actions__btn--danger">Delete</button>
                           </form>
                         </div>
@@ -851,6 +895,14 @@ require __DIR__ . '/partials/shell-top.php';
                 </tbody>
               </table>
             </div>
+            <?php
+            $paginationScript = 'products.php';
+            $paginationTotal = $productCount;
+            $paginationPage = $productsPage;
+            $paginationPerPage = $productsPerPage;
+            $paginationTotalPages = $productsTotalPages;
+            require __DIR__ . '/partials/table-pagination.php';
+            ?>
           </div>
         </div>
 
