@@ -53,10 +53,18 @@ function admin_pagination_visible_range(int $total, int $page, int $perPage): ar
     return ['from' => $from, 'to' => $to];
 }
 
-/** @param array<string, scalar|array|null> $extra */
-function admin_pagination_href(string $script, int $page, int $perPage, array $extra = []): string
-{
-    $q = array_merge($_GET, $extra, ['page' => $page, 'per_page' => $perPage]);
+/**
+ * @param array<string, scalar|array|null> $extra
+ */
+function admin_pagination_href(
+    string $script,
+    int $page,
+    int $perPage,
+    array $extra = [],
+    string $pageKey = 'page',
+    string $perPageKey = 'per_page',
+): string {
+    $q = array_merge($_GET, $extra, [$pageKey => $page, $perPageKey => $perPage]);
 
     return $script . '?' . http_build_query($q);
 }

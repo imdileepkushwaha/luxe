@@ -1128,7 +1128,8 @@ a.admin-user-dropdown__item:hover {
 .admin-sellers-kpi-grid,
 .admin-kyc-kpi-grid,
 .admin-wd-kpi-grid,
-.admin-deletions-kpi-grid {
+.admin-deletions-kpi-grid,
+.admin-seller-view-kpi-grid {
   margin-bottom: 20px;
 }
 
@@ -1139,7 +1140,8 @@ a.admin-user-dropdown__item:hover {
 .admin-sellers-kpi .admin-sellers-kpi__label,
 .admin-kyc-kpi .admin-kyc-kpi__label,
 .admin-wd-kpi .admin-wd-kpi__label,
-.admin-deletions-kpi .admin-deletions-kpi__label {
+.admin-deletions-kpi .admin-deletions-kpi__label,
+.admin-seller-view-kpi .admin-seller-view-kpi__label {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-size: 0.68rem;
@@ -1433,6 +1435,27 @@ a.admin-user-dropdown__item:hover {
   max-width: 1280px;
 }
 
+.admin-seller-view-page {
+  max-width: 1280px;
+}
+
+.admin-seller-view-page .admin-page-head {
+  margin-bottom: 20px;
+}
+
+.admin-seller-view-kpi__lead {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.admin-seller-view-kpi__status {
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
 .admin-sellers-flash {
   margin-bottom: 18px;
 }
@@ -1622,6 +1645,73 @@ a.admin-user-dropdown__item:hover {
 
 .admin-wd-search-wrap {
   max-width: 380px;
+}
+
+/* Seller detail — products & orders search */
+.card-header.admin-seller-view-table-header {
+  display: block;
+  padding: 14px 20px 16px;
+}
+
+.admin-seller-view-table-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.admin-seller-view-table-head-text {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.admin-seller-view-table-head .card-title {
+  margin-bottom: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.admin-seller-view-table-sub {
+  margin-top: 0.4rem;
+  max-width: 44rem;
+  line-height: 1.45;
+}
+
+.admin-seller-view-table-head .admin-seller-view-search-wrap {
+  flex: 0 1 auto;
+  align-self: center;
+}
+
+.admin-seller-view-search-wrap {
+  max-width: 320px;
+  min-width: 200px;
+}
+
+.admin-seller-view-no-match-row {
+  display: none;
+}
+
+.admin-seller-view-no-match-row td {
+  text-align: center;
+  padding: 28px 20px !important;
+  border-bottom: 0 !important;
+}
+
+.admin-seller-view-no-match__title {
+  display: block;
+  font-size: 0.95rem;
+  margin: 0 0 6px;
+  color: var(--admin-text);
+}
+
+.admin-seller-view-no-match__text {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--admin-text-muted);
+  line-height: 1.5;
 }
 
 .admin-wd-seller {
@@ -4509,7 +4599,8 @@ html.admin-theme-dark .admin-pa-search-wrap,
 html.admin-theme-dark .admin-sellers-search-wrap,
 html.admin-theme-dark .admin-kyc-search-wrap,
 html.admin-theme-dark .admin-wd-search-wrap,
-html.admin-theme-dark .admin-deletions-search-wrap {
+html.admin-theme-dark .admin-deletions-search-wrap,
+html.admin-theme-dark .admin-seller-view-search-wrap {
   background: #121212;
   border-color: var(--admin-border);
 }
@@ -4520,7 +4611,8 @@ html.admin-theme-dark .admin-pa-search-wrap:focus-within,
 html.admin-theme-dark .admin-sellers-search-wrap:focus-within,
 html.admin-theme-dark .admin-kyc-search-wrap:focus-within,
 html.admin-theme-dark .admin-wd-search-wrap:focus-within,
-html.admin-theme-dark .admin-deletions-search-wrap:focus-within {
+html.admin-theme-dark .admin-deletions-search-wrap:focus-within,
+html.admin-theme-dark .admin-seller-view-search-wrap:focus-within {
   border-color: var(--admin-accent);
   box-shadow: 0 0 0 3px rgba(229, 57, 53, 0.22);
 }
@@ -4531,7 +4623,8 @@ html.admin-theme-dark .admin-pa-search-icon,
 html.admin-theme-dark .admin-sellers-search-icon,
 html.admin-theme-dark .admin-kyc-search-icon,
 html.admin-theme-dark .admin-wd-search-icon,
-html.admin-theme-dark .admin-deletions-search-icon {
+html.admin-theme-dark .admin-deletions-search-icon,
+html.admin-theme-dark .admin-seller-view-search-icon {
   color: #94a3b8;
 }
 
@@ -4541,7 +4634,8 @@ html.admin-theme-dark .admin-pa-search-input,
 html.admin-theme-dark .admin-sellers-search-input,
 html.admin-theme-dark .admin-kyc-search-input,
 html.admin-theme-dark .admin-wd-search-input,
-html.admin-theme-dark .admin-deletions-search-input {
+html.admin-theme-dark .admin-deletions-search-input,
+html.admin-theme-dark .admin-seller-view-search-input {
   color: #f3f4f6;
 }
 
@@ -4550,7 +4644,8 @@ html.admin-theme-dark .admin-orders-search-input::placeholder,
 html.admin-theme-dark .admin-pa-search-input::placeholder,
 html.admin-theme-dark .admin-sellers-search-input::placeholder,
 html.admin-theme-dark .admin-kyc-search-input::placeholder,
-html.admin-theme-dark .admin-wd-search-input::placeholder {
+html.admin-theme-dark .admin-wd-search-input::placeholder,
+html.admin-theme-dark .admin-seller-view-search-input::placeholder {
   color: #94a3b8;
 }
 

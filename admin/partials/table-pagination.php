@@ -8,16 +8,21 @@ require_once __DIR__ . '/../_pagination.php';
 /** @var int $paginationPage */
 /** @var int $paginationPerPage */
 /** @var int $paginationTotalPages */
+/** @var string $paginationPageKey */
+/** @var string $paginationPerPageKey */
 
 if (!isset($paginationScript, $paginationTotal, $paginationPage, $paginationPerPage, $paginationTotalPages)) {
     throw new RuntimeException('pagination: set paginationScript, paginationTotal, paginationPage, paginationPerPage, paginationTotalPages');
 }
 
+$paginationPageKey = $paginationPageKey ?? 'page';
+$paginationPerPageKey = $paginationPerPageKey ?? 'per_page';
+
 $range = admin_pagination_visible_range($paginationTotal, $paginationPage, $paginationPerPage);
 $pFrom = $range['from'];
 $pTo = $range['to'];
-$prevUrl = admin_pagination_href($paginationScript, max(1, $paginationPage - 1), $paginationPerPage);
-$nextUrl = admin_pagination_href($paginationScript, min($paginationTotalPages, $paginationPage + 1), $paginationPerPage);
+$prevUrl = admin_pagination_href($paginationScript, max(1, $paginationPage - 1), $paginationPerPage, [], $paginationPageKey, $paginationPerPageKey);
+$nextUrl = admin_pagination_href($paginationScript, min($paginationTotalPages, $paginationPage + 1), $paginationPerPage, [], $paginationPageKey, $paginationPerPageKey);
 $showNav = $paginationTotal > 0 && $paginationTotalPages > 1;
 ?>
         <nav class="admin-pagination" aria-label="Table pagination">
@@ -32,7 +37,7 @@ $showNav = $paginationTotal > 0 && $paginationTotalPages > 1;
           <div class="admin-pagination__controls">
             <form class="admin-pagination__per-page" method="get" action="<?= h($paginationScript) ?>">
               <?php foreach ($_GET as $k => $v): ?>
-                <?php if ($k === 'page' || $k === 'per_page') {
+                <?php if ($k === $paginationPageKey || $k === $paginationPerPageKey) {
                     continue;
                 } ?>
                 <?php if (is_array($v)) {
@@ -43,13 +48,13 @@ $showNav = $paginationTotal > 0 && $paginationTotalPages > 1;
               <label class="admin-pagination__per-label">
                 <span class="visually-hidden">Rows per page</span>
                 <span aria-hidden="true">Per page</span>
-                <select class="admin-pagination__select" name="per_page" onchange="this.form.page.value=1;this.form.submit()">
+                <select class="admin-pagination__select" name="<?= h($paginationPerPageKey) ?>" onchange="var pe=this.form.elements['<?= h($paginationPageKey) ?>']; if(pe) pe.value=1; this.form.submit();">
                   <?php foreach ([10, 25, 50, 100] as $opt): ?>
                     <option value="<?= (int) $opt ?>"<?= $paginationPerPage === $opt ? ' selected' : '' ?>><?= (int) $opt ?></option>
                   <?php endforeach; ?>
                 </select>
               </label>
-              <input type="hidden" name="page" value="1">
+              <input type="hidden" name="<?= h($paginationPageKey) ?>" value="1">
             </form>
             <?php if ($showNav): ?>
             <div class="admin-pagination__arrows">
