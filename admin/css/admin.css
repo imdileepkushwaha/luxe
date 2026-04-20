@@ -645,21 +645,42 @@ html.admin-theme-dark .admin-apps-wrap:focus-within .admin-apps-wrap__btn {
 .admin-notify-row__body {
   min-width: 0;
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.admin-notify-row__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .admin-notify-row__title {
   display: block;
+  flex: 1;
+  min-width: 0;
   font-size: 0.88rem;
   font-weight: 600;
   color: var(--admin-text);
   line-height: 1.35;
 }
 
+.admin-notify-row__when {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
+  color: var(--admin-text-muted);
+  white-space: nowrap;
+}
+
 .admin-notify-row__meta {
   display: block;
   font-size: 0.75rem;
   color: var(--admin-text-muted);
-  margin-top: 2px;
 }
 
 .admin-notify-dropdown__foot {

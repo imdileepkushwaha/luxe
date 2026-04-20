@@ -26,6 +26,14 @@ if ($name !== '') {
 if ($initials === '') {
     $initials = 'A';
 }
+
+$adminNotifyItems = [
+    ['href' => 'orders.php', 'title' => 'New order received', 'meta' => 'Shop · Review in Orders', 'at' => strtotime('-14 minutes'), 'dot' => ''],
+    ['href' => 'users.php', 'title' => 'New user registration', 'meta' => 'Accounts · Users', 'at' => strtotime('-2 hours'), 'dot' => 'muted'],
+    ['href' => 'seller-kyc.php', 'title' => 'Seller KYC pending', 'meta' => 'Seller onboarding · Review now', 'at' => strtotime('-5 hours'), 'dot' => 'warn'],
+    ['href' => 'seller-withdrawals.php', 'title' => 'Seller withdrawals', 'meta' => 'Finance · Mark paid / Reject', 'at' => strtotime('-1 day'), 'dot' => 'warn'],
+    ['href' => 'account-deletions.php', 'title' => 'Deletion request pending', 'meta' => 'Compliance · Action needed', 'at' => strtotime('-2 days'), 'dot' => 'warn'],
+];
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -183,51 +191,24 @@ if ($initials === '') {
               <div class="admin-notify-dropdown__inner">
                 <div class="admin-notify-dropdown__head">Notifications</div>
                 <ul class="admin-notify-list">
+<?php foreach ($adminNotifyItems as $n):
+    $dot = (string) ($n['dot'] ?? '');
+    $dotClass = 'admin-notify-row__dot' . ($dot === 'muted' ? ' admin-notify-row__dot--muted' : ($dot === 'warn' ? ' admin-notify-row__dot--warn' : ''));
+    $at = (int) ($n['at'] ?? time());
+    ?>
                   <li>
-                    <a class="admin-notify-row" href="orders.php">
-                      <span class="admin-notify-row__dot" aria-hidden="true"></span>
+                    <a class="admin-notify-row" href="<?= h((string) $n['href']) ?>">
+                      <span class="<?= h($dotClass) ?>" aria-hidden="true"></span>
                       <span class="admin-notify-row__body">
-                        <span class="admin-notify-row__title">New order received</span>
-                        <span class="admin-notify-row__meta">Shop · Review in Orders</span>
+                        <span class="admin-notify-row__top">
+                          <span class="admin-notify-row__title"><?= h((string) $n['title']) ?></span>
+                          <time class="admin-notify-row__when" datetime="<?= h(date('c', $at)) ?>"><?= h(date('j M, g:i A', $at)) ?></time>
+                        </span>
+                        <span class="admin-notify-row__meta"><?= h((string) $n['meta']) ?></span>
                       </span>
                     </a>
                   </li>
-                  <li>
-                    <a class="admin-notify-row" href="users.php">
-                      <span class="admin-notify-row__dot admin-notify-row__dot--muted" aria-hidden="true"></span>
-                      <span class="admin-notify-row__body">
-                        <span class="admin-notify-row__title">New user registration</span>
-                        <span class="admin-notify-row__meta">Accounts · Users</span>
-                      </span>
-                    </a>
-                  </li>
-                  <li>
-                    <a class="admin-notify-row" href="seller-kyc.php">
-                      <span class="admin-notify-row__dot admin-notify-row__dot--warn" aria-hidden="true"></span>
-                      <span class="admin-notify-row__body">
-                        <span class="admin-notify-row__title">Seller KYC pending</span>
-                        <span class="admin-notify-row__meta">Seller onboarding · Review now</span>
-                      </span>
-                    </a>
-                  </li>
-                  <li>
-                    <a class="admin-notify-row" href="seller-withdrawals.php">
-                      <span class="admin-notify-row__dot admin-notify-row__dot--warn" aria-hidden="true"></span>
-                      <span class="admin-notify-row__body">
-                        <span class="admin-notify-row__title">Seller withdrawals</span>
-                        <span class="admin-notify-row__meta">Finance · Mark paid / Reject</span>
-                      </span>
-                    </a>
-                  </li>
-                  <li>
-                    <a class="admin-notify-row" href="account-deletions.php">
-                      <span class="admin-notify-row__dot admin-notify-row__dot--warn" aria-hidden="true"></span>
-                      <span class="admin-notify-row__body">
-                        <span class="admin-notify-row__title">Deletion request pending</span>
-                        <span class="admin-notify-row__meta">Compliance · Action needed</span>
-                      </span>
-                    </a>
-                  </li>
+<?php endforeach; ?>
                 </ul>
                 <a class="admin-notify-dropdown__foot" href="index.php">View dashboard</a>
               </div>
