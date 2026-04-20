@@ -11,6 +11,7 @@ CREATE TABLE users (
   phone VARCHAR(40) NOT NULL DEFAULT '',
   dob DATE NULL,
   gender VARCHAR(16) NULL,
+  loyalty_points_redeemed INT UNSIGNED NOT NULL DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
@@ -219,6 +220,24 @@ CREATE TABLE seller_return_settings (
   CONSTRAINT fk_seller_return_settings_seller FOREIGN KEY (seller_id) REFERENCES seller_users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+CREATE TABLE seller_coupons (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  seller_id INT UNSIGNED NOT NULL,
+  code VARCHAR(32) NOT NULL,
+  discount_type ENUM('percent','flat') NOT NULL,
+  discount_value INT UNSIGNED NOT NULL,
+  max_discount_rupees INT UNSIGNED NULL,
+  min_order_rupees INT UNSIGNED NOT NULL DEFAULT 0,
+  description VARCHAR(255) NOT NULL DEFAULT '',
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  valid_from DATE NULL,
+  valid_until DATE NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_seller_coupons_code (code),
+  KEY idx_seller_coupons_seller (seller_id, is_active),
+  CONSTRAINT fk_seller_coupons_seller FOREIGN KEY (seller_id) REFERENCES seller_users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 CREATE TABLE product_reviews (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   product_id INT UNSIGNED NOT NULL,
@@ -247,6 +266,7 @@ CREATE TABLE orders (
   platform_fee_rupees INT UNSIGNED NOT NULL DEFAULT 0,
   payment_method VARCHAR(128) NOT NULL DEFAULT '',
   shipping_address VARCHAR(512) NOT NULL DEFAULT '',
+  delivered_at DATETIME NULL DEFAULT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_orders_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;

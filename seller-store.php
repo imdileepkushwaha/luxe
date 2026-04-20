@@ -78,6 +78,7 @@ $productCount = count($products);
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <?php require __DIR__ . '/includes/luxe_theme_head.php'; ?>
   <title><?= h($pageTitle) ?></title>
   <meta name="description" content="<?= h('Shop ' . $displayName . ' on LUXE — curated products from a verified seller.') ?>" />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,400&display=swap" rel="stylesheet" />
@@ -97,16 +98,19 @@ $productCount = count($products);
 
   <nav class="navbar" id="navbar">
     <div class="nav-container">
-      <a href="index.php" class="nav-logo">LUXE</a>
+      <div class="nav-brand-cluster">
+        <?php require __DIR__ . '/includes/nav_hamburger_btn.php'; ?>
+        <a href="index.php" class="nav-logo">LUXE</a>
+      </div>
       <ul class="nav-links">
         <li><a href="index.php#collections">Collections</a></li>
         <li><a href="index.php#trending">Trending</a></li>
       </ul>
       <div class="nav-actions">
         <?php if ($user): ?>
-        <a href="actions/logout.php" class="nav-login-btn" aria-label="Logout">Logout</a>
+        <a href="actions/logout.php" class="nav-login-btn" aria-label="Sign out" data-nav-mobile="drawer">Sign Out</a>
         <?php else: ?>
-        <a href="login.php" class="nav-login-btn" aria-label="Login">Sign In</a>
+        <a href="login.php" class="nav-login-btn" aria-label="Login" data-nav-mobile="drawer">Sign In</a>
         <?php endif; ?>
         <a href="cart.php" class="cart-btn" aria-label="Cart">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
@@ -115,6 +119,7 @@ $productCount = count($products);
       </div>
     </div>
   </nav>
+  <?php require __DIR__ . '/includes/nav_drawer.php'; ?>
 
   <div class="ss-breadcrumb">
     <a href="index.php">Home</a> · <span aria-current="page"><?= h($displayName) ?></span>

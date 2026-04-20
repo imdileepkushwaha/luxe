@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/cart_session.php';
+require_once __DIR__ . '/../includes/coupons.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -43,6 +44,7 @@ if (is_string($deliverySpeedRaw) && in_array($deliverySpeedRaw, ['standard', 'ex
 }
 $addressId = isset($data['address_id']) ? (int) $data['address_id'] : 0;
 $address = trim((string) ($data['shipping_address'] ?? ''));
+$couponCode = coupons_normalize_code((string) ($data['coupon_code'] ?? ''));
 
 try {
     $pdo = db();
@@ -71,7 +73,7 @@ try {
         'INSERT INTO order_items (order_id, product_id, name, emoji, variant_text, price, qty) VALUES (?,?,?,?,?,?,?)'
     );
     $productSt = $pdo->prepare(
-        'SELECT p.id, p.name, p.emoji, p.price, p.stock_qty
+        'SELECT p.id, p.name, p.emoji, p.price, p.stock_qty, p.seller_id
          FROM products p
          LEFT JOIN seller_users s ON s.id = p.seller_id
          WHERE p.id = ?
@@ -198,7 +200,12 @@ try {
         $insI->execute([$orderId, $pid, $name, $emoji, $variant, $price, $qty]);
         $safeTotal += ($price * $qty);
         $savedAny = true;
-        $linesForShipping[] = ['id' => $pid, 'price' => $price, 'qty' => $qty];
+        $linesForShipping[] = [
+            'id' => $pid,
+            'price' => $price,
+            'qty' => $qty,
+            'seller_id' => max(0, (int) ($productRow['seller_id'] ?? 0)),
+        ];
     }
 
     if (!$savedAny) {
@@ -213,7 +220,8 @@ try {
     } elseif ($deliverySpeed === 'same_day') {
         $deliveryTotal = (int) ($speedFees['same_day'] ?? 0);
     }
-    $orderTotal = $safeTotal + $platformFee + $deliveryTotal;
+    $couponDiscount = coupons_order_discount_rupees($pdo, $couponCode, $linesForShipping);
+    $orderTotal = max(0, $safeTotal + $platformFee + $deliveryTotal - $couponDiscount);
 
     $updO = $pdo->prepare(
         'UPDATE orders

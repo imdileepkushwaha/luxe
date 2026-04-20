@@ -12,21 +12,63 @@ $activeNav = 'earnings';
 
 $summary = seller_finance_summary($pdo, (int) $seller['id']);
 $recentOrders = seller_finance_recent_delivered_orders($pdo, (int) $seller['id'], 12);
-$withdraws = seller_finance_withdraw_requests($pdo, (int) $seller['id'], 8);
+$withdraws = seller_finance_withdraw_requests($pdo, (int) $seller['id'], 12);
+
+function seller_earnings_format_dt(?string $raw): string
+{
+    if ($raw === null || trim($raw) === '') {
+        return '—';
+    }
+    try {
+        return (new DateTimeImmutable($raw))->format('M j, Y · g:i A');
+    } catch (Throwable) {
+        return $raw;
+    }
+}
+
+function seller_earnings_withdraw_chip_mod(string $status): string
+{
+    return match (strtolower(trim($status))) {
+        'paid', 'approved' => 'seller-status-chip--delivered',
+        'rejected' => 'seller-status-chip--rejected',
+        'pending' => 'seller-status-chip--pending',
+        default => '',
+    };
+}
+
+function seller_earnings_withdraw_status_label(string $status): string
+{
+    $s = strtolower(trim($status));
+
+    return match ($s) {
+        'paid' => 'Paid',
+        'approved' => 'Approved',
+        'rejected' => 'Rejected',
+        'pending' => 'Pending',
+        default => $s !== '' ? ucfirst($s) : '—',
+    };
+}
 
 require __DIR__ . '/partials/shell-top.php';
 ?>
 
-        <div class="admin-page-head">
-          <h1>Earnings dashboard</h1>
+        <div class="admin-page-head seller-txn-head seller-earnings-page-head">
+          <div>
+            <h1>Earnings</h1>
+            <p class="seller-txn-subtitle">Delivered orders aapke <strong>credited</strong> total ko banate hain. Withdrawable = delivered − paid out − pending requests. Pipeline = abhi deliver nahi hua.</p>
+          </div>
+          <div class="admin-page-head__actions seller-txn-card-head-actions">
+            <a class="admin-btn admin-btn--ghost-light" href="transactions.php">Transactions</a>
+            <a class="admin-btn admin-btn--primary" href="withdraw-requests.php">Withdraw</a>
+          </div>
         </div>
 
-        <div class="seller-kpi">
+        <div class="seller-kpi seller-txn-kpi seller-earnings-kpi">
           <div class="seller-kpi-card seller-kpi-card--revenue">
             <div>
-              <div class="seller-kpi-card__label">Delivered earnings</div>
-              <div class="seller-kpi-card__value">Rs <?= number_format((int) $summary['delivered_total']) ?></div>
-              <div class="seller-kpi-card__hint">Total earnings from delivered orders</div>
+              <div class="seller-kpi-card__label">Delivered (credited)</div>
+              <div class="seller-kpi-card__value">₹<?= number_format((int) $summary['delivered_total'], 0, '.', ',') ?></div>
+              <div class="seller-kpi-card__hint">Line items jab order delivered ho</div>
             </div>
             <div class="seller-kpi-card__icon" aria-hidden="true">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
@@ -34,9 +76,9 @@ require __DIR__ . '/partials/shell-top.php';
           </div>
           <div class="seller-kpi-card seller-kpi-card--orders">
             <div>
-              <div class="seller-kpi-card__label">Withdrawable balance</div>
-              <div class="seller-kpi-card__value">Rs <?= number_format((int) $summary['withdrawable_balance']) ?></div>
-              <div class="seller-kpi-card__hint">Available to request withdrawal</div>
+              <div class="seller-kpi-card__label">Withdrawable</div>
+              <div class="seller-kpi-card__value">₹<?= number_format((int) $summary['withdrawable_balance'], 0, '.', ',') ?></div>
+              <div class="seller-kpi-card__hint">Abhi payout request kar sakte ho</div>
             </div>
             <div class="seller-kpi-card__icon" aria-hidden="true">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20"/><path d="m17 7-5-5-5 5"/><path d="M5 17h14"/></svg>
@@ -44,19 +86,29 @@ require __DIR__ . '/partials/shell-top.php';
           </div>
           <div class="seller-kpi-card seller-kpi-card--products">
             <div>
-              <div class="seller-kpi-card__label">Pending withdrawals</div>
-              <div class="seller-kpi-card__value">Rs <?= number_format((int) $summary['pending_withdraw_total']) ?></div>
-              <div class="seller-kpi-card__hint">Requests currently under review</div>
+              <div class="seller-kpi-card__label">Pending withdraw</div>
+              <div class="seller-kpi-card__value">₹<?= number_format((int) $summary['pending_withdraw_total'], 0, '.', ',') ?></div>
+              <div class="seller-kpi-card__hint">Admin review — balance se hold</div>
             </div>
             <div class="seller-kpi-card__icon" aria-hidden="true">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
             </div>
           </div>
+          <div class="seller-kpi-card seller-kpi-card--revenue">
+            <div>
+              <div class="seller-kpi-card__label">Paid out</div>
+              <div class="seller-kpi-card__value">₹<?= number_format((int) $summary['paid_out_total'], 0, '.', ',') ?></div>
+              <div class="seller-kpi-card__hint">Approved / paid withdrawals</div>
+            </div>
+            <div class="seller-kpi-card__icon" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 13 4 4L19 7"/></svg>
+            </div>
+          </div>
           <div class="seller-kpi-card seller-kpi-card--orders">
             <div>
-              <div class="seller-kpi-card__label">In pipeline</div>
-              <div class="seller-kpi-card__value">Rs <?= number_format((int) $summary['pipeline_total']) ?></div>
-              <div class="seller-kpi-card__hint">Processing + shipped orders value</div>
+              <div class="seller-kpi-card__label">Pipeline</div>
+              <div class="seller-kpi-card__value">₹<?= number_format((int) $summary['pipeline_total'], 0, '.', ',') ?></div>
+              <div class="seller-kpi-card__hint">Processing + shipped (estimate)</div>
             </div>
             <div class="seller-kpi-card__icon" aria-hidden="true">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 6 13.5 14.5 8.5 9.5 2 16"/><polyline points="16 6 22 6 22 12"/></svg>
@@ -64,32 +116,101 @@ require __DIR__ . '/partials/shell-top.php';
           </div>
         </div>
 
-        <div class="card" style="margin-top:16px">
-          <div class="card-header">
-            <h2 class="card-title">Recent delivered orders (earnings)</h2>
+        <div class="card seller-txn-card seller-earnings-card">
+          <div class="card-header seller-txn-card-head">
+            <div>
+              <h2 class="card-title">Recent delivered orders</h2>
+              <p class="card-subtitle seller-txn-card-sub">Aapke products wale line items ka total jab order <strong>delivered</strong> ho chuka ho. Pichhle 12 orders.</p>
+            </div>
+            <span class="seller-txn-count-pill"><?= count($recentOrders) ?> order<?= count($recentOrders) === 1 ? '' : 's' ?></span>
           </div>
           <div class="card-body card-body--flush">
-            <div class="admin-table-wrap">
-              <table class="admin-table">
+            <div class="seller-txn-search-bar">
+              <label class="seller-inventory-search-wrap seller-txn-search" for="sellerEarningsOrdersSearch">
+                <span class="seller-inventory-search-icon" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                </span>
+                <input
+                  type="search"
+                  id="sellerEarningsOrdersSearch"
+                  class="seller-inventory-search-input"
+                  placeholder="Search ref, order id, amount, date…"
+                  autocomplete="off"
+                  aria-label="Search delivered orders"
+                  <?= $recentOrders === [] ? 'disabled' : '' ?>
+                >
+              </label>
+            </div>
+            <div class="admin-table-wrap seller-txn-table-wrap">
+              <table class="admin-table seller-txn-table seller-earnings-orders-table">
                 <thead>
                   <tr>
-                    <th>Order ref</th>
-                    <th>Date</th>
-                    <th>Items sold</th>
-                    <th>Your earnings</th>
+                    <th>Delivered</th>
+                    <th>Order</th>
+                    <th class="seller-earnings-th-qty">Qty</th>
+                    <th class="seller-txn-th-amount">Earnings</th>
+                    <th class="seller-txn-th-actions"></th>
                   </tr>
                 </thead>
                 <tbody>
                   <?php foreach ($recentOrders as $row): ?>
-                    <tr>
-                      <td><strong><?= h((string) $row['order_ref']) ?></strong></td>
-                      <td><?= h((string) $row['created_at']) ?></td>
-                      <td><?= (int) ($row['total_qty'] ?? 0) ?></td>
-                      <td>Rs <?= number_format((int) ($row['seller_total'] ?? 0)) ?></td>
+                    <?php
+                    $oid = (int) ($row['id'] ?? 0);
+                    $ref = trim((string) ($row['order_ref'] ?? ''));
+                    $qty = (int) ($row['total_qty'] ?? 0);
+                    $earn = (int) ($row['seller_total'] ?? 0);
+                    $createdRaw = trim((string) ($row['created_at'] ?? ''));
+                    $createdFmt = seller_earnings_format_dt($createdRaw);
+                    $orderSearch = mb_strtolower(
+                        $ref . ' '
+                        . (string) $oid . ' '
+                        . (string) $qty . ' '
+                        . (string) $earn . ' '
+                        . preg_replace('/[^\d]/', '', (string) $earn) . ' '
+                        . $createdRaw . ' '
+                        . $createdFmt . ' '
+                        . 'delivered earnings'
+                    );
+                    ?>
+                    <tr class="seller-earnings-order-row" data-earnings-search="<?= h($orderSearch) ?>">
+                      <td class="seller-txn-td-muted"><?= h($createdFmt) ?></td>
+                      <td>
+                        <span class="seller-orders-ref"><?= h($ref !== '' ? $ref : '—') ?></span>
+                        <span class="seller-orders-id-tag">#<?= $oid ?></span>
+                      </td>
+                      <td class="seller-earnings-td-qty"><?= $qty ?></td>
+                      <td class="seller-txn-td-amount seller-txn-amount--credit">+₹<?= number_format($earn, 0, '.', ',') ?></td>
+                      <td class="seller-txn-td-actions">
+                        <?php if ($oid > 0): ?>
+                          <a class="seller-edit-btn" href="order-details.php?id=<?= $oid ?>">Details</a>
+                        <?php endif; ?>
+                      </td>
                     </tr>
                   <?php endforeach; ?>
+                  <?php if ($recentOrders !== []): ?>
+                    <tr id="sellerEarningsOrdersNoMatch" class="seller-txn-no-match-row" style="display:none">
+                      <td colspan="5">
+                        <div class="seller-txn-no-match-inner">
+                          <span class="seller-txn-no-match-icon" aria-hidden="true">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                          </span>
+                          <div>
+                            <strong>No matching orders</strong>
+                            <p>Reference, order ID, ya amount try karein.</p>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  <?php endif; ?>
                   <?php if ($recentOrders === []): ?>
-                    <tr><td colspan="4">No delivered order earnings yet.</td></tr>
+                    <tr>
+                      <td colspan="5">
+                        <div class="seller-txn-empty seller-earnings-empty">
+                          <p class="seller-txn-empty__title">Abhi delivered earnings nahi</p>
+                          <p class="seller-txn-empty__text">Jab aapke products wale orders deliver ho jayenge, yahan <strong>+₹</strong> lines dikhengi. <a href="orders.php">Orders</a> se status track karein.</p>
+                        </div>
+                      </td>
+                    </tr>
                   <?php endif; ?>
                 </tbody>
               </table>
@@ -97,39 +218,145 @@ require __DIR__ . '/partials/shell-top.php';
           </div>
         </div>
 
-        <div class="card" style="margin-top:16px">
-          <div class="card-header">
-            <h2 class="card-title">Recent withdraw requests</h2>
+        <div class="card seller-txn-card seller-earnings-card seller-earnings-card--withdraw">
+          <div class="card-header seller-txn-card-head">
+            <div>
+              <h2 class="card-title">Recent withdraw requests</h2>
+              <p class="card-subtitle seller-txn-card-sub">Pichhle 12 requests. Poori history ke liye Withdraw page kholo.</p>
+            </div>
+            <div class="seller-txn-card-head-actions">
+              <span class="seller-txn-count-pill"><?= count($withdraws) ?> shown</span>
+              <a class="admin-btn admin-btn--ghost-light" href="withdraw-requests.php">View all</a>
+            </div>
           </div>
           <div class="card-body card-body--flush">
-            <div class="admin-table-wrap">
-              <table class="admin-table">
+            <div class="seller-txn-search-bar">
+              <label class="seller-inventory-search-wrap seller-txn-search" for="sellerEarningsWithdrawSearch">
+                <span class="seller-inventory-search-icon" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                </span>
+                <input
+                  type="search"
+                  id="sellerEarningsWithdrawSearch"
+                  class="seller-inventory-search-input"
+                  placeholder="Search WR, amount, method, status…"
+                  autocomplete="off"
+                  aria-label="Search withdraw requests"
+                  <?= $withdraws === [] ? 'disabled' : '' ?>
+                >
+              </label>
+            </div>
+            <div class="admin-table-wrap seller-txn-table-wrap">
+              <table class="admin-table seller-txn-table seller-earnings-withdraw-table">
                 <thead>
                   <tr>
-                    <th>Request ID</th>
-                    <th>Amount</th>
+                    <th>Requested</th>
+                    <th>Reference</th>
+                    <th class="seller-txn-th-amount">Amount</th>
                     <th>Method</th>
                     <th>Status</th>
-                    <th>Requested at</th>
                   </tr>
                 </thead>
                 <tbody>
                   <?php foreach ($withdraws as $w): ?>
-                    <tr>
-                      <td>#WR<?= (int) ($w['id'] ?? 0) ?></td>
-                      <td>Rs <?= number_format((int) ($w['amount'] ?? 0)) ?></td>
-                      <td><?= h((string) ($w['method'] ?? '-')) ?></td>
-                      <td><span class="seller-status-chip seller-status-chip--<?= h(strtolower((string) ($w['status'] ?? 'pending'))) ?>"><?= h((string) ($w['status'] ?? 'pending')) ?></span></td>
-                      <td><?= h((string) ($w['requested_at'] ?? '-')) ?></td>
+                    <?php
+                    $wid = (int) ($w['id'] ?? 0);
+                    $wamt = (int) ($w['amount'] ?? 0);
+                    $stRaw = (string) ($w['status'] ?? '');
+                    $stMod = seller_earnings_withdraw_chip_mod($stRaw);
+                    $stLabel = seller_earnings_withdraw_status_label($stRaw);
+                    $methodRaw = strtolower(trim((string) ($w['method'] ?? '')));
+                    $methodLabel = $methodRaw === 'upi' ? 'UPI' : ($methodRaw === 'bank' ? 'Bank' : ($methodRaw !== '' ? ucfirst($methodRaw) : '—'));
+                    $methodPillMod = $methodRaw === 'upi' ? 'seller-withdraw-method-pill--upi' : 'seller-withdraw-method-pill--bank';
+                    $reqRaw = trim((string) ($w['requested_at'] ?? ''));
+                    $reqFmt = seller_earnings_format_dt($reqRaw);
+                    $wSearch = mb_strtolower(
+                        'wr' . (string) $wid . ' '
+                        . (string) $wid . ' '
+                        . (string) $wamt . ' '
+                        . preg_replace('/[^\d]/', '', (string) $wamt) . ' '
+                        . strtolower($stRaw) . ' '
+                        . strtolower($stLabel) . ' '
+                        . $methodRaw . ' '
+                        . strtolower($methodLabel) . ' '
+                        . $reqRaw . ' '
+                        . $reqFmt
+                    );
+                    ?>
+                    <tr class="seller-earnings-withdraw-row" data-earnings-search="<?= h($wSearch) ?>">
+                      <td class="seller-txn-td-muted"><?= h($reqFmt) ?></td>
+                      <td><span class="seller-product-list-sku">WR<?= $wid ?></span></td>
+                      <td class="seller-txn-td-amount seller-earnings-withdraw-amt">₹<?= number_format($wamt, 0, '.', ',') ?></td>
+                      <td>
+                        <?php if ($methodLabel !== '—'): ?>
+                          <span class="seller-withdraw-method-pill <?= h($methodPillMod) ?>"><?= h($methodLabel) ?></span>
+                        <?php else: ?>
+                          —
+                        <?php endif; ?>
+                      </td>
+                      <td><span class="seller-status-chip <?= h($stMod !== '' ? $stMod : '') ?>"><?= h($stLabel) ?></span></td>
                     </tr>
                   <?php endforeach; ?>
+                  <?php if ($withdraws !== []): ?>
+                    <tr id="sellerEarningsWithdrawNoMatch" class="seller-txn-no-match-row" style="display:none">
+                      <td colspan="5">
+                        <div class="seller-txn-no-match-inner">
+                          <span class="seller-txn-no-match-icon" aria-hidden="true">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                          </span>
+                          <div>
+                            <strong>No matching requests</strong>
+                            <p>WR number, amount, ya status try karein.</p>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  <?php endif; ?>
                   <?php if ($withdraws === []): ?>
-                    <tr><td colspan="5">No withdraw requests yet.</td></tr>
+                    <tr>
+                      <td colspan="5">
+                        <div class="seller-txn-empty seller-earnings-empty">
+                          <p class="seller-txn-empty__title">Abhi withdraw request nahi</p>
+                          <p class="seller-txn-empty__text">Balance hone par <a href="withdraw-requests.php">Withdraw</a> se OTP ke saath request bhejein.</p>
+                        </div>
+                      </td>
+                    </tr>
                   <?php endif; ?>
                 </tbody>
               </table>
             </div>
           </div>
         </div>
+
+        <script>
+          (function () {
+            function wireEarningsSearch(inputId, rowSelector, noMatchId) {
+              var input = document.getElementById(inputId);
+              if (!input || input.disabled) return;
+              var rows = document.querySelectorAll(rowSelector);
+              var noMatch = document.getElementById(noMatchId);
+              function apply() {
+                var q = (input.value || '').trim().toLowerCase();
+                var words = q.split(/\s+/).filter(Boolean);
+                var anyShown = false;
+                rows.forEach(function (tr) {
+                  var hay = (tr.getAttribute('data-earnings-search') || '').toLowerCase();
+                  var show = words.length === 0 || words.every(function (w) {
+                    return hay.indexOf(w) !== -1;
+                  });
+                  tr.style.display = show ? '' : 'none';
+                  if (show) anyShown = true;
+                });
+                if (noMatch) {
+                  noMatch.style.display = (words.length > 0 && !anyShown) ? '' : 'none';
+                }
+              }
+              input.addEventListener('input', apply);
+              input.addEventListener('search', apply);
+            }
+            wireEarningsSearch('sellerEarningsOrdersSearch', 'tr.seller-earnings-order-row', 'sellerEarningsOrdersNoMatch');
+            wireEarningsSearch('sellerEarningsWithdrawSearch', 'tr.seller-earnings-withdraw-row', 'sellerEarningsWithdrawNoMatch');
+          })();
+        </script>
 
 <?php require __DIR__ . '/partials/shell-bottom.php'; ?>

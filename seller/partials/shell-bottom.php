@@ -6,6 +6,7 @@
           <a href="profile.php">Profile</a>
           <a href="orders.php">Orders</a>
           <a href="products.php">Products</a>
+          <a href="coupons.php">Coupons</a>
           <a href="inventory.php">Inventory</a>
           <a href="reviews.php">Reviews</a>
           <a href="shipping-settings.php">Shipping</a>

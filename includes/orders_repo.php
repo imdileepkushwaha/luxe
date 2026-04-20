@@ -174,6 +174,43 @@ function orders_fetch_for_user(PDO $pdo, int $userId): array
     return $out;
 }
 
+/**
+ * Aggregates for profile hero (orders count, spend, savings vs MRP from catalog).
+ *
+ * @return array{order_count:int,lifetime_spend_rupees:int,total_saved_rupees:int}
+ */
+function profile_order_stats_for_user(PDO $pdo, int $userId): array
+{
+    if ($userId <= 0) {
+        return ['order_count' => 0, 'lifetime_spend_rupees' => 0, 'total_saved_rupees' => 0];
+    }
+    $st = $pdo->prepare(
+        'SELECT COUNT(*) AS c, COALESCE(SUM(total_amount), 0) AS spend FROM orders WHERE user_id = ?'
+    );
+    $st->execute([$userId]);
+    $row = $st->fetch(PDO::FETCH_ASSOC) ?: [];
+    $orderCount = (int) ($row['c'] ?? 0);
+    $spend = (int) ($row['spend'] ?? 0);
+
+    $savedSt = $pdo->prepare(
+        'SELECT COALESCE(SUM(
+            GREATEST(0, COALESCE(p.original_price, oi.price) - oi.price) * oi.qty
+        ), 0) AS saved
+         FROM order_items oi
+         INNER JOIN orders o ON o.id = oi.order_id AND o.user_id = ?
+         LEFT JOIN products p ON p.id = oi.product_id'
+    );
+    $savedSt->execute([$userId]);
+    $savedRow = $savedSt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $saved = (int) ($savedRow['saved'] ?? 0);
+
+    return [
+        'order_count' => $orderCount,
+        'lifetime_spend_rupees' => $spend,
+        'total_saved_rupees' => $saved,
+    ];
+}
+
 /** @return list<string> */
 function order_tracking_steps(string $status): array
 {

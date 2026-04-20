@@ -281,214 +281,319 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+function seller_kyc_format_dt(?string $raw): string
+{
+    if ($raw === null || trim($raw) === '') {
+        return '—';
+    }
+    try {
+        return (new DateTimeImmutable($raw))->format('M j, Y · g:i A');
+    } catch (Throwable) {
+        return $raw;
+    }
+}
+
+function seller_kyc_edit_status_label(string $status): string
+{
+    $s = strtolower(trim($status));
+
+    return match ($s) {
+        'none', '' => 'None',
+        'pending' => 'Pending',
+        'approved' => 'Approved',
+        'rejected' => 'Rejected',
+        default => $s !== '' ? ucfirst($s) : '—',
+    };
+}
+
+$kycSubmitted = (int) ($details['kyc_completed'] ?? 0) === 1;
+$editReqLabel = seller_kyc_edit_status_label($editRequestStatus);
+
 require __DIR__ . '/partials/shell-top.php';
 ?>
 
-<div class="admin-page-head">
-  <h1>KYC & Bank details</h1>
-</div>
+        <div class="admin-page-head seller-txn-head seller-kyc-page-head">
+          <div>
+            <h1>KYC &amp; Bank</h1>
+            <p class="seller-txn-subtitle">Compliance aur payouts ke liye business, bank, address aur documents. Submit ke baad <strong>admin final approval</strong> hota hai. Phone / branding <a href="profile.php">Profile</a> par.</p>
+          </div>
+          <div class="admin-page-head__actions seller-txn-card-head-actions">
+            <a class="admin-btn admin-btn--ghost-light" href="profile.php">Profile</a>
+          </div>
+        </div>
 
-<style>
-  .seller-kyc-status{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
-  .seller-kyc-status__pill{padding:7px 10px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid #e5e7eb;background:#fff}
-  .seller-kyc-status__pill--ok{border-color:#86efac;background:#f0fdf4;color:#166534}
-  .seller-kyc-status__pill--warn{border-color:#fcd34d;background:#fffbeb;color:#92400e}
-  .seller-kyc-status__pill--muted{border-color:#d1d5db;background:#f9fafb;color:#374151}
-  .seller-kyc-doc-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:10px 0 14px}
-  .seller-kyc-doc-card{border:1px solid #e5e7eb;border-radius:10px;padding:10px;background:#fff}
-  .seller-kyc-doc-card__title{font-weight:600;font-size:13px;color:#111827;margin-bottom:8px}
-  @media (max-width: 800px){.seller-kyc-doc-grid{grid-template-columns:1fr}}
-</style>
+        <div class="seller-kpi seller-txn-kpi seller-kyc-kpi">
+          <div class="seller-kpi-card seller-kpi-card--products">
+            <div>
+              <div class="seller-kpi-card__label">KYC packet</div>
+              <div class="seller-kpi-card__value"><?= $kycSubmitted ? 'Submitted' : 'Draft' ?></div>
+              <div class="seller-kpi-card__hint">Updated: <?= h(seller_kyc_format_dt((string) ($details['kyc_updated_at'] ?? ''))) ?></div>
+            </div>
+            <div class="seller-kpi-card__icon" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l7 4v6c0 5-3.5 9.74-7 10-3.5-.26-7-5-7-10V6l7-4z"/></svg>
+            </div>
+          </div>
+          <div class="seller-kpi-card seller-kpi-card--revenue">
+            <div>
+              <div class="seller-kpi-card__label">Final approval</div>
+              <div class="seller-kpi-card__value"><?= $isFinalApproved ? 'Approved' : 'Pending' ?></div>
+              <div class="seller-kpi-card__hint">Reviewed: <?= h(seller_kyc_format_dt((string) ($details['kyc_final_reviewed_at'] ?? ''))) ?></div>
+            </div>
+            <div class="seller-kpi-card__icon" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 13 4 4L19 7"/></svg>
+            </div>
+          </div>
+          <div class="seller-kpi-card seller-kpi-card--orders">
+            <div>
+              <div class="seller-kpi-card__label">Edit request</div>
+              <div class="seller-kpi-card__value"><?= h($editReqLabel) ?></div>
+              <div class="seller-kpi-card__hint"><?= $isEditUnlocked ? 'Unlocked — form edit ho sakta hai' : 'Admin workflow' ?></div>
+            </div>
+            <div class="seller-kpi-card__icon" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17.25V21h3.75L19.81 7.94l-3.75-3.75z"/></svg>
+            </div>
+          </div>
+        </div>
 
-<div class="card">
-  <div class="card-body">
-    <?php if ($error !== ''): ?>
-      <div class="seller-alert seller-alert--error" style="margin-bottom:12px"><?= h($error) ?></div>
-    <?php endif; ?>
-    <?php if ($success !== ''): ?>
-      <div class="admin-del-flash admin-del-flash--ok" style="margin-bottom:12px"><?= h($success) ?></div>
-    <?php endif; ?>
-
-    <div class="seller-kyc-status">
-      <?php if ((int) ($details['kyc_completed'] ?? 0) === 1): ?>
-        <span class="seller-kyc-status__pill seller-kyc-status__pill--ok">KYC Submitted</span>
-      <?php else: ?>
-        <span class="seller-kyc-status__pill seller-kyc-status__pill--warn">KYC Pending</span>
-      <?php endif; ?>
-      <?php if ((int) ($details['kyc_final_approved'] ?? 0) === 1): ?>
-        <span class="seller-kyc-status__pill seller-kyc-status__pill--ok">Final Approved</span>
-      <?php else: ?>
-        <span class="seller-kyc-status__pill seller-kyc-status__pill--warn">Final Approval Pending</span>
-      <?php endif; ?>
-      <span class="seller-kyc-status__pill seller-kyc-status__pill--muted">Last Update: <?= h((string) (($details['kyc_updated_at'] ?? '') !== '' ? $details['kyc_updated_at'] : '-')) ?></span>
-    </div>
-
-    <p class="seller-help" style="margin-bottom:8px">
-      Yeh details compliance aur payouts ke liye required hain.
-      <?php if ((int) ($details['kyc_completed'] ?? 0) === 1 && (int) ($details['kyc_final_approved'] ?? 0) === 1): ?>
-        Final approval mil chuki hai. Last approval: <?= h((string) ($details['kyc_final_reviewed_at'] ?? '-')) ?>
-        <?php if ($isEditUnlocked): ?>
-          Edit access admin ne approve kar diya hai. Details update karke dubara submit karein.
-        <?php elseif ($editRequestStatus === 'pending'): ?>
-          Edit request admin review me hai.
-        <?php elseif ($editRequestStatus === 'rejected' && (string) ($details['kyc_edit_rejection_reason'] ?? '') !== ''): ?>
-          Last edit request reject reason: <?= h((string) $details['kyc_edit_rejection_reason']) ?>.
-        <?php else: ?>
-          KYC details lock hain. Edit ke liye request bhejni hogi.
+        <?php if (trim((string) ($details['kyc_rejection_reason'] ?? '')) !== '' && !$isFinalApproved): ?>
+          <div class="seller-kyc-callout seller-kyc-callout--reject" role="status">
+            <p class="seller-kyc-callout__title">Last admin review</p>
+            <p class="seller-kyc-callout__text"><?= h((string) $details['kyc_rejection_reason']) ?></p>
+          </div>
         <?php endif; ?>
-      <?php elseif ((int) ($details['kyc_completed'] ?? 0) === 1): ?>
-        KYC submitted hai, final admin approval pending hai.
-        <?php if ((string) ($details['kyc_rejection_reason'] ?? '') !== ''): ?>
-          Last review reason: <?= h((string) $details['kyc_rejection_reason']) ?>.
+        <?php if ($editRequestStatus === 'rejected' && trim((string) ($details['kyc_edit_rejection_reason'] ?? '')) !== ''): ?>
+          <div class="seller-kyc-callout seller-kyc-callout--reject" role="status">
+            <p class="seller-kyc-callout__title">Edit request note</p>
+            <p class="seller-kyc-callout__text"><?= h((string) $details['kyc_edit_rejection_reason']) ?></p>
+          </div>
         <?php endif; ?>
-        Last update: <?= h((string) ($details['kyc_updated_at'] ?? '-')) ?>
-      <?php else: ?>
-        Abhi KYC complete nahi hai.
-      <?php endif; ?>
-    </p>
 
-    <div class="seller-kyc-doc-grid">
-      <div class="seller-kyc-doc-card">
-        <div class="seller-kyc-doc-card__title">GST Document</div>
-        <?php if ($form['gst_doc_path'] !== ''): ?>
-          <a class="admin-btn" style="padding:6px 10px;border:1px solid var(--admin-border)" href="../<?= h($form['gst_doc_path']) ?>" target="_blank" rel="noopener">View current</a>
-        <?php else: ?>
-          <span class="seller-help">Not uploaded</span>
-        <?php endif; ?>
-      </div>
-      <div class="seller-kyc-doc-card">
-        <div class="seller-kyc-doc-card__title">PAN Document</div>
-        <?php if ($form['pan_doc_path'] !== ''): ?>
-          <a class="admin-btn" style="padding:6px 10px;border:1px solid var(--admin-border)" href="../<?= h($form['pan_doc_path']) ?>" target="_blank" rel="noopener">View current</a>
-        <?php else: ?>
-          <span class="seller-help">Not uploaded</span>
-        <?php endif; ?>
-      </div>
-      <div class="seller-kyc-doc-card">
-        <div class="seller-kyc-doc-card__title">Aadhaar Document</div>
-        <?php if ($form['aadhaar_doc_path'] !== ''): ?>
-          <a class="admin-btn" style="padding:6px 10px;border:1px solid var(--admin-border)" href="../<?= h($form['aadhaar_doc_path']) ?>" target="_blank" rel="noopener">View current</a>
-        <?php else: ?>
-          <span class="seller-help">Not uploaded</span>
-        <?php endif; ?>
-      </div>
-    </div>
+        <div class="card seller-txn-card seller-kyc-card">
+          <div class="card-header seller-txn-card-head">
+            <div>
+              <h2 class="card-title">Verification &amp; bank form</h2>
+              <p class="card-subtitle seller-txn-card-sub">GST (optional), PAN, Aadhaar, bank account, address. Har document <strong>PDF / JPG / PNG / WebP</strong>, max <strong>5 MB</strong>.</p>
+            </div>
+            <span class="seller-txn-count-pill<?= $isEditable ? '' : ' seller-kyc-pill--locked' ?>"><?= $isEditable ? 'Editing open' : 'Locked' ?></span>
+          </div>
+          <div class="card-body seller-kyc-card-body">
+            <?php if ($error !== ''): ?>
+              <div class="seller-kyc-flash seller-alert seller-alert--error"><?= h($error) ?></div>
+            <?php endif; ?>
+            <?php if ($success !== ''): ?>
+              <div class="seller-kyc-flash seller-alert seller-alert--success"><?= h($success) ?></div>
+            <?php endif; ?>
 
-    <?php if ($isFinalApproved && !$isEditUnlocked): ?>
-      <form method="post" style="margin-bottom:14px">
-        <input type="hidden" name="action" value="request_edit_access">
-        <button type="submit" class="admin-btn" style="border:1px solid var(--admin-border)" <?= $editRequestStatus === 'pending' ? 'disabled' : '' ?>>
-          &#9998; Request edit access
-        </button>
-      </form>
-    <?php endif; ?>
+            <div class="seller-kyc-status" role="status">
+              <?php if ($kycSubmitted): ?>
+                <span class="seller-status-chip seller-status-chip--delivered">KYC submitted</span>
+              <?php else: ?>
+                <span class="seller-status-chip seller-status-chip--pending">KYC incomplete</span>
+              <?php endif; ?>
+              <?php if ($isFinalApproved): ?>
+                <span class="seller-status-chip seller-status-chip--delivered">Final approved</span>
+              <?php else: ?>
+                <span class="seller-status-chip seller-status-chip--pending">Final approval pending</span>
+              <?php endif; ?>
+              <span class="seller-kyc-status-meta">Last update: <strong><?= h(seller_kyc_format_dt((string) ($details['kyc_updated_at'] ?? ''))) ?></strong></span>
+            </div>
 
-    <form method="post" enctype="multipart/form-data" class="seller-form">
-      <input type="hidden" name="action" value="save_kyc">
-      <h3 style="margin:0 0 10px">Business details</h3>
-      <div class="seller-form__row">
-        <div>
-          <label for="business_name">Business name</label>
-          <input id="business_name" name="business_name" required value="<?= h($form['business_name']) ?>" placeholder="Brand / company name" <?= !$isEditable ? 'disabled' : '' ?>>
-        </div>
-        <div>
-          <label for="gst_number">GST number (optional)</label>
-          <input id="gst_number" name="gst_number" maxlength="15" value="<?= h($form['gst_number']) ?>" placeholder="22AAAAA0000A1Z5" <?= !$isEditable ? 'disabled' : '' ?>>
-          <label for="gst_document" style="margin-top:8px">GST document (PDF/Image)</label>
-          <input id="gst_document" type="file" name="gst_document" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp" <?= !$isEditable ? 'disabled' : '' ?>>
-          <?php if ($form['gst_doc_path'] !== ''): ?>
-            <p class="seller-help" style="margin-top:6px">Current file: <a href="../<?= h($form['gst_doc_path']) ?>" target="_blank" rel="noopener">Open GST document</a></p>
-          <?php endif; ?>
-        </div>
-      </div>
+            <div class="seller-kyc-intro">
+              <p class="seller-kyc-intro__text">
+                <?php if ($kycSubmitted && $isFinalApproved): ?>
+                  Final approval: <strong><?= h(seller_kyc_format_dt((string) ($details['kyc_final_reviewed_at'] ?? ''))) ?></strong>.
+                  <?php if ($isEditUnlocked): ?>
+                    Admin ne edit unlock kiya — form bhar kar dubara <strong>Save</strong> karein.
+                  <?php elseif ($editRequestStatus === 'pending'): ?>
+                    <strong>Edit request</strong> admin ke review me hai.
+                  <?php elseif ($editRequestStatus === 'rejected' && trim((string) ($details['kyc_edit_rejection_reason'] ?? '')) !== ''): ?>
+                    Edit request reject — note upar dekhein. Phir nayi request bhej sakte ho (jab allow ho).
+                  <?php else: ?>
+                    Details <strong>lock</strong> hain. Badlav ke liye neeche <strong>Request edit access</strong> use karein.
+                  <?php endif; ?>
+                <?php elseif ($kycSubmitted): ?>
+                  Admin final review wait kar raha hai.
+                  <?php if (trim((string) ($details['kyc_rejection_reason'] ?? '')) !== ''): ?>
+                    Feedback upar callout me hai — form fix karke save karein.
+                  <?php endif; ?>
+                <?php else: ?>
+                  Sab required fields aur teen documents bharo, phir save — packet admin ko jayega.
+                <?php endif; ?>
+              </p>
+            </div>
 
-      <div class="seller-form__row">
-        <div>
-          <label for="pan_number">PAN number</label>
-          <input id="pan_number" name="pan_number" required maxlength="10" value="<?= h($form['pan_number']) ?>" placeholder="ABCDE1234F" <?= !$isEditable ? 'disabled' : '' ?>>
-          <label for="pan_document" style="margin-top:8px">PAN document (PDF/Image)</label>
-          <input id="pan_document" type="file" name="pan_document" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp" <?= !$isEditable ? 'disabled' : '' ?>>
-          <?php if ($form['pan_doc_path'] !== ''): ?>
-            <p class="seller-help" style="margin-top:6px">Current file: <a href="../<?= h($form['pan_doc_path']) ?>" target="_blank" rel="noopener">Open PAN document</a></p>
-          <?php endif; ?>
-        </div>
-        <div>
-          <label for="aadhaar_number">Aadhaar number</label>
-          <input id="aadhaar_number" name="aadhaar_number" required pattern="^[0-9]{12}$" value="<?= h($form['aadhaar_number']) ?>" placeholder="12 digit Aadhaar" <?= !$isEditable ? 'disabled' : '' ?>>
-          <label for="aadhaar_document" style="margin-top:8px">Aadhaar document (PDF/Image)</label>
-          <input id="aadhaar_document" type="file" name="aadhaar_document" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp" <?= !$isEditable ? 'disabled' : '' ?>>
-          <?php if ($form['aadhaar_doc_path'] !== ''): ?>
-            <p class="seller-help" style="margin-top:6px">Current file: <a href="../<?= h($form['aadhaar_doc_path']) ?>" target="_blank" rel="noopener">Open Aadhaar document</a></p>
-          <?php endif; ?>
-        </div>
-      </div>
+            <div class="seller-kyc-doc-grid">
+              <div class="seller-kyc-doc-card">
+                <span class="seller-kyc-doc-card__title">GST document</span>
+                <?php if ($form['gst_doc_path'] !== ''): ?>
+                  <a class="seller-edit-btn seller-kyc-doc-btn" href="../<?= h($form['gst_doc_path']) ?>" target="_blank" rel="noopener">View file</a>
+                <?php else: ?>
+                  <span class="seller-kyc-doc-missing">Abhi upload nahi</span>
+                <?php endif; ?>
+              </div>
+              <div class="seller-kyc-doc-card">
+                <span class="seller-kyc-doc-card__title">PAN document</span>
+                <?php if ($form['pan_doc_path'] !== ''): ?>
+                  <a class="seller-edit-btn seller-kyc-doc-btn" href="../<?= h($form['pan_doc_path']) ?>" target="_blank" rel="noopener">View file</a>
+                <?php else: ?>
+                  <span class="seller-kyc-doc-missing">Abhi upload nahi</span>
+                <?php endif; ?>
+              </div>
+              <div class="seller-kyc-doc-card">
+                <span class="seller-kyc-doc-card__title">Aadhaar document</span>
+                <?php if ($form['aadhaar_doc_path'] !== ''): ?>
+                  <a class="seller-edit-btn seller-kyc-doc-btn" href="../<?= h($form['aadhaar_doc_path']) ?>" target="_blank" rel="noopener">View file</a>
+                <?php else: ?>
+                  <span class="seller-kyc-doc-missing">Abhi upload nahi</span>
+                <?php endif; ?>
+              </div>
+            </div>
 
-      <h3 style="margin:16px 0 10px">Bank details</h3>
-      <div class="seller-form__row">
-        <div>
-          <label for="bank_name">Bank name</label>
-          <input id="bank_name" name="bank_name" required value="<?= h($form['bank_name']) ?>" placeholder="e.g. HDFC Bank" <?= !$isEditable ? 'disabled' : '' ?>>
-        </div>
-        <div>
-          <label for="bank_account_name">Account holder name</label>
-          <input id="bank_account_name" name="bank_account_name" required value="<?= h($form['bank_account_name']) ?>" placeholder="Name as per bank" <?= !$isEditable ? 'disabled' : '' ?>>
-        </div>
-      </div>
-      <div class="seller-form__row">
-        <div>
-          <label for="bank_account_number">Account number</label>
-          <input id="bank_account_number" name="bank_account_number" required pattern="^[0-9]{9,18}$" value="<?= h($form['bank_account_number']) ?>" placeholder="9-18 digit account number" <?= !$isEditable ? 'disabled' : '' ?>>
-        </div>
-        <div>
-          <label for="bank_ifsc">IFSC code</label>
-          <input id="bank_ifsc" name="bank_ifsc" required value="<?= h($form['bank_ifsc']) ?>" placeholder="HDFC0001234" <?= !$isEditable ? 'disabled' : '' ?>>
-        </div>
-      </div>
+            <?php if ($isFinalApproved && !$isEditUnlocked): ?>
+              <div class="seller-kyc-request-banner">
+                <div class="seller-kyc-request-banner__text">
+                  <strong>Edit chahiye?</strong> Admin se unlock request bhejo. Approve hone ke baad hi yeh form dubara save hoga.
+                </div>
+                <form method="post" class="seller-kyc-request-form">
+                  <input type="hidden" name="action" value="request_edit_access">
+                  <button type="submit" class="admin-btn admin-btn--outline seller-kyc-request-btn" <?= $editRequestStatus === 'pending' ? ' disabled' : '' ?>>
+                    Request edit access
+                  </button>
+                </form>
+              </div>
+            <?php endif; ?>
 
-      <h3 style="margin:16px 0 10px">Business address & proof</h3>
-      <div>
-        <label for="address_line1">Address line</label>
-        <input id="address_line1" name="address_line1" required value="<?= h($form['address_line1']) ?>" placeholder="Shop / office address" <?= !$isEditable ? 'disabled' : '' ?>>
-      </div>
+            <form method="post" enctype="multipart/form-data" class="seller-form seller-kyc-form<?= !$isEditable ? ' seller-kyc-form--locked' : '' ?>">
+              <input type="hidden" name="action" value="save_kyc">
 
-      <div class="seller-form__row">
-        <div>
-          <label for="city">City</label>
-          <input id="city" name="city" required value="<?= h($form['city']) ?>" placeholder="City" <?= !$isEditable ? 'disabled' : '' ?>>
-        </div>
-        <div>
-          <label for="state">State</label>
-          <input id="state" name="state" required value="<?= h($form['state']) ?>" placeholder="State" <?= !$isEditable ? 'disabled' : '' ?>>
-        </div>
-      </div>
+              <section class="seller-kyc-section" aria-labelledby="kyc-business-heading">
+                <header class="seller-kyc-section__head">
+                  <h3 class="seller-kyc-section__title" id="kyc-business-heading">Business &amp; tax</h3>
+                  <p class="seller-kyc-section__sub">Legal name, GST (agar hai), PAN / Aadhaar aur unke scans.</p>
+                </header>
+                <div class="seller-form__row seller-kyc-form__row">
+                  <div class="seller-kyc-field-group">
+                    <label for="business_name">Business name</label>
+                    <input id="business_name" name="business_name" required value="<?= h($form['business_name']) ?>" placeholder="Brand / company name" <?= !$isEditable ? 'disabled' : '' ?>>
+                  </div>
+                  <div class="seller-kyc-field-group seller-kyc-field-group--stack">
+                    <label for="gst_number">GST number <span class="seller-kyc-optional">(optional)</span></label>
+                    <input id="gst_number" class="seller-kyc-input--gst" name="gst_number" maxlength="15" value="<?= h($form['gst_number']) ?>" placeholder="22AAAAA0000A1Z5" <?= !$isEditable ? 'disabled' : '' ?>>
+                    <label class="seller-kyc-file-label" for="gst_document">GST proof <span class="seller-kyc-file-hint-inline">PDF / image · 5 MB</span></label>
+                    <input id="gst_document" class="seller-kyc-file" type="file" name="gst_document" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp" <?= !$isEditable ? 'disabled' : '' ?>>
+                    <?php if ($form['gst_doc_path'] !== ''): ?>
+                      <div class="seller-kyc-uploaded-row">
+                        <span class="seller-kyc-uploaded-pill">On file</span>
+                        <a class="seller-kyc-uploaded-link" href="../<?= h($form['gst_doc_path']) ?>" target="_blank" rel="noopener">View document</a>
+                      </div>
+                    <?php endif; ?>
+                  </div>
+                </div>
 
-      <div class="seller-form__row">
-        <div>
-          <label for="pin_code">PIN code</label>
-          <input id="pin_code" name="pin_code" required pattern="^[0-9]{6}$" value="<?= h($form['pin_code']) ?>" placeholder="6 digit PIN" <?= !$isEditable ? 'disabled' : '' ?>>
-        </div>
-        <div>
-          <label for="id_proof_type">ID proof type</label>
-          <select id="id_proof_type" name="id_proof_type" required <?= !$isEditable ? 'disabled' : '' ?>>
-            <option value="aadhaar" <?= $form['id_proof_type'] === 'aadhaar' ? 'selected' : '' ?>>Aadhaar</option>
-            <option value="pan" <?= $form['id_proof_type'] === 'pan' ? 'selected' : '' ?>>PAN</option>
-            <option value="passport" <?= $form['id_proof_type'] === 'passport' ? 'selected' : '' ?>>Passport</option>
-            <option value="driving_license" <?= $form['id_proof_type'] === 'driving_license' ? 'selected' : '' ?>>Driving License</option>
-            <option value="voter_id" <?= $form['id_proof_type'] === 'voter_id' ? 'selected' : '' ?>>Voter ID</option>
-          </select>
-        </div>
-      </div>
+                <div class="seller-form__row seller-kyc-form__row">
+                  <div class="seller-kyc-field-group seller-kyc-field-group--stack">
+                    <label for="pan_number">PAN number</label>
+                    <input id="pan_number" class="seller-kyc-input--pan" name="pan_number" required maxlength="10" value="<?= h($form['pan_number']) ?>" placeholder="ABCDE1234F" <?= !$isEditable ? 'disabled' : '' ?>>
+                    <label class="seller-kyc-file-label" for="pan_document">PAN card scan</label>
+                    <input id="pan_document" class="seller-kyc-file" type="file" name="pan_document" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp" <?= !$isEditable ? 'disabled' : '' ?>>
+                    <?php if ($form['pan_doc_path'] !== ''): ?>
+                      <div class="seller-kyc-uploaded-row">
+                        <span class="seller-kyc-uploaded-pill">On file</span>
+                        <a class="seller-kyc-uploaded-link" href="../<?= h($form['pan_doc_path']) ?>" target="_blank" rel="noopener">View document</a>
+                      </div>
+                    <?php endif; ?>
+                  </div>
+                  <div class="seller-kyc-field-group seller-kyc-field-group--stack">
+                    <label for="aadhaar_number">Aadhaar number</label>
+                    <input id="aadhaar_number" class="seller-kyc-input--aadhaar" name="aadhaar_number" required pattern="^[0-9]{12}$" value="<?= h($form['aadhaar_number']) ?>" placeholder="12 digit Aadhaar" <?= !$isEditable ? 'disabled' : '' ?>>
+                    <label class="seller-kyc-file-label" for="aadhaar_document">Aadhaar scan</label>
+                    <input id="aadhaar_document" class="seller-kyc-file" type="file" name="aadhaar_document" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp" <?= !$isEditable ? 'disabled' : '' ?>>
+                    <?php if ($form['aadhaar_doc_path'] !== ''): ?>
+                      <div class="seller-kyc-uploaded-row">
+                        <span class="seller-kyc-uploaded-pill">On file</span>
+                        <a class="seller-kyc-uploaded-link" href="../<?= h($form['aadhaar_doc_path']) ?>" target="_blank" rel="noopener">View document</a>
+                      </div>
+                    <?php endif; ?>
+                  </div>
+                </div>
+              </section>
 
-      <div>
-        <label for="id_proof_number">ID proof number</label>
-        <input id="id_proof_number" name="id_proof_number" required value="<?= h($form['id_proof_number']) ?>" placeholder="Document number" <?= !$isEditable ? 'disabled' : '' ?>>
-      </div>
+              <section class="seller-kyc-section" aria-labelledby="kyc-bank-heading">
+                <header class="seller-kyc-section__head">
+                  <h3 class="seller-kyc-section__title" id="kyc-bank-heading">Bank account</h3>
+                  <p class="seller-kyc-section__sub">Payouts isi account par aayenge — details bank passbook jaisi honi chahiye.</p>
+                </header>
+                <div class="seller-form__row seller-kyc-form__row">
+                  <div class="seller-kyc-field-group">
+                    <label for="bank_name">Bank name</label>
+                    <input id="bank_name" name="bank_name" required value="<?= h($form['bank_name']) ?>" placeholder="e.g. HDFC Bank" <?= !$isEditable ? 'disabled' : '' ?>>
+                  </div>
+                  <div class="seller-kyc-field-group">
+                    <label for="bank_account_name">Account holder name</label>
+                    <input id="bank_account_name" name="bank_account_name" required value="<?= h($form['bank_account_name']) ?>" placeholder="Name as per bank" <?= !$isEditable ? 'disabled' : '' ?>>
+                  </div>
+                </div>
+                <div class="seller-form__row seller-kyc-form__row">
+                  <div class="seller-kyc-field-group">
+                    <label for="bank_account_number">Account number</label>
+                    <input id="bank_account_number" class="seller-kyc-input--mono" name="bank_account_number" required pattern="^[0-9]{9,18}$" value="<?= h($form['bank_account_number']) ?>" placeholder="9–18 digits" <?= !$isEditable ? 'disabled' : '' ?>>
+                  </div>
+                  <div class="seller-kyc-field-group">
+                    <label for="bank_ifsc">IFSC code</label>
+                    <input id="bank_ifsc" class="seller-kyc-input--ifsc seller-kyc-input--mono" name="bank_ifsc" required value="<?= h($form['bank_ifsc']) ?>" placeholder="HDFC0001234" <?= !$isEditable ? 'disabled' : '' ?>>
+                  </div>
+                </div>
+              </section>
 
-      <div class="seller-actions" style="margin-top:12px">
-        <button class="admin-btn admin-btn--primary" type="submit" <?= !$isEditable ? 'disabled' : '' ?>>Save details</button>
-      </div>
-    </form>
-  </div>
-</div>
+              <section class="seller-kyc-section" aria-labelledby="kyc-address-heading">
+                <header class="seller-kyc-section__head">
+                  <h3 class="seller-kyc-section__title" id="kyc-address-heading">Address &amp; ID proof</h3>
+                  <p class="seller-kyc-section__sub">Registered / business location aur jo ID type select kiya hai uska number.</p>
+                </header>
+                <div class="seller-kyc-field-group seller-kyc-field-group--wide">
+                  <label for="address_line1">Address line</label>
+                  <input id="address_line1" name="address_line1" required value="<?= h($form['address_line1']) ?>" placeholder="Shop / office address" <?= !$isEditable ? 'disabled' : '' ?>>
+                </div>
+                <div class="seller-form__row seller-kyc-form__row">
+                  <div class="seller-kyc-field-group">
+                    <label for="city">City</label>
+                    <input id="city" class="seller-kyc-input--city" name="city" required value="<?= h($form['city']) ?>" placeholder="City" <?= !$isEditable ? 'disabled' : '' ?>>
+                  </div>
+                  <div class="seller-kyc-field-group">
+                    <label for="state">State</label>
+                    <input id="state" class="seller-kyc-input--state" name="state" required value="<?= h($form['state']) ?>" placeholder="State" <?= !$isEditable ? 'disabled' : '' ?>>
+                  </div>
+                </div>
+                <div class="seller-form__row seller-kyc-form__row">
+                  <div class="seller-kyc-field-group">
+                    <label for="pin_code">PIN code</label>
+                    <input id="pin_code" class="seller-kyc-input--pin seller-kyc-input--mono" name="pin_code" required pattern="^[0-9]{6}$" value="<?= h($form['pin_code']) ?>" placeholder="6 digit PIN" <?= !$isEditable ? 'disabled' : '' ?>>
+                  </div>
+                  <div class="seller-kyc-field-group">
+                    <label for="id_proof_type">ID proof type</label>
+                    <select id="id_proof_type" name="id_proof_type" required <?= !$isEditable ? 'disabled' : '' ?>>
+                      <option value="aadhaar" <?= $form['id_proof_type'] === 'aadhaar' ? 'selected' : '' ?>>Aadhaar</option>
+                      <option value="pan" <?= $form['id_proof_type'] === 'pan' ? 'selected' : '' ?>>PAN</option>
+                      <option value="passport" <?= $form['id_proof_type'] === 'passport' ? 'selected' : '' ?>>Passport</option>
+                      <option value="driving_license" <?= $form['id_proof_type'] === 'driving_license' ? 'selected' : '' ?>>Driving License</option>
+                      <option value="voter_id" <?= $form['id_proof_type'] === 'voter_id' ? 'selected' : '' ?>>Voter ID</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="seller-kyc-field-group seller-kyc-field-group--wide">
+                  <label for="id_proof_number">ID proof number</label>
+                  <input id="id_proof_number" name="id_proof_number" required value="<?= h($form['id_proof_number']) ?>" placeholder="Document number" <?= !$isEditable ? 'disabled' : '' ?>>
+                </div>
+              </section>
+
+              <div class="seller-kyc-submit-panel">
+                <p class="seller-kyc-submit-panel__hint">Save karne par packet admin review queue me chala jata hai. Final approve hone tak sensitive fields lock ho sakti hain.</p>
+                <div class="seller-actions seller-kyc-form-actions">
+                  <button class="admin-btn admin-btn--primary seller-kyc-submit-btn" type="submit" <?= !$isEditable ? 'disabled' : '' ?>>Save &amp; submit for review</button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
 
 <?php require __DIR__ . '/partials/shell-bottom.php'; ?>

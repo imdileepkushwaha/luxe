@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/includes/bootstrap.php';
 require_once __DIR__ . '/includes/cart_session.php';
+require_once __DIR__ . '/includes/coupons.php';
 
 $userId = auth_user_id();
 if ($userId === null) {
@@ -66,8 +67,23 @@ $checkoutItemsPayload = array_map(static function (array $x): array {
         'qty' => max(1, (int) ($x['qty'] ?? 1)),
         'size' => (string) ($x['size'] ?? ''),
         'color' => (string) ($x['color'] ?? ''),
+        'price' => max(0, (int) ($x['price'] ?? 0)),
+        'seller_id' => max(0, (int) ($x['seller_id'] ?? 0)),
     ];
 }, $toCheckout);
+
+$couponDefsJs = coupons_defs_for_frontend($pdo);
+$couponFeaturedCodes = coupons_featured_tag_codes($pdo, 10);
+$checkoutCouponOfferLines = [];
+foreach ($couponFeaturedCodes as $c) {
+    $d = $couponDefsJs[$c] ?? null;
+    if (is_array($d) && isset($d['desc'])) {
+        $checkoutCouponOfferLines[] = '✦ ' . $c . ' — ' . (string) $d['desc'];
+    }
+    if (count($checkoutCouponOfferLines) >= 6) {
+        break;
+    }
+}
 
 $initialTotal = $subtotal + $platformFeeRupees + $baseDelivery;
 $itemCount = count($toCheckout);
@@ -77,6 +93,7 @@ $itemCount = count($toCheckout);
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <?php require __DIR__ . '/includes/luxe_theme_head.php'; ?>
   <title>LUXE — Checkout</title>
   <meta name="description" content="Complete your LUXE order — delivery address and payment." />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,700;1,400&display=swap" rel="stylesheet" />
@@ -97,26 +114,30 @@ $itemCount = count($toCheckout);
 
   <nav class="navbar" id="navbar">
     <div class="nav-container">
-      <a href="index.php" class="nav-logo">LUXE</a>
+      <div class="nav-brand-cluster">
+        <?php require __DIR__ . '/includes/nav_hamburger_btn.php'; ?>
+        <a href="index.php" class="nav-logo">LUXE</a>
+      </div>
       <div class="nav-breadcrumb">
         <a href="index.php">Home</a><span>/</span>
         <a href="cart.php">Cart</a><span>/</span>
         <span class="breadcrumb-current">Checkout</span>
       </div>
       <div class="nav-actions">
-        <a href="profile.php" class="nav-icon-link" aria-label="Profile">
+        <a href="profile.php" class="nav-icon-link" aria-label="Profile" data-nav-mobile="drawer">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         </a>
-        <a href="orders.php" class="nav-icon-link" aria-label="Orders">
+        <a href="orders.php" class="nav-icon-link" aria-label="Orders" data-nav-mobile="drawer">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
         </a>
-        <a href="actions/logout.php" class="nav-login-btn">
+        <a href="actions/logout.php" class="nav-login-btn" aria-label="Sign out" data-nav-mobile="drawer">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-          Logout
+          Sign Out
         </a>
       </div>
     </div>
   </nav>
+  <?php require __DIR__ . '/includes/nav_drawer.php'; ?>
 
   <main class="page-main">
     <div class="container">
@@ -275,6 +296,7 @@ $itemCount = count($toCheckout);
               <div class="price-row"><span>Subtotal (<span id="coItemCount"><?= (int) $itemCount ?></span> items)</span><strong id="coSubtotalEl">₹<?= number_format($subtotal, 0, '.', ',') ?></strong></div>
               <div class="price-row"><span>Delivery Charges</span><strong id="coDeliveryEl" class="text-green"><?= $baseDelivery === 0 ? 'FREE' : '₹' . number_format($baseDelivery, 0, '.', ',') ?></strong></div>
               <div class="price-row"><span>Platform Fee</span><strong id="coPlatformEl">₹<?= number_format($platformFeeRupees, 0, '.', ',') ?></strong></div>
+              <div class="price-row discount-row" id="coDiscountRow" style="display:none"><span>Coupon Discount</span><strong id="coDiscountEl" class="text-green">-₹0</strong></div>
               <div class="price-divider"></div>
               <div class="price-row total-row"><span>Total Amount</span><strong id="coTotalEl">₹<?= number_format($initialTotal, 0, '.', ',') ?></strong></div>
             </div>
@@ -306,9 +328,14 @@ $itemCount = count($toCheckout);
           </div>
 
           <div class="offers-box">
-            <div class="offers-title">🎁 Available Offers</div>
-            <div class="offer-line">✦ 10% off with LUXE10 — up to ₹500</div>
-            <div class="offer-line">✦ 50% off on first order with FIRST50</div>
+            <div class="offers-title">🎁 Seller coupons</div>
+            <?php if ($checkoutCouponOfferLines !== []): ?>
+              <?php foreach ($checkoutCouponOfferLines as $offerLine): ?>
+                <div class="offer-line"><?= h($offerLine) ?></div>
+              <?php endforeach; ?>
+            <?php else: ?>
+              <div class="offer-line">Abhi koi live seller coupon chip nahi — cart par code enter karke try karein jab seller ne offer banaya ho.</div>
+            <?php endif; ?>
             <div class="offer-line">✦ Extra 5% cashback on HDFC cards</div>
           </div>
         </div>
@@ -364,6 +391,7 @@ $itemCount = count($toCheckout);
     window.__CHECKOUT_ITEMS__ = <?= json_encode($checkoutItemsPayload, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
     window.__CHECKOUT_SUBTOTAL__ = <?= (int) $subtotal ?>;
     window.__CART_SPEED_FEES__ = <?= json_encode(['express' => $expressFeeRu, 'same_day' => $sameDayFeeRu], JSON_THROW_ON_ERROR) ?>;
+    window.__COUPON_DEFS__ = <?= json_encode($couponDefsJs, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
   </script>
   <script src="script/luxe.js"></script>
   <script>
@@ -376,6 +404,34 @@ $itemCount = count($toCheckout);
   let expressFee = <?= (int) $expressFeeRu ?>;
   let sameDayFee = <?= (int) $sameDayFeeRu ?>;
   let latestTotal = Number(window.__CHECKOUT_SUBTOTAL__) || 0;
+
+  function checkoutCouponDiscount() {
+    let code = "";
+    try { code = (sessionStorage.getItem("luxeCheckoutCoupon") || "").trim().toUpperCase(); } catch (_e) {}
+    if (!code || typeof window.__COUPON_DEFS__ !== "object" || !window.__COUPON_DEFS__) return 0;
+    const def = window.__COUPON_DEFS__[code];
+    if (!def) return 0;
+    const sellerScope = def.seller_id != null && def.seller_id !== "" ? Number(def.seller_id) : null;
+    const minOrder = def.min_order != null ? Number(def.min_order) : 0;
+    let base = 0;
+    for (const i of items) {
+      const line = Number(i.price || 0) * Number(i.qty || 1);
+      if (sellerScope != null && Number.isFinite(sellerScope)) {
+        if (Number(i.seller_id || 0) === sellerScope) base += line;
+      } else {
+        base += line;
+      }
+    }
+    if (base < minOrder || base <= 0) return 0;
+    let d = 0;
+    if (def.type === "percent") {
+      const cap = def.max != null && def.max !== "" ? Number(def.max) : Infinity;
+      d = Math.min(Math.round(base * Number(def.val) / 100), cap);
+    } else {
+      d = Number(def.val) || 0;
+    }
+    return Math.min(d, base);
+  }
 
   function speedMode() {
     const el = document.querySelector('input[name="delivery"]:checked');
@@ -396,12 +452,23 @@ $itemCount = count($toCheckout);
     const sub = Number(window.__CHECKOUT_SUBTOTAL__) || 0;
     const mode = speedMode();
     const ship = mode === "standard" ? deliveryBase : speedExtra();
-    const total = sub + platformFee + ship;
+    const disc = checkoutCouponDiscount();
+    const total = Math.max(0, sub + platformFee + ship - disc);
     latestTotal = total;
     const delEl = document.getElementById("coDeliveryEl");
     if (delEl) {
       delEl.textContent = ship === 0 ? "FREE" : "₹" + ship.toLocaleString("en-IN");
       delEl.className = ship === 0 ? "text-green" : "";
+    }
+    const dRow = document.getElementById("coDiscountRow");
+    const dEl = document.getElementById("coDiscountEl");
+    if (dRow && dEl) {
+      if (disc > 0) {
+        dRow.style.display = "flex";
+        dEl.textContent = "-₹" + disc.toLocaleString("en-IN");
+      } else {
+        dRow.style.display = "none";
+      }
     }
     const totEl = document.getElementById("coTotalEl");
     if (totEl) totEl.textContent = "₹" + total.toLocaleString("en-IN");
@@ -660,11 +727,15 @@ $itemCount = count($toCheckout);
             items: items,
             address_id: addressId,
             payment_method: payment,
-            delivery_speed: speedMode()
+            delivery_speed: speedMode(),
+            coupon_code: (function () {
+              try { return (sessionStorage.getItem("luxeCheckoutCoupon") || "").trim(); } catch (_e) { return ""; }
+            })()
           })
         });
         const data = await r.json();
         if (data.ok && data.order_ref) {
+          try { sessionStorage.removeItem("luxeCheckoutCoupon"); } catch (_e) {}
           window.location.href = "orders.php?placed=" + encodeURIComponent(data.order_ref);
           return;
         }

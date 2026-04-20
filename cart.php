@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/includes/bootstrap.php';
 require_once __DIR__ . '/includes/cart_session.php';
+require_once __DIR__ . '/includes/coupons.php';
 
 $pdo = db();
 $cartItems = $_SESSION['cart'] ?? [];
@@ -26,12 +27,25 @@ if ($cartItems !== []) {
 }
 
 $userLoggedIn = auth_user_id() !== null;
+$couponDefsJs = coupons_defs_for_frontend($pdo);
+$couponFeaturedCodes = coupons_featured_tag_codes($pdo, 10);
+$couponOfferLines = [];
+foreach ($couponFeaturedCodes as $c) {
+    $d = $couponDefsJs[$c] ?? null;
+    if (is_array($d) && isset($d['desc'])) {
+        $couponOfferLines[] = '✦ ' . $c . ' — ' . (string) $d['desc'];
+    }
+    if (count($couponOfferLines) >= 6) {
+        break;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <?php require __DIR__ . '/includes/luxe_theme_head.php'; ?>
   <title>LUXE — Your Cart</title>
   <meta name="description" content="Review your cart items and proceed to checkout at LUXE." />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,700;1,400&display=swap" rel="stylesheet" />
@@ -45,27 +59,30 @@ $userLoggedIn = auth_user_id() !== null;
   <!-- Navbar -->
   <nav class="navbar" id="navbar">
     <div class="nav-container">
-      <a href="index.php" class="nav-logo">LUXE</a>
+      <div class="nav-brand-cluster">
+        <?php require __DIR__ . '/includes/nav_hamburger_btn.php'; ?>
+        <a href="index.php" class="nav-logo">LUXE</a>
+      </div>
       <div class="nav-breadcrumb">
         <a href="index.php">Home</a><span>/</span>
         <span class="breadcrumb-current">Your Cart</span>
       </div>
       <div class="nav-actions">
         <?php if ($userLoggedIn): ?>
-        <a href="profile.php" class="nav-icon-link" aria-label="Profile">
+        <a href="profile.php" class="nav-icon-link" aria-label="Profile" data-nav-mobile="drawer">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         </a>
         <?php endif; ?>
-        <a href="orders.php" class="nav-icon-link" aria-label="Orders">
+        <a href="orders.php" class="nav-icon-link" aria-label="Orders" data-nav-mobile="drawer">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
         </a>
         <?php if ($userLoggedIn): ?>
-        <a href="actions/logout.php" class="nav-login-btn">
+        <a href="actions/logout.php" class="nav-login-btn" aria-label="Sign out" data-nav-mobile="drawer">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-          Logout
+          Sign Out
         </a>
         <?php else: ?>
-        <a href="login.php" class="nav-login-btn">
+        <a href="login.php" class="nav-login-btn" data-nav-mobile="drawer">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           Sign In
         </a>
@@ -73,6 +90,7 @@ $userLoggedIn = auth_user_id() !== null;
       </div>
     </div>
   </nav>
+  <?php require __DIR__ . '/includes/nav_drawer.php'; ?>
 
   <main class="page-main">
     <div class="container">
@@ -120,11 +138,13 @@ $userLoggedIn = auth_user_id() !== null;
                 <input type="text" id="couponInput" placeholder="Enter coupon code" />
                 <button class="coupon-btn" onclick="applyCoupon()">Apply</button>
               </div>
+              <?php if ($couponFeaturedCodes !== []): ?>
               <div class="coupon-tags">
-                <span class="ctag" onclick="fillCoupon('LUXE10')">LUXE10</span>
-                <span class="ctag" onclick="fillCoupon('FIRST50')">FIRST50</span>
-                <span class="ctag" onclick="fillCoupon('SALE20')">SALE20</span>
+                <?php foreach ($couponFeaturedCodes as $coupCode): ?>
+                <span class="ctag" onclick="fillCoupon('<?= htmlspecialchars($coupCode, ENT_QUOTES, 'UTF-8') ?>')"><?= htmlspecialchars($coupCode, ENT_QUOTES, 'UTF-8') ?></span>
+                <?php endforeach; ?>
               </div>
+              <?php endif; ?>
               <div class="coupon-msg" id="couponMsg"></div>
             </div>
 
@@ -173,9 +193,14 @@ $userLoggedIn = auth_user_id() !== null;
 
           <!-- Offers box -->
           <div class="offers-box">
-            <div class="offers-title">🎁 Available Offers</div>
-            <div class="offer-line">✦ 10% off with LUXE10 — up to ₹500</div>
-            <div class="offer-line">✦ 50% off on first order with FIRST50</div>
+            <div class="offers-title">🎁 Seller coupons</div>
+            <?php if ($couponOfferLines !== []): ?>
+              <?php foreach ($couponOfferLines as $line): ?>
+                <div class="offer-line"><?= htmlspecialchars($line, ENT_QUOTES, 'UTF-8') ?></div>
+              <?php endforeach; ?>
+            <?php else: ?>
+              <div class="offer-line">Jab sellers live coupons banayenge, yahan chips dikhengi — ya neeche code type karke apply karein.</div>
+            <?php endif; ?>
             <div class="offer-line">✦ Extra 5% cashback on HDFC cards</div>
           </div>
         </div>
@@ -223,6 +248,7 @@ $userLoggedIn = auth_user_id() !== null;
     window.__PLATFORM_FEE_RUPEES__ = <?= (int) $platformFeeRupees ?>;
     window.__CART_SPEED_FEES__ = <?= json_encode(['express' => $expressFeeRu, 'same_day' => $sameDayFeeRu], JSON_THROW_ON_ERROR) ?>;
     window.__CART_ITEMS__ = <?= json_encode($cartItems, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
+    window.__COUPON_DEFS__ = <?= json_encode($couponDefsJs, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
     window.__AUTH_USER_ID__ = <?= json_encode(auth_user_id()) ?>;
   </script>
   <script src="script/luxe.js"></script>

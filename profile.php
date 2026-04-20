@@ -7,10 +7,16 @@ if (!$user) {
     exit;
 }
 $pendingDeletion = account_deletion_pending_for_user($pdo, (int) $user['id']);
+$cartNavCount = 0;
+foreach ($_SESSION['cart'] ?? [] as $ci) {
+    $cartNavCount += (int) ($ci['qty'] ?? 1);
+}
 $addresses = [];
 $wishlistArr = [];
+$orderStats = ['order_count' => 0, 'lifetime_spend_rupees' => 0, 'total_saved_rupees' => 0];
 if ($user) {
     $addresses = addresses_fetch_for_user($pdo, (int) $user['id']);
+    $orderStats = profile_order_stats_for_user($pdo, (int) $user['id']);
 }
 foreach (array_slice(products_fetch_all($pdo), 0, 8) as $p) {
     $wishlistArr[] = [
@@ -21,12 +27,52 @@ foreach (array_slice(products_fetch_all($pdo), 0, 8) as $p) {
         'orig' => $p['original'],
     ];
 }
+$wishlistCountInitial = count($wishlistArr);
+$loyaltySummary = loyalty_summary_for_user($pdo, (int) $user['id']);
+$loyaltyBalance = (int) $loyaltySummary['balance'];
+$loyaltyGoldAt = 2000;
+$loyaltyPlatinumAt = 3000;
+if ($loyaltyBalance >= $loyaltyPlatinumAt) {
+    $rewardsTierTitle = 'LUXE Platinum Member';
+    $rewardsLeadHtml = 'You\'ve reached <strong>Platinum</strong> — enjoy exclusive perks! 🏆';
+    $rewardsProgressPct = 100.0;
+} elseif ($loyaltyBalance >= $loyaltyGoldAt) {
+    $rewardsTierTitle = 'LUXE Gold Member';
+    $away = max(0, $loyaltyPlatinumAt - $loyaltyBalance);
+    $rewardsLeadHtml = 'You\'re <strong>' . h(number_format($away)) . ' points</strong> away from Platinum status! 🏆';
+    $rewardsProgressPct = min(100.0, (($loyaltyBalance - $loyaltyGoldAt) / ($loyaltyPlatinumAt - $loyaltyGoldAt)) * 100.0);
+} else {
+    $rewardsTierTitle = 'LUXE Member';
+    $away = max(0, $loyaltyGoldAt - $loyaltyBalance);
+    $rewardsLeadHtml = 'You\'re <strong>' . h(number_format($away)) . ' points</strong> away from Gold status! 🏆';
+    $rewardsProgressPct = $loyaltyGoldAt > 0 ? min(100.0, ($loyaltyBalance / $loyaltyGoldAt) * 100.0) : 0.0;
+}
+$loyaltyHistoryUi = [];
+foreach ($loyaltySummary['history'] as $h) {
+    $iso = (string) ($h['date_iso'] ?? '');
+    $loyaltyHistoryUi[] = [
+        'desc' => (string) ($h['label'] ?? ''),
+        'date' => $iso !== '' ? date('M j, Y', strtotime($iso)) : '',
+        'pts' => (($h['type'] ?? '') === 'pending')
+            ? '+' . (int) ($h['pts'] ?? 0) . ' (pending)'
+            : '+' . (int) ($h['pts'] ?? 0),
+        'type' => (($h['type'] ?? '') === 'pending') ? 'pending' : 'earn',
+    ];
+}
+$memberSinceLabel = '—';
+$createdRaw = (string) ($user['created_at'] ?? '');
+if ($createdRaw !== '') {
+    $ts = strtotime($createdRaw);
+    $memberSinceLabel = $ts !== false ? date('M Y', $ts) : $createdRaw;
+}
+$profileBadgeLabel = $orderStats['order_count'] > 0 ? '⭐ LUXE Premium Member' : 'LUXE Member';
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <?php require __DIR__ . '/includes/luxe_theme_head.php'; ?>
   <title>LUXE — My Profile</title>
   <meta name="description" content="Manage your LUXE profile, addresses, and preferences." />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,700;1,400&display=swap" rel="stylesheet" />
@@ -39,26 +85,30 @@ foreach (array_slice(products_fetch_all($pdo), 0, 8) as $p) {
 
   <nav class="navbar" id="navbar">
     <div class="nav-container">
-      <a href="index.php" class="nav-logo">LUXE</a>
+      <div class="nav-brand-cluster">
+        <?php require __DIR__ . '/includes/nav_hamburger_btn.php'; ?>
+        <a href="index.php" class="nav-logo">LUXE</a>
+      </div>
       <div class="nav-breadcrumb">
         <a href="index.php">Home</a><span>/</span>
         <span class="breadcrumb-current">My Profile</span>
       </div>
       <div class="nav-actions">
-        <a href="orders.php" class="nav-icon-link" aria-label="Orders">
+        <a href="orders.php" class="nav-icon-link" aria-label="Orders" data-nav-mobile="drawer">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
         </a>
         <a href="cart.php" class="nav-icon-link" style="position:relative" aria-label="Cart">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-          <span class="nav-cart-dot">3</span>
+          <span class="nav-cart-dot" id="cartCount"><?= (int) $cartNavCount ?></span>
         </a>
-        <a href="actions/logout.php" class="nav-login-btn">
+        <a href="actions/logout.php" class="nav-login-btn" aria-label="Sign out" data-nav-mobile="drawer">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
           Sign Out
         </a>
       </div>
     </div>
   </nav>
+  <?php require __DIR__ . '/includes/nav_drawer.php'; ?>
 
   <main class="page-main">
     <div class="container">
@@ -84,18 +134,18 @@ foreach (array_slice(products_fetch_all($pdo), 0, 8) as $p) {
             <h1 id="profileName"><?= $user ? h($user['first_name'] . ' ' . $user['last_name']) : 'Guest' ?></h1>
             <p id="profileEmail"><?= $user ? h($user['email']) : 'Sign in to sync your account' ?></p>
             <div class="profile-meta">
-              <span class="profile-badge">⭐ LUXE Premium Member</span>
-              <span class="profile-join">Member since Jan 2024</span>
+              <span class="profile-badge"><?= h($profileBadgeLabel) ?></span>
+              <span class="profile-join">Member since <?= h($memberSinceLabel) ?></span>
             </div>
           </div>
           <div class="profile-stats">
-            <div class="pstat"><strong>12</strong><span>Orders</span></div>
+            <div class="pstat"><strong id="profileStatOrders"><?= (int) $orderStats['order_count'] ?></strong><span>Orders</span></div>
             <div class="pstat-div"></div>
-            <div class="pstat"><strong>8</strong><span>Wishlist</span></div>
+            <div class="pstat"><strong id="profileStatWishlist"><?= (int) $wishlistCountInitial ?></strong><span>Wishlist</span></div>
             <div class="pstat-div"></div>
-            <div class="pstat"><strong>2,450</strong><span>LUXE Points</span></div>
+            <div class="pstat"><strong id="profileStatPoints"><?= h(number_format($loyaltyBalance)) ?></strong><span>LUXE Points</span></div>
             <div class="pstat-div"></div>
-            <div class="pstat"><strong>₹12,840</strong><span>Total Saved</span></div>
+            <div class="pstat"><strong id="profileStatSaved">&#8377;<?= h(number_format((int) $orderStats['total_saved_rupees'])) ?></strong><span>Total Saved</span></div>
           </div>
         </div>
       </div>
@@ -198,7 +248,17 @@ foreach (array_slice(products_fetch_all($pdo), 0, 8) as $p) {
 
           <!-- Wishlist Tab -->
           <div class="tab-panel hidden" id="tab-wishlist">
-            <div class="panel-header"><h2>My Wishlist</h2><a href="index.php" class="ghost-btn" style="font-size:0.85rem;padding:10px 18px">Browse More →</a></div>
+            <header class="wishlist-panel-head">
+              <div class="wishlist-panel-head__main">
+                <span class="wishlist-kicker">Your edit</span>
+                <div class="wishlist-title-row">
+                  <h2 class="wishlist-title">My Wishlist</h2>
+                  <span class="wishlist-count-chip" id="wishlistCountPill">0</span>
+                </div>
+                <p class="wishlist-lede">Saved pieces from across LUXE — tap a card to view full details.</p>
+              </div>
+              <a href="index.php" class="wishlist-cta-outline">Browse collection</a>
+            </header>
             <div class="wishlist-grid" id="wishlistGrid"></div>
           </div>
 
@@ -207,15 +267,15 @@ foreach (array_slice(products_fetch_all($pdo), 0, 8) as $p) {
             <div class="panel-header"><h2>LUXE Rewards</h2></div>
             <div class="rewards-hero">
               <div class="rewards-pts-circle">
-                <strong>2,450</strong>
+                <strong id="rewardsPtsCircle"><?= h(number_format($loyaltyBalance)) ?></strong>
                 <span>Points</span>
               </div>
               <div class="rewards-info">
-                <h3>LUXE Gold Member</h3>
-                <p>You're <strong>550 points</strong> away from Platinum status! 🏆</p>
+                <h3 id="rewardsTierTitle"><?= h($rewardsTierTitle) ?></h3>
+                <p id="rewardsLeadLine"><?= $rewardsLeadHtml ?></p>
                 <div class="points-bar-wrap">
-                  <div class="points-bar"><div class="points-fill" style="width:82%"></div></div>
-                  <div class="points-labels"><span>Gold (2000)</span><span>Platinum (3000)</span></div>
+                  <div class="points-bar"><div class="points-fill" id="rewardsProgressFill" style="width:<?= h((string) round($rewardsProgressPct, 1)) ?>%"></div></div>
+                  <div class="points-labels"><span>Gold (<?= (int) $loyaltyGoldAt ?>)</span><span>Platinum (<?= (int) $loyaltyPlatinumAt ?>)</span></div>
                 </div>
               </div>
             </div>
@@ -227,7 +287,7 @@ foreach (array_slice(products_fetch_all($pdo), 0, 8) as $p) {
               <h3>Redeem Points</h3>
               <p>100 points = ₹10 off on your next order</p>
               <div class="redeem-row">
-                <input type="number" id="redeemInput" placeholder="Enter points to redeem" min="100" max="2450" step="100" />
+                <input type="number" id="redeemInput" placeholder="Enter points to redeem" min="100" max="<?= max(100, $loyaltyBalance) ?>" step="100" />
                 <button class="checkout-btn" style="max-width:140px" onclick="redeemPoints()">Redeem</button>
               </div>
             </div>
@@ -241,16 +301,16 @@ foreach (array_slice(products_fetch_all($pdo), 0, 8) as $p) {
               <div class="setting-item"><div class="setting-info"><strong>SMS Alerts</strong><span>Get order & delivery SMS updates</span></div><label class="toggle"><input type="checkbox" id="smsNotif" checked /><span class="slider"></span></label></div>
               <div class="setting-item"><div class="setting-info"><strong>Push Notifications</strong><span>Flash sale & personalized alerts</span></div><label class="toggle"><input type="checkbox" id="pushNotif" /><span class="slider"></span></label></div>
               <div class="setting-item"><div class="setting-info"><strong>Personalised Recommendations</strong><span>AI-powered product suggestions</span></div><label class="toggle"><input type="checkbox" id="aiRec" checked /><span class="slider"></span></label></div>
-              <div class="setting-divider"></div>
+              <!-- <div class="setting-divider"></div> -->
               <div class="setting-item">
                 <div class="setting-info"><strong>Change Password</strong><span>Update your account password</span></div>
-                <button class="ghost-btn" onclick="showToast('🔐 Password reset link sent to your email!')">Update</button>
+                <button type="button" class="ghost-btn" onclick="openChangePasswordModal()">Update</button>
               </div>
               <div class="setting-item">
                 <div class="setting-info"><strong>Two-Factor Authentication</strong><span>Add extra security to your account</span></div>
                 <button class="ghost-btn" onclick="showToast('📱 2FA setup coming soon!')">Enable</button>
               </div>
-              <div class="setting-divider"></div>
+              <!-- <div class="setting-divider"></div> -->
               <div class="setting-item danger-zone">
                 <div class="setting-info"><strong>Delete Account</strong><span>Submit a request; your account is removed within 48 hours after admin review</span></div>
                 <button type="button" class="danger-btn" id="deleteAccountBtn"<?= $pendingDeletion ? ' disabled data-pending-deletion="1"' : '' ?>><?= $pendingDeletion ? 'Request pending' : 'Delete' ?></button>
@@ -288,6 +348,37 @@ foreach (array_slice(products_fetch_all($pdo), 0, 8) as $p) {
     </div>
   </div>
 
+  <!-- Change password modal -->
+  <div class="modal-overlay hidden" id="changePasswordModal" role="dialog" aria-modal="true" aria-labelledby="changePasswordModalTitle">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="changePasswordModalTitle">Change password</h3>
+        <button type="button" class="modal-close" onclick="closeChangePasswordModal()" aria-label="Close">✕</button>
+      </div>
+      <p class="password-modal-lead">Use at least 8 characters with letters and numbers.</p>
+      <form id="changePasswordForm" onsubmit="savePasswordChange(event)" autocomplete="off">
+        <div class="form-grid">
+          <div class="form-field" style="grid-column: 1 / -1">
+            <label for="pchCurrent">Current password</label>
+            <input type="password" id="pchCurrent" name="current_password" autocomplete="current-password" required maxlength="128" />
+          </div>
+          <div class="form-field" style="grid-column: 1 / -1">
+            <label for="pchNew">New password</label>
+            <input type="password" id="pchNew" name="new_password" autocomplete="new-password" required minlength="8" maxlength="128" />
+          </div>
+          <div class="form-field" style="grid-column: 1 / -1">
+            <label for="pchConfirm">Confirm new password</label>
+            <input type="password" id="pchConfirm" name="confirm_password" autocomplete="new-password" required minlength="8" maxlength="128" />
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="checkout-btn" id="pchSubmit" style="max-width: 220px">Update password</button>
+          <button type="button" class="ghost-btn" onclick="closeChangePasswordModal()">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
   <script>
     window.LUXE_URLS = <?= json_encode([
@@ -298,13 +389,25 @@ foreach (array_slice(products_fetch_all($pdo), 0, 8) as $p) {
         'orders' => 'orders.php',
         'profile' => 'profile.php',
     ], JSON_THROW_ON_ERROR) ?>;
+    window.__API_CART__ = 'api/cart.php';
+    window.__CART_COUNT__ = <?= (int) $cartNavCount ?>;
     window.__ADDRESSES__ = <?= json_encode($addresses, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
     window.__WISHLIST__ = <?= json_encode($wishlistArr, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
     window.__API_PROFILE_UPDATE__ = 'actions/update-profile.php';
     window.__API_ACCOUNT_DELETE__ = 'actions/request-account-deletion.php';
+    window.__API_CHANGE_PASSWORD__ = 'actions/change-password.php';
     window.__API_ADDRESS_SAVE__ = 'actions/save-address.php';
     window.__API_ADDRESS_DELETE__ = 'actions/delete-address.php';
     window.__API_ADDRESS_DEFAULT__ = 'actions/set-default-address.php';
+    window.__API_REDEEM_LOYALTY__ = 'actions/redeem-loyalty-points.php';
+    window.__LOYALTY__ = <?= json_encode([
+        'balance' => $loyaltyBalance,
+        'goldAt' => $loyaltyGoldAt,
+        'platinumAt' => $loyaltyPlatinumAt,
+        'pending' => (int) $loyaltySummary['pending'],
+        'earned' => (int) $loyaltySummary['earned'],
+        'history' => $loyaltyHistoryUi,
+    ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
   </script>
   <script src="script/luxe.js"></script>
 </body>

@@ -13,6 +13,7 @@ foreach ($_SESSION['cart'] ?? [] as $ci) {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <?php require __DIR__ . '/includes/luxe_theme_head.php'; ?>
   <title>LUXE — Premium Shopping Experience</title>
   <meta name="description" content="Discover curated luxury fashion, electronics & lifestyle products at LUXE. Free shipping on orders over ₹999. Shop the latest trends today." />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,700;1,400&display=swap" rel="stylesheet" />
@@ -43,7 +44,10 @@ foreach ($_SESSION['cart'] ?? [] as $ci) {
   <!-- Navbar -->
   <nav class="navbar" id="navbar">
     <div class="nav-container">
-      <a href="index.php" class="nav-logo">LUXE</a>
+      <div class="nav-brand-cluster">
+        <?php require __DIR__ . '/includes/nav_hamburger_btn.php'; ?>
+        <a href="index.php" class="nav-logo">LUXE</a>
+      </div>
       <ul class="nav-links">
         <li><a href="#collections">Collections</a></li>
         <li><a href="#trending">Trending</a></li>
@@ -54,22 +58,27 @@ foreach ($_SESSION['cart'] ?? [] as $ci) {
         <button class="icon-btn" id="searchBtn" aria-label="Search">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
         </button>
-        <button class="icon-btn" aria-label="Wishlist">
+        <?php
+        $wishlistNavHref = $user
+            ? 'profile.php?tab=wishlist'
+            : 'login.php?redirect=' . rawurlencode('profile.php?tab=wishlist');
+        ?>
+        <a href="<?= h($wishlistNavHref) ?>" class="icon-btn" aria-label="Wishlist" data-nav-mobile="drawer">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-        </button>
+        </a>
         <?php if ($user): ?>
-        <a href="actions/logout.php" class="nav-login-btn" aria-label="Logout">
+        <a href="actions/logout.php" class="nav-login-btn" aria-label="Sign out" data-nav-mobile="drawer">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-          Logout
+          Sign Out
         </a>
         <?php else: ?>
-        <a href="login.php" class="nav-login-btn" aria-label="Login">
+        <a href="login.php" class="nav-login-btn" aria-label="Login" data-nav-mobile="drawer">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           Sign In
         </a>
         <?php endif; ?>
         <?php if ($user): ?>
-        <a href="profile.php" class="icon-btn" aria-label="Profile">
+        <a href="profile.php" class="icon-btn" aria-label="Profile" data-nav-mobile="drawer">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         </a>
         <?php endif; ?>
@@ -80,22 +89,40 @@ foreach ($_SESSION['cart'] ?? [] as $ci) {
       </div>
     </div>
   </nav>
+  <?php require __DIR__ . '/includes/nav_drawer.php'; ?>
 
   <!-- Search Overlay -->
-  <div class="search-overlay" id="searchOverlay">
-    <button class="search-close" id="searchClose">✕</button>
+  <div class="search-overlay" id="searchOverlay" role="dialog" aria-modal="true" aria-labelledby="searchOverlayTitle">
+    <div class="search-overlay__ambient" aria-hidden="true"></div>
+    <button class="search-close" id="searchClose" type="button" aria-label="Close search">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
     <div class="search-inner">
-      <h2>What are you looking for?</h2>
-      <div class="search-box">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        <input type="text" id="searchInput" placeholder="Search products, brands..." />
+      <p class="search-kicker">LUXE catalog</p>
+      <h2 id="searchOverlayTitle" class="search-title">Find your next favorite</h2>
+      <p class="search-lead">Search by product name, brand, or category — matches show below; the trending section updates too.</p>
+      <div class="search-panel">
+        <label class="search-box" for="searchInput">
+          <span class="search-box__icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          </span>
+          <input type="search" id="searchInput" name="q" placeholder="Try Nike, watch, serum…" autocomplete="off" enterkeyhint="search" />
+        </label>
+        <p class="search-hint">
+          <span class="search-hint__desktop"><kbd>Enter</kbd><span class="search-hint__text">Jumps to trending results</span></span>
+          <span class="search-hint__mobile">Submit search to scroll to results</span>
+        </p>
+        <div class="search-live-results" id="searchLiveResults" hidden aria-live="polite"></div>
       </div>
-      <div class="search-tags">
-        <span class="tag">👟 Sneakers</span>
-        <span class="tag">👜 Bags</span>
-        <span class="tag">⌚ Watches</span>
-        <span class="tag">💻 Laptops</span>
-        <span class="tag">🧴 Skincare</span>
+      <div class="search-tags-block">
+        <span class="search-tags-label">Popular picks</span>
+        <div class="search-tags">
+          <button type="button" class="tag">👟 Sneakers</button>
+          <button type="button" class="tag">👜 Bags</button>
+          <button type="button" class="tag">⌚ Watches</button>
+          <button type="button" class="tag">💻 Laptops</button>
+          <button type="button" class="tag">🧴 Skincare</button>
+        </div>
       </div>
     </div>
   </div>
@@ -353,37 +380,6 @@ foreach ($_SESSION['cart'] ?? [] as $ci) {
             <div class="time-block"><span id="secs">30</span><label>Secs</label></div>
           </div>
           <a href="product.php" class="btn-primary deals-cta"><span>Shop the edit</span><span class="deals-cta__arrow" aria-hidden="true">→</span></a>
-        </div>
-        <div class="deals-visual">
-          <div class="deals-card">
-            <header class="deals-card__head">
-              <span class="deals-card__label">Spotlight picks</span>
-              <span class="deals-card__mark" aria-hidden="true">✦</span>
-            </header>
-            <div class="deals-products">
-              <a href="product.php" class="deal-item deal-item-link">
-                <span class="deal-emoji" aria-hidden="true">👟</span>
-                <div class="deal-item__body">
-                  <strong>Nike Air Max 270</strong>
-                  <div class="deal-price"><s>₹12,995</s><b>₹5,499</b></div>
-                </div>
-              </a>
-              <a href="product.php" class="deal-item deal-item-link">
-                <span class="deal-emoji" aria-hidden="true">🎧</span>
-                <div class="deal-item__body">
-                  <strong>Sony WH‑1000XM5</strong>
-                  <div class="deal-price"><s>₹34,990</s><b>₹18,999</b></div>
-                </div>
-              </a>
-              <a href="product.php" class="deal-item deal-item-link">
-                <span class="deal-emoji" aria-hidden="true">⌚</span>
-                <div class="deal-item__body">
-                  <strong>Apple Watch SE</strong>
-                  <div class="deal-price"><s>₹29,900</s><b>₹19,500</b></div>
-                </div>
-              </a>
-            </div>
-          </div>
         </div>
       </div>
     </div>

@@ -18,6 +18,7 @@ if (isset($_GET['redirect'])) {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <?php require __DIR__ . '/includes/luxe_theme_head.php'; ?>
   <title>LUXE — Sign In to Your Account</title>
   <meta name="description" content="Sign in to your LUXE account to access exclusive deals, track orders, and enjoy a premium shopping experience." />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,700;1,500&display=swap" rel="stylesheet" />
@@ -111,6 +112,7 @@ if (isset($_GET['redirect'])) {
 
     <!-- Right Panel — Login Form -->
     <div class="right-panel">
+      <a href="index.php" class="back-link login-back-mobile">← Back to Store</a>
       <div class="form-card" id="formCard">
 
         <!-- Tabs -->

@@ -3,6 +3,10 @@ require_once __DIR__ . '/includes/bootstrap.php';
 $pdo = db();
 $uid = auth_user_id();
 $userLoggedIn = $uid !== null;
+$cartNavCount = 0;
+foreach ($_SESSION['cart'] ?? [] as $ci) {
+    $cartNavCount += (int) ($ci['qty'] ?? 1);
+}
 
 $flashMessage = '';
 $flashType = 'success';
@@ -296,6 +300,7 @@ $ordersData = $uid ? orders_fetch_for_user($pdo, $uid) : [];
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <?php require __DIR__ . '/includes/luxe_theme_head.php'; ?>
   <title>LUXE — My Orders</title>
   <meta name="description" content="Track and manage your LUXE orders." />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,700;1,400&display=swap" rel="stylesheet" />
@@ -332,28 +337,31 @@ $ordersData = $uid ? orders_fetch_for_user($pdo, $uid) : [];
 
   <nav class="navbar" id="navbar">
     <div class="nav-container">
-      <a href="index.php" class="nav-logo">LUXE</a>
+      <div class="nav-brand-cluster">
+        <?php require __DIR__ . '/includes/nav_hamburger_btn.php'; ?>
+        <a href="index.php" class="nav-logo">LUXE</a>
+      </div>
       <div class="nav-breadcrumb">
         <a href="index.php">Home</a><span>/</span>
         <span class="breadcrumb-current">My Orders</span>
       </div>
       <div class="nav-actions">
         <?php if ($userLoggedIn): ?>
-        <a href="profile.php" class="nav-icon-link" aria-label="Profile">
+        <a href="profile.php" class="nav-icon-link" aria-label="Profile" data-nav-mobile="drawer">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         </a>
         <?php endif; ?>
         <a href="cart.php" class="nav-icon-link" aria-label="Cart" style="position:relative">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-          <span class="nav-cart-dot">3</span>
+          <span class="nav-cart-dot" id="cartCount"><?= (int) $cartNavCount ?></span>
         </a>
         <?php if ($userLoggedIn): ?>
-        <a href="actions/logout.php" class="nav-login-btn">
+        <a href="actions/logout.php" class="nav-login-btn" aria-label="Sign out" data-nav-mobile="drawer">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-          Logout
+          Sign Out
         </a>
         <?php else: ?>
-        <a href="login.php" class="nav-login-btn">
+        <a href="login.php" class="nav-login-btn" data-nav-mobile="drawer">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           Sign In
         </a>
@@ -361,6 +369,7 @@ $ordersData = $uid ? orders_fetch_for_user($pdo, $uid) : [];
       </div>
     </div>
   </nav>
+  <?php require __DIR__ . '/includes/nav_drawer.php'; ?>
 
   <main class="page-main">
     <div class="container">
@@ -541,6 +550,8 @@ $ordersData = $uid ? orders_fetch_for_user($pdo, $uid) : [];
         'orders' => 'orders.php',
         'profile' => 'profile.php',
     ], JSON_THROW_ON_ERROR) ?>;
+    window.__API_CART__ = 'api/cart.php';
+    window.__CART_COUNT__ = <?= (int) $cartNavCount ?>;
     window.__ORDERS__ = <?= json_encode($ordersData, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
   </script>
   <script src="script/luxe.js"></script>

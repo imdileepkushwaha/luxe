@@ -153,7 +153,8 @@ function products_fetch_by_id_for_admin(PDO $pdo, int $id): ?array
 function products_fetch_related(PDO $pdo, int $excludeId, string $category, int $limit = 4): array
 {
     $st = $pdo->prepare(
-        'SELECT p.id, p.name, p.emoji, p.price, p.original_price AS original, p.badge
+        'SELECT p.id, p.name, p.category, p.emoji, p.price, p.original_price AS original, p.badge, p.image_bg, p.image_path,
+                (SELECT pi.image_path FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.sort_order ASC, pi.id ASC LIMIT 1) AS gallery_first
          FROM products p
          LEFT JOIN seller_users s ON s.id = p.seller_id
          WHERE p.active = 1
@@ -177,7 +178,13 @@ function products_fetch_related(PDO $pdo, int $excludeId, string $category, int 
         $r['id'] = (int) $r['id'];
         $r['price'] = (int) $r['price'];
         $r['original'] = (int) $r['original'];
+        $main = trim((string) ($r['image_path'] ?? ''));
+        $gal = trim((string) ($r['gallery_first'] ?? ''));
+        unset($r['gallery_first']);
+        $r['image_path'] = $main !== '' ? $main : $gal;
+        $r['category'] = strtolower(trim((string) ($r['category'] ?? '')));
     }
+    unset($r);
     return $rows;
 }
 

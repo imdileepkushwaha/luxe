@@ -16,6 +16,8 @@ if (!$product) {
     exit;
 }
 
+$searchCatalogProducts = products_fetch_all($pdo);
+
 function product_parse_options_csv(string $csv): array
 {
     $parts = array_map('trim', explode(',', $csv));
@@ -215,6 +217,8 @@ if (isset($_GET['review_saved']) && (string) $_GET['review_saved'] === '1') {
     $reviewSuccess = 'Review submitted. It will be visible after seller approval.';
 }
 
+$reviewFormExpanded = ($reviewError !== '');
+
 $variantRows = [];
 $variantSt = $pdo->prepare(
     'SELECT size_label, color_label, stock_qty
@@ -321,6 +325,23 @@ if ($sizeOptions !== [] && $hasVariantInventory) {
             $activeSizeIdx = $i;
             break;
         }
+    }
+}
+
+/** Initial units for selected default size/color (matches JS after first refresh). */
+$initialSpecStockQty = (int) ($product['stock_qty'] ?? 0);
+if ($hasVariantInventory) {
+    $initSizeForSpec = $sizeOptions !== [] ? trim((string) ($sizeOptions[$activeSizeIdx] ?? '')) : '';
+    $specK = mb_strtolower($initSizeForSpec) . '|' . $colorKeyForDefault;
+    $initialSpecStockQty = (int) ($variantStockMap[$specK] ?? 0);
+}
+
+/** Sum of all active variant rows; if no variants, same as product stock. */
+$totalInventoryUnits = (int) ($product['stock_qty'] ?? 0);
+if ($hasVariantInventory) {
+    $totalInventoryUnits = 0;
+    foreach ($variantStockMap as $unitQty) {
+        $totalInventoryUnits += max(0, (int) $unitQty);
     }
 }
 
@@ -431,6 +452,7 @@ $pageProduct = [
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <?php require __DIR__ . '/includes/luxe_theme_head.php'; ?>
   <title>LUXE — <?= h($product['name']) ?> | Product Details</title>
   <meta name="description" content="<?= h($product['name']) ?> — Shop at LUXE with free delivery and 30-day returns." />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,700;1,400&display=swap" rel="stylesheet" />
@@ -452,7 +474,10 @@ $pageProduct = [
   <!-- Navbar -->
   <nav class="navbar" id="navbar">
     <div class="nav-container">
-      <a href="index.php" class="nav-logo">LUXE</a>
+      <div class="nav-brand-cluster">
+        <?php require __DIR__ . '/includes/nav_hamburger_btn.php'; ?>
+        <a href="index.php" class="nav-logo">LUXE</a>
+      </div>
       <div class="nav-breadcrumb">
         <a href="index.php">Home</a>
         <span>/</span>
@@ -464,9 +489,14 @@ $pageProduct = [
         <button class="icon-btn" id="searchBtn" aria-label="Search">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
         </button>
-        <button class="icon-btn" id="wishlistNavBtn" aria-label="Wishlist">
+        <?php
+        $wishlistNavHref = $currentUser
+            ? 'profile.php?tab=wishlist'
+            : 'login.php?redirect=' . rawurlencode('profile.php?tab=wishlist');
+        ?>
+        <a href="<?= h($wishlistNavHref) ?>" class="icon-btn" id="wishlistNavBtn" aria-label="Wishlist" data-nav-mobile="drawer">
           <svg id="wishNavIcon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-        </button>
+        </a>
         <button class="cart-btn" id="cartNavBtn" type="button" aria-label="Cart" onclick="window.location.href='cart.php'">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
           <span class="cart-count" id="cartCount"><?= (int) $initialCartCount ?></span>
@@ -474,22 +504,40 @@ $pageProduct = [
       </div>
     </div>
   </nav>
+  <?php require __DIR__ . '/includes/nav_drawer.php'; ?>
 
   <!-- Search Overlay -->
-  <div class="search-overlay" id="searchOverlay">
-    <button class="search-close" id="searchClose">✕</button>
+  <div class="search-overlay" id="searchOverlay" role="dialog" aria-modal="true" aria-labelledby="searchOverlayTitle">
+    <div class="search-overlay__ambient" aria-hidden="true"></div>
+    <button class="search-close" id="searchClose" type="button" aria-label="Close search">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
     <div class="search-inner">
-      <h2>What are you looking for?</h2>
-      <div class="search-box">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        <input type="text" id="searchInput" placeholder="Search products, brands..." />
+      <p class="search-kicker">LUXE catalog</p>
+      <h2 id="searchOverlayTitle" class="search-title">Find your next favorite</h2>
+      <p class="search-lead">Search by product name, brand, or category — matches appear below; press Enter to open the full shop.</p>
+      <div class="search-panel">
+        <label class="search-box" for="searchInput">
+          <span class="search-box__icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          </span>
+          <input type="search" id="searchInput" name="q" placeholder="Try Nike, watch, serum…" autocomplete="off" enterkeyhint="search" />
+        </label>
+        <p class="search-hint">
+          <span class="search-hint__desktop"><kbd>Enter</kbd><span class="search-hint__text">Opens shop with results</span></span>
+          <span class="search-hint__mobile">Submit to go to the catalog</span>
+        </p>
+        <div class="search-live-results" id="searchLiveResults" hidden aria-live="polite"></div>
       </div>
-      <div class="search-tags">
-        <span class="tag">👟 Sneakers</span>
-        <span class="tag">👜 Bags</span>
-        <span class="tag">⌚ Watches</span>
-        <span class="tag">💻 Laptops</span>
-        <span class="tag">🧴 Skincare</span>
+      <div class="search-tags-block">
+        <span class="search-tags-label">Popular picks</span>
+        <div class="search-tags">
+          <button type="button" class="tag">👟 Sneakers</button>
+          <button type="button" class="tag">👜 Bags</button>
+          <button type="button" class="tag">⌚ Watches</button>
+          <button type="button" class="tag">💻 Laptops</button>
+          <button type="button" class="tag">🧴 Skincare</button>
+        </div>
       </div>
     </div>
   </div>
@@ -680,7 +728,7 @@ $pageProduct = [
                   <span class="qty-val" id="qtyVal">1</span>
                   <button class="qty-btn" id="qtyPlus" type="button" onclick="changeQty(1)">+</button>
                 </div>
-                <span class="qty-available">Only <strong id="productStockQty"><?= (int) ($product['stock_qty'] ?? 0) ?></strong> left in stock</span>
+                <span class="qty-available">Only <strong id="productStockQty"><?= (int) $initialSpecStockQty ?></strong> left in stock</span>
               </div>
             </div>
 
@@ -742,26 +790,25 @@ $pageProduct = [
 
           <!-- Description -->
           <div class="tab-panel active" id="tab-description">
+            <?php
+            $productDescription = trim((string) ($product['description'] ?? ''));
+            ?>
             <div class="desc-grid">
               <div class="desc-text">
-                <h3>About This Product</h3>
-                <p>The AirMax Pro 2026 represents the pinnacle of athletic footwear engineering. Built for those who refuse to compromise between performance and aesthetics, this shoe delivers an unparalleled running experience.</p>
-                <p>Featuring Nike's proprietary AirMax cushioning system with 40% more air volume than its predecessor, every stride feels like walking on clouds. The knit upper adapts dynamically to your foot's movement, providing a sock-like fit without sacrificing support.</p>
-                <ul class="feature-list">
-                  <li>✦ ReactX foam midsole for 13% more energy return</li>
-                  <li>✦ Flyknit upper with 360° breathability</li>
-                  <li>✦ Rubber outsole optimized for urban terrain</li>
-                  <li>✦ Recycled materials — 60% recycled content</li>
-                  <li>✦ Available in 5 exclusive LUXE colorways</li>
-                </ul>
+                <h3>About this product</h3>
+                <?php if ($productDescription !== ''): ?>
+                <div class="desc-body"><p><?= h($productDescription) ?></p></div>
+                <?php else: ?>
+                <p class="desc-placeholder">The seller has not added a long description yet. See specifications and reviews for more about <?= h((string) ($product['name'] ?? 'this product')) ?>.</p>
+                <?php endif; ?>
               </div>
               <div class="desc-visual">
-                <div class="desc-big-emoji">👟</div>
+                
                 <div class="desc-stat-grid">
-                  <div class="desc-stat"><strong>40%</strong><span>More Air Volume</span></div>
-                  <div class="desc-stat"><strong>13%</strong><span>Energy Return</span></div>
-                  <div class="desc-stat"><strong>60%</strong><span>Recycled Material</span></div>
-                  <div class="desc-stat"><strong>270g</strong><span>Lightweight</span></div>
+                  <div class="desc-stat"><strong><?= h(number_format($displayRating, 1)) ?></strong><span>Rating</span></div>
+                  <div class="desc-stat"><strong><?= h(number_format($displayReviewCount)) ?></strong><span>Reviews</span></div>
+                  <div class="desc-stat"><strong><?= h((string) (($product['brand'] ?? '') !== '' ? (string) $product['brand'] : '—')) ?></strong><span>Brand</span></div>
+                  <div class="desc-stat"><strong><?= h((string) (($product['category'] ?? '') !== '' ? ucfirst((string) $product['category']) : '—')) ?></strong><span>Category</span></div>
                 </div>
               </div>
             </div>
@@ -776,7 +823,10 @@ $pageProduct = [
               <div class="spec-row"><span class="spec-key">Seller</span><span class="spec-val"><?php if ($pubSellerId > 0): ?><a href="seller-store.php?id=<?= $pubSellerId ?>" class="product-seller-link"><?= h($pubSellerName) ?></a><?php else: ?><?= h($pubSellerName) ?><?php endif; ?></span></div>
               <div class="spec-row"><span class="spec-key">Sizes Available</span><span class="spec-val"><?= h($sizeOptions !== [] ? implode(', ', $sizeOptions) : 'Standard') ?></span></div>
               <div class="spec-row"><span class="spec-key">Colors Available</span><span class="spec-val"><?= h($colorOptions !== [] ? implode(', ', $colorOptions) : 'Default') ?></span></div>
-              <div class="spec-row"><span class="spec-key">Stock</span><span class="spec-val"><?= (int) ($product['stock_qty'] ?? 0) ?> units</span></div>
+              <div class="spec-row"><span class="spec-key">Stock</span><span class="spec-val"><span id="specStockLine"><?= (int) $initialSpecStockQty ?> units</span><?php if ($hasVariantInventory): ?> <span class="spec-stock-hint">(selected variant)</span><?php endif; ?></span></div>
+              <?php if ($hasVariantInventory): ?>
+              <div class="spec-row"><span class="spec-key">Total inventory</span><span class="spec-val"><?= (int) $totalInventoryUnits ?> units <span class="spec-stock-hint">(all sizes &amp; colors)</span></span></div>
+              <?php endif; ?>
               <div class="spec-row"><span class="spec-key">SKU Code</span><span class="spec-val"><?= h(trim((string) ($product['sku'] ?? '')) !== '' ? (string) $product['sku'] : 'Not set') ?></span></div>
             </div>
           </div>
@@ -815,19 +865,26 @@ $pageProduct = [
                   <div class="review-alert review-alert--error"><?= h($reviewError) ?></div>
                 <?php endif; ?>
                 <?php if ($currentUserId !== null): ?>
-                  <form method="post" class="review-form">
-                    <input type="hidden" name="action" value="submit_product_review">
-                    <input type="hidden" name="product_id" value="<?= (int) $product['id'] ?>">
-                    <label for="review_rating" class="review-form__label">Your rating</label>
-                    <select id="review_rating" name="rating" class="review-form__control" required>
-                      <?php for ($i = 5; $i >= 1; $i--): ?>
-                        <option value="<?= $i ?>"<?= $postedRating === $i ? ' selected' : '' ?>><?= $i ?> Star<?= $i > 1 ? 's' : '' ?></option>
-                      <?php endfor; ?>
-                    </select>
-                    <label for="review_text" class="review-form__label">Your review</label>
-                    <textarea id="review_text" name="review_text" rows="4" maxlength="1000" placeholder="Share your experience about this product..." class="review-form__control review-form__textarea" required><?= h($postedReviewText) ?></textarea>
-                    <button class="btn-primary" type="submit" style="width:100%">Submit Review</button>
-                  </form>
+                  <div class="review-write-stack">
+                    <button type="button" class="review-write-toggle" id="reviewWriteToggle" aria-expanded="<?= $reviewFormExpanded ? 'true' : 'false' ?>" aria-controls="reviewFormPanel">
+                      <span class="review-write-toggle__label"><?= $reviewFormExpanded ? 'Close' : 'Write a review' ?></span>
+                    </button>
+                    <div id="reviewFormPanel" class="review-form-panel<?= $reviewFormExpanded ? ' is-open' : '' ?>">
+                      <form method="post" class="review-form">
+                        <input type="hidden" name="action" value="submit_product_review">
+                        <input type="hidden" name="product_id" value="<?= (int) $product['id'] ?>">
+                        <label for="review_rating" class="review-form__label">Your rating</label>
+                        <select id="review_rating" name="rating" class="review-form__control" required>
+                          <?php for ($i = 5; $i >= 1; $i--): ?>
+                            <option value="<?= $i ?>"<?= $postedRating === $i ? ' selected' : '' ?>><?= $i ?> Star<?= $i > 1 ? 's' : '' ?></option>
+                          <?php endfor; ?>
+                        </select>
+                        <label for="review_text" class="review-form__label">Your review</label>
+                        <textarea id="review_text" name="review_text" rows="4" maxlength="1000" placeholder="Share your experience about this product..." class="review-form__control review-form__textarea" required><?= h($postedReviewText) ?></textarea>
+                        <button class="btn-primary" type="submit" style="width:100%">Submit Review</button>
+                      </form>
+                    </div>
+                  </div>
                 <?php else: ?>
                   <a class="btn-primary" style="margin-top:20px;width:100%;text-decoration:none;display:inline-flex;justify-content:center" href="login.php">Sign in to write a review</a>
                 <?php endif; ?>
@@ -850,7 +907,7 @@ $pageProduct = [
                       <div class="review-avatar"><?= h($initial) ?></div>
                       <div class="review-meta">
                         <strong><?= h($reviewer) ?></strong>
-                        <span>Verified Buyer</span>
+                        <span class="verified-buyer">Verified Buyer</span>
                       </div>
                       <div class="review-stars"><?= h($reviewStars) ?></div>
                       <?php if ($idx === 0): ?>
@@ -957,6 +1014,7 @@ $pageProduct = [
     window.__CART_COUNT__ = <?= (int) $initialCartCount ?>;
     window.__PRODUCT_PAGE__ = <?= json_encode($pageProduct, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
     window.__RELATED_PRODUCTS__ = <?= json_encode($related, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
+    window.__PRODUCTS__ = <?= json_encode($searchCatalogProducts, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
   </script>
   <script src="script/luxe.js"></script>
 </body>

@@ -519,6 +519,29 @@ $productsSt = $pdo->prepare(
 );
 $productsSt->execute([(int) $seller['id']]);
 $products = $productsSt->fetchAll();
+$productCount = count($products);
+$approvedCount = 0;
+$pendingCount = 0;
+$rejectedCount = 0;
+$storeLiveCount = 0;
+$lowStockCount = 0;
+foreach ($products as $_p) {
+    $ap = strtolower(trim((string) ($_p['approval_status'] ?? '')));
+    if ($ap === 'approved') {
+        $approvedCount++;
+    } elseif ($ap === 'pending') {
+        $pendingCount++;
+    } else {
+        $rejectedCount++;
+    }
+    if ($ap === 'approved' && (int) ($_p['active'] ?? 0) === 1) {
+        $storeLiveCount++;
+    }
+    $dq = (int) ($_p['display_stock_qty'] ?? $_p['stock_qty'] ?? 0);
+    if ($dq < 5) {
+        $lowStockCount++;
+    }
+}
 $productImagesMap = [];
 if ($products !== []) {
     $gallerySt = $pdo->prepare(
@@ -546,16 +569,75 @@ $openProductDrawer = $error !== '' || $drawerMode === 'edit';
 require __DIR__ . '/partials/shell-top.php';
 ?>
 
-        <div class="admin-page-head">
-          <h1>Products</h1>
+        <div class="admin-page-head seller-products-page-head">
+          <div>
+            <h1>Products</h1>
+            <p class="seller-products-subtitle">Manage your catalogue — search, preview on the storefront, edit details, or add new listings. Discounts apply only after admin approves new items.</p>
+          </div>
+          <div class="admin-page-head__actions seller-products-head-actions">
+            <a class="admin-btn admin-btn--ghost-light" href="inventory.php">Inventory</a>
+            <button type="button" class="admin-btn admin-btn--primary" id="openProductDrawerBtn" aria-controls="productDrawer" aria-expanded="<?= $openProductDrawer ? 'true' : 'false' ?>">Add product</button>
+          </div>
         </div>
 
-        <div class="card" style="margin-top:16px">
+        <div class="seller-products-kpis seller-kpi">
+          <div class="seller-kpi-card seller-kpi-card--products">
+            <div>
+              <div class="seller-kpi-card__label">Total listings</div>
+              <div class="seller-kpi-card__value"><?= (int) $productCount ?></div>
+              <div class="seller-kpi-card__hint">All products in your account</div>
+            </div>
+            <div class="seller-kpi-card__icon" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg>
+            </div>
+          </div>
+          <div class="seller-kpi-card seller-kpi-card--orders">
+            <div>
+              <div class="seller-kpi-card__label">Live on store</div>
+              <div class="seller-kpi-card__value"><?= (int) $storeLiveCount ?></div>
+              <div class="seller-kpi-card__hint">Approved + active</div>
+            </div>
+            <div class="seller-kpi-card__icon" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </div>
+          </div>
+          <div class="seller-kpi-card seller-kpi-card--revenue">
+            <div>
+              <div class="seller-kpi-card__label">Pending review</div>
+              <div class="seller-kpi-card__value"><?= (int) $pendingCount ?></div>
+              <div class="seller-kpi-card__hint">Awaiting admin approval</div>
+            </div>
+            <div class="seller-kpi-card__icon" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+          </div>
+          <div class="seller-kpi-card seller-kpi-card--orders">
+            <div>
+              <div class="seller-kpi-card__label">Low stock</div>
+              <div class="seller-kpi-card__value"><?= (int) $lowStockCount ?></div>
+              <div class="seller-kpi-card__hint">Fewer than 5 units (incl. out of stock)</div>
+            </div>
+            <div class="seller-kpi-card__icon" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+            </div>
+          </div>
+        </div>
+
+        <?php if ($rejectedCount > 0): ?>
+          <div class="seller-alert seller-alert--warn seller-products-rejected-banner">
+            <strong><?= (int) $rejectedCount ?></strong> listing<?= $rejectedCount === 1 ? '' : 's' ?> rejected — open <strong>Edit</strong>, fix details, and save to resubmit for approval.
+          </div>
+        <?php endif; ?>
+
+        <div class="card seller-products-card">
           <div class="card-header">
-            <div class="seller-card-head seller-card-head--inventory">
-              <h2 class="card-title">Product list</h2>
+            <div class="seller-card-head seller-card-head--inventory seller-products-card-head">
+              <div>
+                <h2 class="card-title">Catalogue</h2>
+                <p class="card-subtitle seller-products-card-sub"><?= $productCount === 0 ? 'Add your first product to appear here after approval.' : (int) $productCount . ' product' . ($productCount === 1 ? '' : 's') . ' · ' . (int) $storeLiveCount . ' visible to buyers.' ?></p>
+              </div>
               <div class="seller-inventory-toolbar seller-products-toolbar">
-                <label class="seller-inventory-search-wrap" for="sellerProductsSearch">
+                <label class="seller-inventory-search-wrap seller-products-search" for="sellerProductsSearch">
                   <span class="seller-inventory-search-icon" aria-hidden="true">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
                   </span>
@@ -563,31 +645,27 @@ require __DIR__ . '/partials/shell-top.php';
                     type="search"
                     id="sellerProductsSearch"
                     class="seller-inventory-search-input"
-                    placeholder="Search: name, slug, SKU, category, brand, ID…"
+                    placeholder="Search name, SKU, slug, category, brand…"
                     autocomplete="off"
                     aria-label="Search products"
                   >
                 </label>
-                <button type="button" class="admin-btn admin-btn--primary" id="openProductDrawerBtn" aria-controls="productDrawer" aria-expanded="<?= $openProductDrawer ? 'true' : 'false' ?>">Add product</button>
               </div>
             </div>
           </div>
           <div class="card-body card-body--flush">
-            <div class="admin-table-wrap">
-              <table class="admin-table">
+            <div class="admin-table-wrap seller-products-table-wrap">
+              <table class="admin-table seller-products-table">
                 <thead>
                   <tr>
-                    <th>ID</th>
+                    <th class="seller-products-th--id">ID</th>
                     <th>Product</th>
                     <th>SKU</th>
                     <th>Category</th>
                     <th>Price</th>
                     <th>Stock</th>
-                    <th>Status</th>
-                    <th>Approval</th>
-                    <th>View</th>
-                    <th>Edit</th>
-                    <th>Action</th>
+                    <th>Listing</th>
+                    <th class="seller-products-th--actions">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -632,16 +710,22 @@ require __DIR__ . '/partials/shell-top.php';
                     );
                     ?>
                     <tr class="seller-product-row" data-products-search="<?= h($productsSearchBlob) ?>">
-                      <td><?= (int) $p['id'] ?></td>
-                      <td>
-                        <?php if ((string) ($p['image_path'] ?? '') !== ''): ?>
-                          <img class="seller-product-thumb" src="../<?= h((string) $p['image_path']) ?>" alt="<?= h((string) $p['name']) ?>">
-                        <?php else: ?>
-                          <span class="seller-product-thumb seller-product-thumb--placeholder">No image</span>
-                        <?php endif; ?>
-                        <div style="margin-top:6px">
-                          <strong><?= h((string) $p['name']) ?></strong><br>
-                          <small><?= h((string) $p['slug']) ?></small>
+                      <td class="seller-products-td--id"><span class="seller-products-id"><?= (int) $p['id'] ?></span></td>
+                      <td class="seller-product-cell--main">
+                        <div class="seller-product-cell__row">
+                          <?php if ((string) ($p['image_path'] ?? '') !== ''): ?>
+                            <img class="seller-product-thumb" src="../<?= h((string) $p['image_path']) ?>" alt="" width="56" height="56" loading="lazy">
+                          <?php else: ?>
+                            <span class="seller-product-thumb seller-product-thumb--placeholder" aria-hidden="true"><?= h((string) ($p['emoji'] ?? '📦')) ?></span>
+                          <?php endif; ?>
+                          <div class="seller-product-cell__text">
+                            <span class="seller-product-cell__name"><?= h((string) $p['name']) ?></span>
+                            <span class="seller-product-cell__slug"><?= h((string) $p['slug']) ?></span>
+                            <?php $brandList = trim((string) ($p['brand'] ?? '')); ?>
+                            <?php if ($brandList !== ''): ?>
+                              <span class="seller-product-cell__brand"><?= h($brandList) ?></span>
+                            <?php endif; ?>
+                          </div>
                         </div>
                       </td>
                       <td>
@@ -649,74 +733,119 @@ require __DIR__ . '/partials/shell-top.php';
                         <?php if ($skuListVal !== ''): ?>
                           <span class="seller-product-list-sku"><?= h($skuListVal) ?></span>
                         <?php else: ?>
-                          <span class="seller-help">—</span>
+                          <span class="seller-products-emdash">—</span>
                         <?php endif; ?>
                       </td>
-                      <td><?= h((string) $p['category']) ?></td>
-                      <td>Rs <?= number_format((int) $p['price']) ?><br><small>MRP: Rs <?= number_format((int) $p['original_price']) ?></small></td>
-                      <td><?= $displayStockQty ?></td>
+                      <td><span class="seller-product-cat-pill"><?= h(ucfirst((string) $p['category'])) ?></span></td>
                       <td>
-                        <?php if ((int) $p['active'] === 1): ?>
-                          <span class="admin-status admin-status--delivered">Active</span>
-                        <?php else: ?>
-                          <span class="admin-status admin-status--cancelled">Inactive</span>
-                        <?php endif; ?>
+                        <div class="seller-product-price">
+                          <span class="seller-product-price__sale">₹<?= number_format((int) $p['price'], 0, '.', ',') ?></span>
+                          <span class="seller-product-price__mrp">MRP ₹<?= number_format((int) $p['original_price'], 0, '.', ',') ?></span>
+                        </div>
                       </td>
                       <td>
                         <?php
-                        $ap = $apRaw;
-                        if ($ap === 'approved'): ?>
-                          <span class="admin-status admin-status--delivered" title="Store par visible">Approved</span>
-                        <?php elseif ($ap === 'pending'): ?>
-                          <span class="admin-status admin-status--processing" title="Admin approval ka wait">Pending</span>
-                        <?php else: ?>
-                          <span class="admin-status admin-status--cancelled" title="Reject — edit karke dubara submit karein">Rejected</span>
+                        $stockLow = $displayStockQty > 0 && $displayStockQty < 5;
+                        if ($displayStockQty === 0) {
+                            $stockClass = 'seller-stock-pill seller-stock-pill--out';
+                        } elseif ($stockLow) {
+                            $stockClass = 'seller-stock-pill seller-stock-pill--low';
+                        } else {
+                            $stockClass = 'seller-stock-pill';
+                        }
+                        ?>
+                        <span class="<?= h($stockClass) ?>"><?= (int) $displayStockQty ?></span>
+                        <?php if ($displayStockQty === 0): ?>
+                          <span class="seller-stock-zero">Out of stock</span>
+                        <?php elseif ($stockLow): ?>
+                          <span class="seller-stock-low-hint">Low</span>
                         <?php endif; ?>
                       </td>
                       <td>
-                        <button
-                          type="button"
-                          class="seller-view-btn"
-                          data-product-id="<?= (int) $p['id'] ?>"
-                          data-name="<?= h((string) $p['name']) ?>"
-                          data-slug="<?= h((string) $p['slug']) ?>"
-                          data-sku="<?= h((string) ($p['sku'] ?? '')) ?>"
-                          data-category="<?= h((string) $p['category']) ?>"
-                          data-price="<?= (int) $p['price'] ?>"
-                          data-original-price="<?= (int) $p['original_price'] ?>"
-                          data-stock="<?= $displayStockQty ?>"
-                          data-status="<?= (int) $p['active'] === 1 ? 'Active' : 'Inactive' ?>"
-                          data-badge="<?= h((string) ($p['badge'] ?? '')) ?>"
-                          data-brand="<?= h((string) ($p['brand'] ?? '')) ?>"
-                          data-emoji="<?= h((string) ($p['emoji'] ?? '')) ?>"
-                          data-sizes="<?= h((string) ($p['size_options'] ?? '')) ?>"
-                          data-colors="<?= h((string) ($p['color_options'] ?? '')) ?>"
-                          data-description="<?= h((string) ($p['description'] ?? '')) ?>"
-                          data-offer-flash="<?= h((string) ($p['offer_flash_text'] ?? '')) ?>"
-                          data-offer-countdown="<?= h(seller_format_offer_countdown((int) ($p['offer_countdown_seconds'] ?? 0))) ?>"
-                          data-offer-bank="<?= h((string) ($p['offer_bank_text'] ?? '')) ?>"
-                          data-image="<?= h((string) ($p['image_path'] ?? '')) ?>"
-                          data-images="<?= h((string) $galleryJson) ?>"
-                          data-preview-url="../product.php?id=<?= (int) $p['id'] ?>"
-                        >View</button>
+                        <div class="seller-product-listing-stack">
+                          <?php if ((int) $p['active'] === 1): ?>
+                            <span class="seller-status-chip seller-status-chip--delivered">Active</span>
+                          <?php else: ?>
+                            <span class="seller-status-chip seller-status-chip--inactive">Inactive</span>
+                          <?php endif; ?>
+                          <?php
+                        $ap = $apRaw;
+                        if ($ap === 'approved'): ?>
+                            <span class="seller-status-chip seller-status-chip--approved">Approved</span>
+                          <?php elseif ($ap === 'pending'): ?>
+                            <span class="seller-status-chip seller-status-chip--pending">Pending</span>
+                          <?php else: ?>
+                            <span class="seller-status-chip seller-status-chip--rejected">Rejected</span>
+                          <?php endif; ?>
+                        </div>
                       </td>
-                      <td>
-                        <a href="products.php?edit=<?= (int) $p['id'] ?>" class="seller-edit-btn">Edit</a>
-                      </td>
-                      <td>
-                        <form method="post" onsubmit="return confirm('Kya aap is product ko delete karna chahte hain?');">
-                          <input type="hidden" name="action" value="delete_product">
-                          <input type="hidden" name="product_id" value="<?= (int) $p['id'] ?>">
-                          <button type="submit" class="seller-delete-btn">Delete</button>
-                        </form>
+                      <td class="seller-products-td--actions">
+                        <div class="seller-product-actions">
+                          <button
+                            type="button"
+                            class="seller-view-btn seller-product-actions__btn"
+                            data-product-id="<?= (int) $p['id'] ?>"
+                            data-name="<?= h((string) $p['name']) ?>"
+                            data-slug="<?= h((string) $p['slug']) ?>"
+                            data-sku="<?= h((string) ($p['sku'] ?? '')) ?>"
+                            data-category="<?= h((string) $p['category']) ?>"
+                            data-price="<?= (int) $p['price'] ?>"
+                            data-original-price="<?= (int) $p['original_price'] ?>"
+                            data-stock="<?= $displayStockQty ?>"
+                            data-status="<?= (int) $p['active'] === 1 ? 'Active' : 'Inactive' ?>"
+                            data-badge="<?= h((string) ($p['badge'] ?? '')) ?>"
+                            data-brand="<?= h((string) ($p['brand'] ?? '')) ?>"
+                            data-emoji="<?= h((string) ($p['emoji'] ?? '')) ?>"
+                            data-sizes="<?= h((string) ($p['size_options'] ?? '')) ?>"
+                            data-colors="<?= h((string) ($p['color_options'] ?? '')) ?>"
+                            data-description="<?= h((string) ($p['description'] ?? '')) ?>"
+                            data-offer-flash="<?= h((string) ($p['offer_flash_text'] ?? '')) ?>"
+                            data-offer-countdown="<?= h(seller_format_offer_countdown((int) ($p['offer_countdown_seconds'] ?? 0))) ?>"
+                            data-offer-bank="<?= h((string) ($p['offer_bank_text'] ?? '')) ?>"
+                            data-image="<?= h((string) ($p['image_path'] ?? '')) ?>"
+                            data-images="<?= h((string) $galleryJson) ?>"
+                            data-preview-url="../product.php?id=<?= (int) $p['id'] ?>"
+                          >View</button>
+                          <a href="products.php?edit=<?= (int) $p['id'] ?>" class="seller-edit-btn seller-product-actions__btn">Edit</a>
+                          <form method="post" class="seller-product-actions__form" onsubmit="return confirm('Kya aap is product ko delete karna chahte hain?');">
+                            <input type="hidden" name="action" value="delete_product">
+                            <input type="hidden" name="product_id" value="<?= (int) $p['id'] ?>">
+                            <button type="submit" class="seller-delete-btn seller-product-actions__btn seller-product-actions__btn--danger">Delete</button>
+                          </form>
+                        </div>
                       </td>
                     </tr>
                   <?php endforeach; ?>
                   <?php if ($products === []): ?>
-                    <tr class="seller-products-empty-placeholder"><td colspan="11">No products found in your categories.</td></tr>
+                    <tr class="seller-products-empty-placeholder">
+                      <td colspan="8">
+                        <div class="seller-products-empty">
+                          <div class="seller-products-empty__icon" aria-hidden="true">
+                            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg>
+                          </div>
+                          <h3 class="seller-products-empty__title">No products yet</h3>
+                          <p class="seller-products-empty__text"><?= $canAddProducts ? 'Create your first listing — it will go for admin approval before appearing on LUXE.' : 'Complete KYC and get admin approval to start adding products.' ?></p>
+                          <?php if ($canAddProducts): ?>
+                            <button type="button" class="admin-btn admin-btn--primary" id="openProductDrawerBtnEmpty">Add your first product</button>
+                          <?php else: ?>
+                            <a class="admin-btn admin-btn--primary" href="kyc-details.php">Complete KYC</a>
+                          <?php endif; ?>
+                        </div>
+                      </td>
+                    </tr>
                   <?php else: ?>
                     <tr id="sellerProductsNoMatchRow" class="seller-products-no-match-row" style="display:none">
-                      <td colspan="11" class="seller-help" style="padding:16px 18px">Is search se koi product match nahi hua. Name, slug, SKU ya category try karein.</td>
+                      <td colspan="8" class="seller-products-no-match-cell">
+                        <div class="seller-products-no-match-inner">
+                          <span class="seller-products-no-match-icon" aria-hidden="true">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                          </span>
+                          <div>
+                            <strong>No matches</strong>
+                            <p>Try another keyword — name, slug, SKU, category, or brand.</p>
+                          </div>
+                        </div>
+                      </td>
                     </tr>
                   <?php endif; ?>
                 </tbody>
@@ -778,7 +907,10 @@ require __DIR__ . '/partials/shell-top.php';
         <div class="seller-drawer-backdrop<?= $openProductDrawer ? ' is-visible' : '' ?>" id="productDrawerBackdrop"></div>
         <aside class="seller-drawer<?= $openProductDrawer ? ' is-open' : '' ?>" id="productDrawer" role="dialog" aria-modal="true" aria-labelledby="productDrawerTitle" aria-hidden="<?= $openProductDrawer ? 'false' : 'true' ?>">
           <div class="seller-drawer__head">
-            <h2 class="seller-drawer__title" id="productDrawerTitle"><?= $drawerMode === 'edit' ? 'Edit product' : 'Add new product' ?></h2>
+            <div class="seller-drawer__head-main">
+              <h2 class="seller-drawer__title" id="productDrawerTitle"><?= $drawerMode === 'edit' ? 'Edit product' : 'Add new product' ?></h2>
+              <p class="seller-drawer__subtitle"><?= $drawerMode === 'edit' ? 'Save karne par changes admin workflow me ja sakte hain.' : 'Required fields bharo — listing pehle admin approve karega, phir store par dikhegi.' ?></p>
+            </div>
             <div class="seller-drawer__head-actions">
               <?php if ($drawerMode === 'edit'): ?>
                 <a class="seller-drawer__switch-link" href="products.php">Switch to Add</a>
@@ -786,146 +918,212 @@ require __DIR__ . '/partials/shell-top.php';
               <button type="button" class="seller-drawer__close" id="closeProductDrawerBtn" aria-label="Close add product panel">✕</button>
             </div>
           </div>
-          <div class="seller-drawer__body">
+          <div class="seller-drawer__body seller-drawer__body--product-form">
             <?php if ($error !== ''): ?>
               <div class="seller-alert seller-alert--error"><?= h($error) ?></div>
             <?php endif; ?>
             <?php if (!$canAddProducts): ?>
-              <div class="seller-alert seller-alert--warn">
+              <div class="seller-alert seller-alert--warn seller-product-drawer-kyc-alert">
                 <?php if (!$kycCompleted): ?>
-                  KYC aur bank details complete nahi hai. Pehle <a href="kyc-details.php" style="font-weight:600">KYC details fill</a> karein.
+                  KYC aur bank details complete nahi hai. Pehle <a class="seller-drawer-alert-link" href="kyc-details.php">KYC details fill</a> karein.
                 <?php else: ?>
                   KYC submit ho chuki hai. Final admin approval ke baad hi product add kar sakte hain.
                   <?php if ($kycRejectionReason !== ''): ?>
                     Last review reason: <?= h($kycRejectionReason) ?>.
                   <?php endif; ?>
-                  <a href="kyc-details.php" style="font-weight:600">Update KYC</a>
+                  <a class="seller-drawer-alert-link" href="kyc-details.php">Update KYC</a>
                 <?php endif; ?>
               </div>
             <?php endif; ?>
 
-            <form method="post" enctype="multipart/form-data" class="seller-form">
+            <form method="post" enctype="multipart/form-data" class="seller-form seller-product-drawer-form">
               <input type="hidden" name="action" value="<?= $drawerMode === 'edit' ? 'edit_product' : 'add_product' ?>">
               <?php if ($drawerMode === 'edit'): ?>
                 <input type="hidden" name="product_id" value="<?= (int) ($editingProduct['id'] ?? 0) ?>">
               <?php endif; ?>
-              <div>
-                <label for="name">Product name</label>
-                <input id="name" name="name" required placeholder="e.g. Smart Watch X2" value="<?= h((string) ($_POST['name'] ?? ($editingProduct['name'] ?? ''))) ?>" <?= $canAddProducts ? '' : 'disabled' ?>>
+
+              <div class="seller-product-drawer-scroll">
+              <section class="seller-product-form-section" aria-labelledby="product-section-basics">
+                <header class="seller-product-form-section__head">
+                  <h3 class="seller-product-form-section__title" id="product-section-basics">Basics</h3>
+                  <p class="seller-product-form-section__sub">Display name aur catalogue identity (SKU).</p>
+                </header>
+                <div class="seller-product-form-section__body">
+                  <div class="seller-product-form-field">
+                    <label for="name">Product name</label>
+                    <input id="name" name="name" required placeholder="e.g. Smart Watch X2" value="<?= h((string) ($_POST['name'] ?? ($editingProduct['name'] ?? ''))) ?>" <?= $canAddProducts ? '' : 'disabled' ?>>
+                  </div>
+                  <div class="seller-form__row seller-product-form__row seller-product-form__row--sku">
+                    <div class="seller-product-form-field seller-product-form-field--grow">
+                      <label for="sku">SKU <span class="seller-product-form-optional">(manual ya auto)</span></label>
+                      <input id="sku" name="sku" maxlength="40" placeholder="e.g. FAS-SHIRT-001" value="<?= h((string) ($_POST['sku'] ?? ($editingProduct['sku'] ?? ''))) ?>" <?= $canAddProducts ? '' : 'disabled' ?>>
+                    </div>
+                    <div class="seller-product-form-sku-action">
+                      <button class="seller-view-btn seller-sku-generate-btn" id="generateSkuBtn" type="button" <?= $canAddProducts ? '' : 'disabled' ?>>Auto-generate SKU</button>
+                    </div>
+                  </div>
+                  <p class="seller-help seller-product-form-hint seller-product-form-hint--sku">Khali chhodoge to save par system SKU generate karega.</p>
+                </div>
+              </section>
+
+              <section class="seller-product-form-section" aria-labelledby="product-section-catalogue">
+                <header class="seller-product-form-section__head">
+                  <h3 class="seller-product-form-section__title" id="product-section-catalogue">Catalogue</h3>
+                  <p class="seller-product-form-section__sub">Category sirf aapki assigned list se — chhota emoji tile icon ke liye.</p>
+                </header>
+                <div class="seller-product-form-section__body">
+                  <div class="seller-form__row seller-product-form__row">
+                    <div class="seller-product-form-field">
+                      <label for="category">Category</label>
+                      <select id="category" name="category" required <?= $canAddProducts ? '' : 'disabled' ?>>
+                        <?php foreach ($allowedCategories as $cat): ?>
+                          <option value="<?= h($cat) ?>"<?= ((string) ($_POST['category'] ?? ($editingProduct['category'] ?? '')) === $cat) ? ' selected' : '' ?>><?= h(ucfirst($cat)) ?></option>
+                        <?php endforeach; ?>
+                      </select>
+                    </div>
+                    <div class="seller-product-form-field seller-product-form-field--emoji">
+                      <label for="emoji">Emoji</label>
+                      <input id="emoji" name="emoji" maxlength="16" placeholder="📦" value="<?= h((string) ($_POST['emoji'] ?? ($editingProduct['emoji'] ?? ''))) ?>" <?= $canAddProducts ? '' : 'disabled' ?>>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="seller-product-form-section" aria-labelledby="product-section-pricing">
+                <header class="seller-product-form-section__head">
+                  <h3 class="seller-product-form-section__title" id="product-section-pricing">Pricing &amp; stock</h3>
+                  <p class="seller-product-form-section__sub">Selling vs MRP — inventory yahan set hota hai.</p>
+                </header>
+                <div class="seller-product-form-section__body">
+                  <div class="seller-form__row seller-product-form__row">
+                    <div class="seller-product-form-field">
+                      <label for="price">Price (Rs)</label>
+                      <input id="price" class="seller-product-input--money" type="number" name="price" min="1" required placeholder="999" value="<?= h((string) ($_POST['price'] ?? ($editingProduct['price'] ?? ''))) ?>" <?= $canAddProducts ? '' : 'disabled' ?>>
+                    </div>
+                    <div class="seller-product-form-field">
+                      <label for="original_price">Original price (Rs)</label>
+                      <input id="original_price" class="seller-product-input--money" type="number" name="original_price" min="1" required placeholder="1499" value="<?= h((string) ($_POST['original_price'] ?? ($editingProduct['original_price'] ?? ''))) ?>" <?= $canAddProducts ? '' : 'disabled' ?>>
+                    </div>
+                  </div>
+                  <div class="seller-product-form-field seller-product-form-field--stock">
+                    <label for="stock_qty">Stock quantity</label>
+                    <input id="stock_qty" class="seller-product-input--qty" type="number" name="stock_qty" min="0" value="<?= h((string) ($_POST['stock_qty'] ?? ($editingProduct['stock_qty'] ?? '0'))) ?>" required <?= $canAddProducts ? '' : 'disabled' ?>>
+                  </div>
+                </div>
+              </section>
+
+              <section class="seller-product-form-section" aria-labelledby="product-section-merch">
+                <header class="seller-product-form-section__head">
+                  <h3 class="seller-product-form-section__title" id="product-section-merch">Merchandising</h3>
+                  <p class="seller-product-form-section__sub">Badge aur brand line — optional lekin storefront par helpful.</p>
+                </header>
+                <div class="seller-product-form-section__body">
+                  <div class="seller-form__row seller-product-form__row">
+                    <div class="seller-product-form-field">
+                      <label for="badge">Badge</label>
+                      <input id="badge" name="badge" maxlength="64" placeholder="New / Sale / Hot" value="<?= h((string) ($_POST['badge'] ?? ($editingProduct['badge'] ?? ''))) ?>" <?= $canAddProducts ? '' : 'disabled' ?>>
+                    </div>
+                    <div class="seller-product-form-field">
+                      <label for="brand">Brand</label>
+                      <input id="brand" name="brand" maxlength="255" placeholder="LUXE" value="<?= h((string) ($_POST['brand'] ?? ($editingProduct['brand'] ?? 'LUXE'))) ?>" <?= $canAddProducts ? '' : 'disabled' ?>>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="seller-product-form-section" aria-labelledby="product-section-variants">
+                <header class="seller-product-form-section__head">
+                  <h3 class="seller-product-form-section__title" id="product-section-variants">Sizes &amp; colors</h3>
+                  <p class="seller-product-form-section__sub">Ctrl / Cmd + click se multiple options.</p>
+                </header>
+                <div class="seller-product-form-section__body">
+                  <div class="seller-form__row seller-product-form__row">
+                    <div class="seller-product-form-field">
+                      <label for="size_options">Size options</label>
+                      <select id="size_options" name="size_options[]" class="seller-multi-select seller-multi-select--product" multiple size="6" <?= $canAddProducts ? '' : 'disabled' ?>>
+                        <?php foreach ($sizeCatalog as $size): ?>
+                          <option value="<?= h($size) ?>"<?= in_array($size, $selectedSizes, true) ? ' selected' : '' ?>><?= h($size) ?></option>
+                        <?php endforeach; ?>
+                      </select>
+                      <p class="seller-help seller-product-form-hint">Multiple sizes ek saath select kar sakte ho.</p>
+                    </div>
+                    <div class="seller-product-form-field">
+                      <label for="color_options">Color options</label>
+                      <select id="color_options" name="color_options[]" class="seller-multi-select seller-multi-select--product" multiple size="6" <?= $canAddProducts ? '' : 'disabled' ?>>
+                        <?php foreach ($colorCatalog as $color): ?>
+                          <option value="<?= h($color) ?>"<?= in_array($color, $selectedColors, true) ? ' selected' : '' ?>><?= h($color) ?></option>
+                        <?php endforeach; ?>
+                      </select>
+                      <p class="seller-help seller-product-form-hint">Multiple colors ek saath select kar sakte ho.</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="seller-product-form-section" aria-labelledby="product-section-desc">
+                <header class="seller-product-form-section__head">
+                  <h3 class="seller-product-form-section__title" id="product-section-desc">Description</h3>
+                  <p class="seller-product-form-section__sub">Chhota sa clear copy buyers ke liye.</p>
+                </header>
+                <div class="seller-product-form-section__body">
+                  <div class="seller-product-form-field">
+                    <label for="description">Description</label>
+                    <textarea id="description" name="description" placeholder="Short product details" <?= $canAddProducts ? '' : 'disabled' ?>><?= h((string) ($_POST['description'] ?? ($editingProduct['description'] ?? ''))) ?></textarea>
+                  </div>
+                </div>
+              </section>
+
+              <section class="seller-product-form-section" aria-labelledby="product-section-offers">
+                <header class="seller-product-form-section__head">
+                  <h3 class="seller-product-form-section__title" id="product-section-offers">Offer strip</h3>
+                  <p class="seller-product-form-section__sub">Flash line, countdown timer display, aur bank copy — optional.</p>
+                </header>
+                <div class="seller-product-form-section__body">
+                  <div class="seller-form__row seller-product-form__row">
+                    <div class="seller-product-form-field">
+                      <label for="offer_flash_text">Flash offer text</label>
+                      <input id="offer_flash_text" name="offer_flash_text" maxlength="150" placeholder="Flash deal ends in" value="<?= h((string) ($_POST['offer_flash_text'] ?? ($editingProduct['offer_flash_text'] ?? 'Flash deal ends in'))) ?>" <?= $canAddProducts ? '' : 'disabled' ?>>
+                    </div>
+                    <div class="seller-product-form-field">
+                      <label for="offer_countdown">Countdown <span class="seller-product-form-optional">(HH:MM:SS)</span></label>
+                      <input id="offer_countdown" class="seller-product-input--mono" name="offer_countdown" maxlength="8" pattern="\d{1,2}:[0-5]\d:[0-5]\d" placeholder="02:14:38" value="<?= h((string) ($_POST['offer_countdown'] ?? seller_format_offer_countdown((int) ($editingProduct['offer_countdown_seconds'] ?? 8078)))) ?>" <?= $canAddProducts ? '' : 'disabled' ?>>
+                    </div>
+                  </div>
+                  <div class="seller-product-form-field">
+                    <label for="offer_bank_text">Card / bank offer text</label>
+                    <input id="offer_bank_text" name="offer_bank_text" maxlength="150" placeholder="Extra 10% off with HDFC card" value="<?= h((string) ($_POST['offer_bank_text'] ?? ($editingProduct['offer_bank_text'] ?? 'Extra 10% off with HDFC card'))) ?>" <?= $canAddProducts ? '' : 'disabled' ?>>
+                  </div>
+                </div>
+              </section>
+
+              <section class="seller-product-form-section" aria-labelledby="product-section-media">
+                <header class="seller-product-form-section__head">
+                  <h3 class="seller-product-form-section__title" id="product-section-media">Images</h3>
+                  <p class="seller-product-form-section__sub">Max 6 files · JPG, PNG, WEBP, GIF · 4MB each.</p>
+                </header>
+                <div class="seller-product-form-section__body">
+                  <div class="seller-product-form-field">
+                    <label for="images">Product images <span class="seller-product-form-optional">(optional)</span></label>
+                    <input id="images" class="seller-product-form-file" type="file" name="images[]" accept=".jpg,.jpeg,.png,.webp,.gif,image/*" multiple <?= $canAddProducts ? '' : 'disabled' ?>>
+                    <p class="seller-help seller-product-form-hint">
+                      Gallery order upload order jaisi rahegi.
+                      <?php if ($drawerMode === 'edit'): ?>
+                        <strong>Edit mode:</strong> nayi upload purani gallery replace karti hai.
+                      <?php endif; ?>
+                      <span id="productImagesPickCount" class="seller-product-form-file-count" hidden></span>
+                    </p>
+                  </div>
+                </div>
+              </section>
               </div>
 
-              <div class="seller-form__row">
-                <div>
-                  <label for="sku">SKU (manual or auto)</label>
-                  <input id="sku" name="sku" maxlength="40" placeholder="e.g. FAS-SHIRT-001" value="<?= h((string) ($_POST['sku'] ?? ($editingProduct['sku'] ?? ''))) ?>" <?= $canAddProducts ? '' : 'disabled' ?>>
-                  <p class="seller-help" style="margin-top:6px">Agar empty chhodoge to system auto-generate SKU karega.</p>
+              <div class="seller-product-drawer-footer">
+                <div class="seller-product-form-submit-panel">
+                  <p class="seller-product-form-submit-panel__hint">Product hamesha aapki <strong>assigned categories</strong> ke andar hi save hota hai.</p>
+                  <div class="seller-actions seller-product-form-actions">
+                    <button class="admin-btn admin-btn--primary seller-product-form-submit-btn" type="submit" <?= $canAddProducts ? '' : 'disabled' ?>><?= $drawerMode === 'edit' ? 'Update product' : 'Add product' ?></button>
+                  </div>
                 </div>
-                <div style="display:flex;align-items:flex-end">
-                  <button class="seller-view-btn seller-sku-generate-btn" id="generateSkuBtn" type="button" <?= $canAddProducts ? '' : 'disabled' ?>>Auto-generate SKU</button>
-                </div>
-              </div>
-
-              <div class="seller-form__row">
-                <div>
-                  <label for="category">Category</label>
-                  <select id="category" name="category" required <?= $canAddProducts ? '' : 'disabled' ?>>
-                    <?php foreach ($allowedCategories as $cat): ?>
-                      <option value="<?= h($cat) ?>"<?= ((string) ($_POST['category'] ?? ($editingProduct['category'] ?? '')) === $cat) ? ' selected' : '' ?>><?= h(ucfirst($cat)) ?></option>
-                    <?php endforeach; ?>
-                  </select>
-                </div>
-                <div>
-                  <label for="emoji">Emoji</label>
-                  <input id="emoji" name="emoji" maxlength="16" placeholder="📦" value="<?= h((string) ($_POST['emoji'] ?? ($editingProduct['emoji'] ?? ''))) ?>" <?= $canAddProducts ? '' : 'disabled' ?>>
-                </div>
-              </div>
-
-              <div class="seller-form__row">
-                <div>
-                  <label for="price">Price (Rs)</label>
-                  <input id="price" type="number" name="price" min="1" required placeholder="999" value="<?= h((string) ($_POST['price'] ?? ($editingProduct['price'] ?? ''))) ?>" <?= $canAddProducts ? '' : 'disabled' ?>>
-                </div>
-                <div>
-                  <label for="original_price">Original price (Rs)</label>
-                  <input id="original_price" type="number" name="original_price" min="1" required placeholder="1499" value="<?= h((string) ($_POST['original_price'] ?? ($editingProduct['original_price'] ?? ''))) ?>" <?= $canAddProducts ? '' : 'disabled' ?>>
-                </div>
-              </div>
-
-              <div class="seller-form__row">
-                <div>
-                  <label for="stock_qty">Stock quantity</label>
-                  <input id="stock_qty" type="number" name="stock_qty" min="0" value="<?= h((string) ($_POST['stock_qty'] ?? ($editingProduct['stock_qty'] ?? '0'))) ?>" required <?= $canAddProducts ? '' : 'disabled' ?>>
-                </div>
-                <div></div>
-              </div>
-
-              <div class="seller-form__row">
-                <div>
-                  <label for="badge">Badge</label>
-                  <input id="badge" name="badge" maxlength="64" placeholder="New / Sale / Hot" value="<?= h((string) ($_POST['badge'] ?? ($editingProduct['badge'] ?? ''))) ?>" <?= $canAddProducts ? '' : 'disabled' ?>>
-                </div>
-                <div>
-                  <label for="brand">Brand</label>
-                  <input id="brand" name="brand" maxlength="255" placeholder="LUXE" value="<?= h((string) ($_POST['brand'] ?? ($editingProduct['brand'] ?? 'LUXE'))) ?>" <?= $canAddProducts ? '' : 'disabled' ?>>
-                </div>
-              </div>
-
-              <div class="seller-form__row">
-                <div>
-                  <label for="size_options">Size options</label>
-                  <select id="size_options" name="size_options[]" class="seller-multi-select" multiple size="6" <?= $canAddProducts ? '' : 'disabled' ?>>
-                    <?php foreach ($sizeCatalog as $size): ?>
-                      <option value="<?= h($size) ?>"<?= in_array($size, $selectedSizes, true) ? ' selected' : '' ?>><?= h($size) ?></option>
-                    <?php endforeach; ?>
-                  </select>
-                  <p class="seller-help" style="margin-top:6px">Ctrl/Cmd daba ke multiple sizes select karein.</p>
-                </div>
-                <div>
-                  <label for="color_options">Color options</label>
-                  <select id="color_options" name="color_options[]" class="seller-multi-select" multiple size="6" <?= $canAddProducts ? '' : 'disabled' ?>>
-                    <?php foreach ($colorCatalog as $color): ?>
-                      <option value="<?= h($color) ?>"<?= in_array($color, $selectedColors, true) ? ' selected' : '' ?>><?= h($color) ?></option>
-                    <?php endforeach; ?>
-                  </select>
-                  <p class="seller-help" style="margin-top:6px">Ctrl/Cmd daba ke multiple colors select karein.</p>
-                </div>
-              </div>
-
-              <div>
-                <label for="description">Description</label>
-                <textarea id="description" name="description" placeholder="Short product details" <?= $canAddProducts ? '' : 'disabled' ?>><?= h((string) ($_POST['description'] ?? ($editingProduct['description'] ?? ''))) ?></textarea>
-              </div>
-
-              <div class="seller-form__row">
-                <div>
-                  <label for="offer_flash_text">Flash offer text</label>
-                  <input id="offer_flash_text" name="offer_flash_text" maxlength="150" placeholder="Flash deal ends in" value="<?= h((string) ($_POST['offer_flash_text'] ?? ($editingProduct['offer_flash_text'] ?? 'Flash deal ends in'))) ?>" <?= $canAddProducts ? '' : 'disabled' ?>>
-                </div>
-                <div>
-                  <label for="offer_countdown">Offer countdown (HH:MM:SS)</label>
-                  <input id="offer_countdown" name="offer_countdown" maxlength="8" pattern="\d{1,2}:[0-5]\d:[0-5]\d" placeholder="02:14:38" value="<?= h((string) ($_POST['offer_countdown'] ?? seller_format_offer_countdown((int) ($editingProduct['offer_countdown_seconds'] ?? 8078)))) ?>" <?= $canAddProducts ? '' : 'disabled' ?>>
-                </div>
-              </div>
-
-              <div>
-                <label for="offer_bank_text">Card/Bank offer text</label>
-                <input id="offer_bank_text" name="offer_bank_text" maxlength="150" placeholder="Extra 10% off with HDFC card" value="<?= h((string) ($_POST['offer_bank_text'] ?? ($editingProduct['offer_bank_text'] ?? 'Extra 10% off with HDFC card'))) ?>" <?= $canAddProducts ? '' : 'disabled' ?>>
-              </div>
-
-              <div>
-                <label for="images">Product images</label>
-                <input id="images" type="file" name="images[]" accept=".jpg,.jpeg,.png,.webp,.gif,image/*" multiple <?= $canAddProducts ? '' : 'disabled' ?>>
-                <p class="seller-help" style="margin-top:6px">
-                  Optional. Up to 6 images. JPG/PNG/WEBP/GIF, max 4MB each.
-                  <?php if ($drawerMode === 'edit'): ?>
-                    New images upload karoge to old gallery replace ho jayegi.
-                  <?php endif; ?>
-                </p>
-              </div>
-
-              <p class="seller-help">Product aapki assigned categories me hi add hoga.</p>
-              <div class="seller-actions">
-                <button class="admin-btn admin-btn--primary" type="submit" <?= $canAddProducts ? '' : 'disabled' ?>><?= $drawerMode === 'edit' ? 'Update product' : 'Add product' ?></button>
               </div>
             </form>
           </div>
@@ -1187,6 +1385,32 @@ require __DIR__ . '/partials/shell-top.php';
               document.body.classList.add('seller-drawer-open');
               setDrawerState(true);
             }
+
+            var openEmpty = document.getElementById('openProductDrawerBtnEmpty');
+            if (openEmpty) {
+              openEmpty.addEventListener('click', function () {
+                lastFocusedElement = document.activeElement;
+                setDrawerState(true);
+              });
+            }
+          })();
+        </script>
+
+        <script>
+          (function () {
+            var imagesInput = document.getElementById('images');
+            var countEl = document.getElementById('productImagesPickCount');
+            if (!imagesInput || !countEl) return;
+            imagesInput.addEventListener('change', function () {
+              var n = imagesInput.files ? imagesInput.files.length : 0;
+              if (n === 0) {
+                countEl.textContent = '';
+                countEl.setAttribute('hidden', '');
+                return;
+              }
+              countEl.removeAttribute('hidden');
+              countEl.textContent = ' \u2014 ' + n + ' file' + (n === 1 ? '' : 's') + ' selected';
+            });
           })();
         </script>
 

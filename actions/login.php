@@ -44,11 +44,15 @@ try {
     $requested = trim((string) ($data['redirect'] ?? ''));
     $allowedPages = ['index.php', 'cart.php', 'checkout.php', 'profile.php', 'orders.php', 'product.php'];
     $redirect = 'index.php';
-    if ($requested !== '') {
+    if ($requested !== '' && !preg_match('#^https?://#i', $requested) && strpos($requested, '..') === false) {
         $path = parse_url($requested, PHP_URL_PATH);
         $base = $path !== null && $path !== '' ? basename($path) : basename($requested);
+        $query = parse_url($requested, PHP_URL_QUERY);
         if ($base !== '' && in_array($base, $allowedPages, true)) {
             $redirect = $base;
+            if ($query !== null && $query !== '') {
+                $redirect .= '?' . $query;
+            }
         }
     }
 

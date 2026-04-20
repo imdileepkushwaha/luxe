@@ -64,7 +64,7 @@ function cart_filter_available_items(PDO $pdo, array $items): array
     }
 
     $productSt = $pdo->prepare(
-        'SELECT p.id, p.name, p.emoji, p.price, p.stock_qty, p.brand
+        'SELECT p.id, p.name, p.emoji, p.price, p.stock_qty, p.brand, p.seller_id
          FROM products p
          LEFT JOIN seller_users s ON s.id = p.seller_id
          WHERE p.id = ?
@@ -120,6 +120,7 @@ function cart_filter_available_items(PDO $pdo, array $items): array
             'size' => (string) ($it['size'] ?? ''),
             'color' => (string) ($it['color'] ?? ''),
             'checked' => isset($it['checked']) ? (bool) $it['checked'] : true,
+            'seller_id' => max(0, (int) ($p['seller_id'] ?? 0)),
         ];
     }
 
