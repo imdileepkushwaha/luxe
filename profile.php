@@ -6,6 +6,29 @@ if (!$user) {
     header('Location: login.php');
     exit;
 }
+
+$profileReviewFlash = null;
+if (!empty($_SESSION['profile_review_flash']) && is_array($_SESSION['profile_review_flash'])) {
+    $profileReviewFlash = $_SESSION['profile_review_flash'];
+    unset($_SESSION['profile_review_flash']);
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') === 'submit_order_review') {
+    $orderRef = trim((string) ($_POST['order_ref'] ?? ''));
+    $productId = (int) ($_POST['product_id'] ?? 0);
+    $rating = max(1, min(5, (int) ($_POST['rating'] ?? 5)));
+    $reviewText = trim((string) ($_POST['review_text'] ?? ''));
+    $customerName = trim((string) (($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')));
+    $result = orders_try_submit_product_review($pdo, (int) $user['id'], $customerName, $orderRef, $productId, $rating, $reviewText);
+    $_SESSION['profile_review_flash'] = [
+        'type' => $result['ok'] ? 'success' : 'error',
+        'msg' => (string) ($result['message'] ?? ($result['ok'] ? 'Saved.' : 'Could not save review.')),
+    ];
+    $hl = $productId > 0 ? '&highlight=' . $productId : '';
+    header('Location: profile.php?tab=reviews' . $hl);
+    exit;
+}
+
 $pendingDeletion = account_deletion_pending_for_user($pdo, (int) $user['id']);
 $cartNavCount = 0;
 foreach ($_SESSION['cart'] ?? [] as $ci) {
@@ -285,10 +308,15 @@ $profileBadgeLabel = $orderStats['order_count'] > 0 ? '⭐ LUXE Premium Member' 
                   <h2 class="wishlist-title">My Reviews</h2>
                   <span class="wishlist-count-chip"><?= (int) $deliveredReviewCount ?></span>
                 </div>
-                <p class="wishlist-lede">Sirf <strong>delivered</strong> orders ke products. Pending review: <strong><?= (int) $pendingReviewCount ?></strong> · Submitted: <strong><?= (int) $reviewedPurchasesCount ?></strong>. <em>Write review</em> product page par reviews tab kholta hai.</p>
+                <p class="wishlist-lede">Sirf <strong>delivered</strong> orders ke products. Pending review: <strong><?= (int) $pendingReviewCount ?></strong> · Submitted: <strong><?= (int) $reviewedPurchasesCount ?></strong>. Neeche se hi rating aur review submit karein.</p>
               </div>
               <a href="orders.php" class="wishlist-cta-outline">My orders</a>
             </header>
+            <?php if ($profileReviewFlash !== null && isset($profileReviewFlash['msg'])): ?>
+            <div class="profile-review-flash profile-review-flash--<?= ($profileReviewFlash['type'] ?? '') === 'error' ? 'error' : 'success' ?>" role="status" style="margin:0 0 20px;padding:12px 16px;border-radius:12px;font-size:0.95rem;line-height:1.45<?= ($profileReviewFlash['type'] ?? '') === 'error' ? ';background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.35)' : ';background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.35)' ?>">
+              <?= h((string) $profileReviewFlash['msg']) ?>
+            </div>
+            <?php endif; ?>
             <?php if ($deliveredReviewRows === []): ?>
             <div class="wishlist-empty--premium profile-reviews-empty" role="status">
               <div class="wishlist-empty__glow" aria-hidden="true"></div>
@@ -340,9 +368,8 @@ $profileBadgeLabel = $orderStats['order_count'] > 0 ? '⭐ LUXE Premium Member' 
                       ? date('M j, Y', strtotime($deliveredRaw))
                       : '';
                   $productUrl = 'product.php?id=' . $pid;
-                  $reviewUrl = $productUrl . '#tab-reviews';
                   ?>
-              <article class="profile-review-card<?= $hasReview ? '' : ' profile-review-card--needs-review' ?>">
+              <article id="profile-review-row-<?= (int) $pid ?>" class="profile-review-card<?= $hasReview ? '' : ' profile-review-card--needs-review' ?>">
                 <a href="<?= h($productUrl) ?>" class="profile-review-card__media" aria-label="<?= h('View ' . $pname) ?>">
                   <?php if ($hasUpload): ?>
                   <img src="<?= $thumbSrcEsc ?>" alt="" width="96" height="96" loading="lazy" decoding="async" />
@@ -384,11 +411,28 @@ $profileBadgeLabel = $orderStats['order_count'] > 0 ? '⭐ LUXE Premium Member' 
                   <?php if ($hasReview && $reviewBody !== ''): ?>
                   <p class="profile-review-text"><?= nl2br(h($reviewBody)) ?></p>
                   <?php elseif (!$hasReview): ?>
-                  <p class="profile-review-text profile-review-text--muted">Is purchase par apna experience share karein — product page par reviews section khulega.</p>
-                  <div class="profile-review-actions">
-                    <a href="<?= h($reviewUrl) ?>" class="checkout-btn profile-review-write-btn">Write review</a>
-                    <a href="<?= h($productUrl) ?>" class="ghost-btn profile-review-write-secondary">View product</a>
-                  </div>
+                  <p class="profile-review-text profile-review-text--muted">Delivered order — yahin se rating aur review submit karein (min. 10 characters).</p>
+                  <form method="post" class="profile-review-inline-form">
+                    <input type="hidden" name="action" value="submit_order_review">
+                    <input type="hidden" name="order_ref" value="<?= h((string) ($rev['order_ref'] ?? '')) ?>">
+                    <input type="hidden" name="product_id" value="<?= (int) $pid ?>">
+                    <div class="profile-review-inline-form__row">
+                      <label class="profile-review-inline-label" for="profile-review-rating-<?= (int) $pid ?>">Rating</label>
+                      <select id="profile-review-rating-<?= (int) $pid ?>" name="rating" class="profile-review-inline-select" required>
+                        <?php for ($ri = 5; $ri >= 1; $ri--): ?>
+                        <option value="<?= $ri ?>"><?= $ri ?> star<?= $ri > 1 ? 's' : '' ?></option>
+                        <?php endfor; ?>
+                      </select>
+                    </div>
+                    <div class="profile-review-inline-form__row">
+                      <label class="profile-review-inline-label" for="profile-review-text-<?= (int) $pid ?>">Your review</label>
+                      <textarea id="profile-review-text-<?= (int) $pid ?>" name="review_text" class="profile-review-inline-textarea" rows="3" maxlength="1000" minlength="10" required placeholder="Apna experience share karein..."></textarea>
+                    </div>
+                    <div class="profile-review-actions profile-review-actions--form">
+                      <button type="submit" class="checkout-btn profile-review-write-btn">Submit review</button>
+                      <a href="<?= h($productUrl) ?>" class="ghost-btn profile-review-write-secondary">View product</a>
+                    </div>
+                  </form>
                   <?php endif; ?>
                   <?php if ($hasReview && $sellerReply !== ''): ?>
                   <div class="profile-review-seller-reply">

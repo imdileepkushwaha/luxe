@@ -71,6 +71,11 @@ function luxeWishlistIconSvg(active) {
   return `<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16"><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" d="M12.1 20.85 10.8 19.67C5.91 15.24 2.69 12.32 2.69 8.69 2.69 5.75 4.99 3.45 7.93 3.45a5.38 5.38 0 0 1 4.17 1.93 5.38 5.38 0 0 1 4.17-1.93 5.24 5.24 0 0 1 5.24 5.24c0 3.63-3.22 6.55-8.11 10.98Z"/></svg>`;
 }
 
+/** Shopping cart icon for compact add buttons (product cards). */
+function luxeCartIconSvg() {
+  return `<svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" class="add-cart-btn__icon"><path fill="currentColor" d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49A1.003 1.003 0 0 0 20 4H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/></svg>`;
+}
+
 /** Same key as profile wishlist — shared across index, product.php, profile. */
 const LUXE_WISHLIST_STORAGE_KEY = "luxe_profile_wishlist_v1";
 
@@ -299,6 +304,126 @@ function luxeIndexLineFromProduct(p, qty) {
   };
 }
 
+/** Bump session cart from catalog cards (product page, etc.) — no local cart mirror. */
+async function luxeQuickAddToCartFromCatalog(p) {
+  const template = luxeIndexLineFromProduct(p, 1);
+  try {
+    const sessionCart = await luxeFetchCart();
+    const idx = sessionCart.findIndex(i => luxeCartLineMatches(i, template));
+    if (idx >= 0) {
+      sessionCart[idx].qty = Math.max(1, Number(sessionCart[idx].qty) || 0) + 1;
+    } else {
+      sessionCart.push(template);
+    }
+    const saved = await luxeSaveCart(sessionCart);
+    if (!saved) {
+      showToast("Could not update cart.");
+      return;
+    }
+    const cartCountEl = document.getElementById("cartCount");
+    const cartBtn = cartCountEl ? cartCountEl.closest(".cart-btn") : null;
+    if (cartCountEl) {
+      const cur = parseInt(cartCountEl.textContent || "0", 10);
+      cartCountEl.textContent = String(cur + 1);
+    }
+    if (cartBtn) {
+      cartBtn.classList.remove("bounce");
+      void cartBtn.offsetWidth;
+      cartBtn.classList.add("bounce");
+    }
+    showToast(`🛒 "${p.name}" added to cart!`);
+  } catch (_e) {
+    showToast("Could not add to cart.");
+  }
+}
+
+/**
+ * Same card UI as index trending grid (wishlist, category, rating, actions).
+ * @param {object} p
+ * @param {number} index
+ * @param {{ onAddToCart?: (p:object)=>void, staggerFactor?: number, relatedSection?: boolean }} opts
+ */
+function luxeCreateTrendingStyleProductCard(p, index, opts) {
+  const stagger = opts && opts.staggerFactor != null ? opts.staggerFactor : 0.06;
+  const relatedSection = !!(opts && opts.relatedSection);
+  const onAddToCart = opts && typeof opts.onAddToCart === "function"
+    ? opts.onAddToCart
+    : luxeQuickAddToCartFromCatalog;
+  const inWish = luxeWishlistIsInList(p.id);
+  const card = document.createElement("div");
+  card.className = "product-card reveal";
+  card.style.transitionDelay = (index * stagger) + "s";
+  const badge = String(p.badge || "").trim();
+  const badgeNew = badge === "New" ? " new" : "";
+  const cat = String(p.category || "").trim();
+  const rating = Number(p.rating) || 0;
+  const rev = Math.max(0, Number(p.reviews) || 0);
+  const revLabel = rev >= 1000 ? (rev / 1000).toFixed(1) + "k" : String(rev);
+  const nameEsc = luxeEscapeHtml(String(p.name || ""));
+  const origPrice = p.original != null ? p.original : p.price;
+  const needsOpts = luxeProductRequiresVariantPick(p);
+  const useIconButton = needsOpts || relatedSection;
+  const addCartBtnInner = useIconButton
+    ? luxeCartIconSvg()
+    : "Add to Cart";
+  const addCartBtnClass = "add-cart-btn" + (useIconButton ? " add-cart-btn--icon-only" : "");
+  const addCartAria = needsOpts
+    ? "Add to cart — open product to choose size or colour"
+    : "Add to cart";
+  card.innerHTML = `
+        <a href="${luxeProductUrl(p.id)}" class="product-card-img-link" style="text-decoration:none;display:block">
+          <div class="product-card-img">
+            <img class="card-emoji" src="${luxeProductImageUrl(p)}" alt="${nameEsc}" loading="lazy" decoding="async" />
+            <div class="product-card-badge${badgeNew}">${luxeEscapeHtml(badge)}</div>
+            <button type="button" class="wishlist-btn${inWish ? " active" : ""}" data-id="${Number(p.id)}" aria-label="${inWish ? "Remove from wishlist" : "Add to wishlist"}">
+              ${luxeWishlistIconSvg(inWish)}
+            </button>
+          </div>
+        </a>
+        <div class="product-card-body">
+          <div class="product-card-category">${luxeEscapeHtml(cat)}</div>
+          <a href="${luxeProductUrl(p.id)}" class="product-card-name" style="text-decoration:none;color:inherit;display:block">${nameEsc}</a>
+          <div class="product-card-meta">
+            <div class="product-card-price">
+              <span class="price-cur">₹${Number(p.price).toLocaleString()}</span>
+              <span class="price-orig">₹${Number(origPrice).toLocaleString()}</span>
+            </div>
+            <div class="product-card-rating"><span>★</span> ${rating} (${revLabel})</div>
+          </div>
+          <div class="product-card-actions">
+            <a href="${luxeProductUrl(p.id)}" class="view-product-btn">View Details</a>
+            <button type="button" class="${addCartBtnClass}" data-id="${Number(p.id)}" data-needs-options="${needsOpts ? "1" : "0"}" aria-label="${luxeEscapeHtml(addCartAria)}">${addCartBtnInner}</button>
+          </div>
+        </div>
+      `;
+
+  const wishBtn = card.querySelector(".wishlist-btn");
+  if (wishBtn) {
+    wishBtn.addEventListener("click", function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      const isActive = luxeWishlistToggleProduct(p);
+      this.classList.toggle("active", isActive);
+      this.innerHTML = luxeWishlistIconSvg(isActive);
+      this.setAttribute("aria-label", isActive ? "Remove from wishlist" : "Add to wishlist");
+      showToast(isActive ? "❤️ Added to Wishlist" : "Removed from Wishlist");
+    });
+  }
+  const addBtn = card.querySelector(".add-cart-btn");
+  if (addBtn) {
+    addBtn.addEventListener("click", function(e) {
+      e.stopPropagation();
+      if (luxeProductRequiresVariantPick(p)) {
+        showToast("Size / colour chunne ke liye product page khul raha hai…");
+        window.location.href = luxeProductUrl(p.id);
+        return;
+      }
+      onAddToCart(p);
+    });
+  }
+  return card;
+}
+
 /** Unique cart line: same product id + size + color = one line (qty merges). */
 function luxeCartLineKey(it) {
   if (!it || typeof it !== "object") return "";
@@ -334,7 +459,7 @@ document.addEventListener("mousemove", e => {
 })();
 
 function refreshCursorTargets() {
-  document.querySelectorAll("a, button, input, select, label, .product-card, .collection-card, .brand-logo, .tag, .strip-item, .filter-btn, .ctag, .action-btn, .smenu-item, .wishlist-item, .address-card, .order-card, .cart-item, .thumb, .swatch, .size-btn, .review-card, .perk-item, .delivery-card, .ptab, .spec-row, .f-card, .nav-menu-btn, .nav-drawer__close").forEach(el => {
+  document.querySelectorAll("a, button, input, select, label, .product-card, .collection-card, .brand-logo, .tag, .strip-item, .filter-btn, .ctag, .action-btn, .smenu-item, .wishlist-item, .address-card, .order-card, .cart-item, .thumb, .swatch, .size-btn, .review-card, .perk-item, .delivery-card, .ptab, .spec-row, .f-card, .nav-menu-btn, .nav-drawer__close, .btn-share").forEach(el => {
     el.addEventListener("mouseenter", () => ring?.classList.add("hover"));
     el.addEventListener("mouseleave", () => ring?.classList.remove("hover"));
   });
@@ -668,56 +793,11 @@ function initThemeToggle() {
       return;
     }
     filtered.forEach((p, i) => {
-      const inWish = luxeWishlistIsInList(p.id);
-      const card = document.createElement("div");
-      card.className = "product-card reveal";
-      card.style.transitionDelay = (i * 0.06) + "s";
-      card.innerHTML = `
-        <a href="${luxeProductUrl(p.id)}" class="product-card-img-link" style="text-decoration:none;display:block">
-          <div class="product-card-img">
-            <img class="card-emoji" src="${luxeProductImageUrl(p)}" alt="${p.name}" loading="lazy" decoding="async" />
-            <div class="product-card-badge ${p.badge === 'New' ? 'new' : ''}">${p.badge}</div>
-            <button class="wishlist-btn${inWish ? " active" : ""}" data-id="${p.id}" aria-label="${inWish ? "Remove from wishlist" : "Add to wishlist"}">
-              ${luxeWishlistIconSvg(inWish)}
-            </button>
-          </div>
-        </a>
-        <div class="product-card-body">
-          <div class="product-card-category">${p.category}</div>
-          <a href="${luxeProductUrl(p.id)}" class="product-card-name" style="text-decoration:none;color:inherit;display:block">${p.name}</a>
-          <div class="product-card-meta">
-            <div class="product-card-price">
-              <span class="price-cur">₹${p.price.toLocaleString()}</span>
-              <span class="price-orig">₹${p.original.toLocaleString()}</span>
-            </div>
-            <div class="product-card-rating"><span>★</span> ${p.rating} (${(p.reviews/1000).toFixed(1)}k)</div>
-          </div>
-          <div class="product-card-actions">
-            <a href="${luxeProductUrl(p.id)}" class="view-product-btn">View Details</a>
-            <button type="button" class="add-cart-btn" data-id="${p.id}" data-needs-options="${luxeProductRequiresVariantPick(p) ? "1" : "0"}">${luxeProductRequiresVariantPick(p) ? "Choose options" : "Add to Cart"}</button>
-          </div>
-        </div>
-      `;
+      const card = luxeCreateTrendingStyleProductCard(p, i, {
+        staggerFactor: 0.06,
+        onAddToCart: product => { addToCart(product); },
+      });
       grid.appendChild(card);
-
-      card.querySelector(".wishlist-btn").addEventListener("click", function(e) {
-        e.preventDefault(); e.stopPropagation();
-        const isActive = luxeWishlistToggleProduct(p);
-        this.classList.toggle("active", isActive);
-        this.innerHTML = luxeWishlistIconSvg(isActive);
-        this.setAttribute("aria-label", isActive ? "Remove from wishlist" : "Add to wishlist");
-        showToast(isActive ? `❤️ Added to Wishlist` : `Removed from Wishlist`);
-      });
-
-      card.querySelector(".add-cart-btn").addEventListener("click", function(e) {
-        e.stopPropagation();
-        if (luxeProductRequiresVariantPick(p)) {
-          showToast("Size / colour chunne ke liye product page khul raha hai…");
-          window.location.href = luxeProductUrl(p.id);
-          return;
-        }
-        addToCart(p);
-      });
     });
 
     observeReveal();
@@ -730,8 +810,12 @@ function initThemeToggle() {
   // ---- Filter Tabs ----
   document.querySelectorAll(".filter-btn").forEach(btn => {
     btn.addEventListener("click", () => {
-      document.querySelector(".filter-btn.active")?.classList.remove("active");
+      document.querySelectorAll(".filter-btn").forEach(b => {
+        b.classList.remove("active");
+        b.setAttribute("aria-selected", "false");
+      });
       btn.classList.add("active");
+      btn.setAttribute("aria-selected", "true");
       currentCategoryFilter = btn.dataset.filter || "all";
       renderProducts();
     });
@@ -1895,19 +1979,10 @@ function initThemeToggle() {
   function renderRelated() {
     const grid = document.getElementById("relatedGrid");
     if (!grid) return;
-    grid.innerHTML = relatedProducts.map((p, i) => `
-      <div class="product-card reveal" style="transition-delay:${i * 0.08}s">
-        <a href="${luxeProductUrl(p.id)}" class="product-card-img-link" style="text-decoration:none;display:block"><div class="product-card-img"><img class="card-emoji" src="${luxeProductImageUrl(p)}" alt="${p.name}" loading="lazy" decoding="async" /><div class="product-card-badge">${p.badge || ""}</div></div></a>
-        <div class="product-card-body">
-          <div class="product-card-name"><a href="${luxeProductUrl(p.id)}" style="text-decoration:none;color:inherit">${p.name}</a></div>
-          <div class="product-card-price"><span class="price-cur">₹${p.price.toLocaleString()}</span><span class="price-orig">₹${p.original.toLocaleString()}</span></div>
-          <div class="rel-actions">
-            <a class="rel-view-btn" href="${luxeProductUrl(p.id)}">View</a>
-            <button class="rel-add-btn" onclick="showToast('🛒 ${p.name} added to cart!')">Add to Cart 🛒</button>
-          </div>
-        </div>
-      </div>
-    `).join("");
+    grid.innerHTML = "";
+    relatedProducts.forEach((p, i) => {
+      grid.appendChild(luxeCreateTrendingStyleProductCard(p, i, { staggerFactor: 0.08, relatedSection: true }));
+    });
   }
 
   // ---- Review Helpful ----
@@ -1977,6 +2052,52 @@ function initThemeToggle() {
     updateOfferTimer();
   }
 
+  // ---- Share (Web Share API, else copy link) ----
+  (function initProductShare() {
+    const btn = document.getElementById("productShareBtn");
+    if (!btn) return;
+    const page = window.__PRODUCT_PAGE__ || {};
+    function shareTitle() {
+      const t = String(page.name || "").trim();
+      if (t) return t;
+      const el = document.querySelector(".product-name");
+      return el ? el.textContent.trim() : "LUXE";
+    }
+    btn.addEventListener("click", async () => {
+      const title = shareTitle();
+      const url = window.location.href;
+      const text = title + " — LUXE";
+      if (navigator.share) {
+        try {
+          await navigator.share({ title, text, url });
+          showToast("Shared!");
+          return;
+        } catch (e) {
+          if (e && e.name === "AbortError") return;
+        }
+      }
+      try {
+        await navigator.clipboard.writeText(url);
+        showToast("Link copied — paste anywhere to share");
+      } catch (_e) {
+        const ta = document.createElement("textarea");
+        ta.value = url;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+          document.execCommand("copy");
+          showToast("Link copied!");
+        } catch (_e2) {
+          showToast("Copy this link: " + url);
+        }
+        document.body.removeChild(ta);
+      }
+    });
+  })();
+
   // ---- Sticky CTA ----
   window.addEventListener("scroll", () => {
     const productSection = document.querySelector(".product-section");
@@ -1997,24 +2118,6 @@ function initThemeToggle() {
     refreshCursorTargets();
     hydrateProductCartCount();
     if (typeof changeQty === "function") changeQty(0);
-
-    const reviewWriteToggle = document.getElementById("reviewWriteToggle");
-    const reviewFormPanel = document.getElementById("reviewFormPanel");
-    if (reviewWriteToggle && reviewFormPanel) {
-      const labelEl = reviewWriteToggle.querySelector(".review-write-toggle__label");
-      reviewWriteToggle.addEventListener("click", () => {
-        const open = !reviewFormPanel.classList.contains("is-open");
-        reviewFormPanel.classList.toggle("is-open", open);
-        reviewWriteToggle.setAttribute("aria-expanded", open ? "true" : "false");
-        if (labelEl) labelEl.textContent = open ? "Close" : "Write a review";
-        if (open) {
-          requestAnimationFrame(() => {
-            reviewFormPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
-            document.getElementById("review_text")?.focus();
-          });
-        }
-      });
-    }
   });
 })();
 
@@ -3396,6 +3499,13 @@ function initThemeToggle() {
       if (deepTab && allowedProfileTabs.includes(deepTab)) {
         const tabBtn = document.querySelector('.smenu-item[data-tab="' + deepTab + '"]');
         if (tabBtn) switchTab(tabBtn);
+      }
+      const highlightPid = params.get("highlight");
+      if (highlightPid && /^\d+$/.test(highlightPid)) {
+        setTimeout(() => {
+          const row = document.getElementById("profile-review-row-" + highlightPid);
+          if (row) row.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 120);
       }
       renderWishlist();
       renderRewards();

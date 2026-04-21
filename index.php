@@ -335,18 +335,23 @@ foreach ($_SESSION['cart'] ?? [] as $ci) {
 
   <!-- Trending Products -->
   <section class="trending" id="trending">
-    <div class="container">
+    <div class="trending-bg" aria-hidden="true">
+      <div class="trending-bg__blob trending-bg__blob--1"></div>
+      <div class="trending-bg__blob trending-bg__blob--2"></div>
+      <div class="trending-bg__grid"></div>
+    </div>
+    <div class="container trending-container">
       <div class="section-header">
         <div class="section-badge">🔥 Hot Right Now</div>
         <h2 class="section-title">Trending Products</h2>
         <p class="section-subtitle">Most loved products this week</p>
       </div>
-      <div class="filter-tabs">
-        <button class="filter-btn active" data-filter="all">All</button>
-        <button class="filter-btn" data-filter="fashion">Fashion</button>
-        <button class="filter-btn" data-filter="electronics">Electronics</button>
-        <button class="filter-btn" data-filter="beauty">Beauty</button>
-        <button class="filter-btn" data-filter="home">Home</button>
+      <div class="filter-tabs" role="tablist" aria-label="Filter trending by category">
+        <button type="button" class="filter-btn active" data-filter="all" role="tab" aria-selected="true">All</button>
+        <button type="button" class="filter-btn" data-filter="fashion" role="tab" aria-selected="false">Fashion</button>
+        <button type="button" class="filter-btn" data-filter="electronics" role="tab" aria-selected="false">Electronics</button>
+        <button type="button" class="filter-btn" data-filter="beauty" role="tab" aria-selected="false">Beauty</button>
+        <button type="button" class="filter-btn" data-filter="home" role="tab" aria-selected="false">Home</button>
       </div>
       <div class="products-grid" id="productsGrid">
         <!-- Products rendered by JS -->

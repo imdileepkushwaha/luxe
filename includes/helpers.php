@@ -7,6 +7,17 @@ function h(?string $s): string
     return htmlspecialchars((string) $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
+/**
+ * Strip inline styles from seller-provided description HTML so theme (dark/light) controls color.
+ */
+function luxe_sanitize_product_description_html(string $html): string
+{
+    $out = preg_replace('/\sstyle\s*=\s*("[^"]*"|\'[^\']*\')/iu', '', $html);
+    $out = preg_replace('/\sstyle\s*=\s*[^>\s]+/iu', '', $out ?? $html);
+
+    return $out ?? $html;
+}
+
 /** Mask email for UI (e.g. ra***@example.com). */
 function luxe_mask_email(string $email): string
 {
