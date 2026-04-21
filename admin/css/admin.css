@@ -4033,6 +4033,77 @@ html.admin-theme-dark .seller-category-card:has(input:checked) {
   border-color: var(--admin-accent);
 }
 
+/* Password show/hide — seller login & registration (see seller settings in seller.css) */
+.seller-password-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.admin-login-card .seller-password-wrap > input {
+  padding-right: 2.75rem;
+}
+
+.seller-password-toggle {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--admin-text-muted);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.seller-password-toggle:hover {
+  color: var(--admin-text);
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.seller-password-toggle:focus-visible {
+  outline: 2px solid var(--admin-accent);
+  outline-offset: 1px;
+}
+
+.seller-password-toggle__icons {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.seller-password-toggle__eye {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+}
+
+/* Icon state driven by `.seller-password-toggle--on` on the button (no `hidden` on SVG) */
+.seller-password-toggle__eye--closed {
+  display: none;
+}
+
+.seller-password-toggle--on .seller-password-toggle__eye--open {
+  display: none;
+}
+
+.seller-password-toggle--on .seller-password-toggle__eye--closed {
+  display: block;
+}
+
+html.admin-theme-dark .seller-password-toggle:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
 .admin-login-card button[type="submit"] {
   margin-top: 20px;
   width: 100%;

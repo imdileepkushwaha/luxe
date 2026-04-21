@@ -283,6 +283,7 @@ require __DIR__ . '/partials/shell-top.php';
             <p class="seller-orders-subtitle">Track fulfilment for orders that include your products. Search filters <strong>this page</strong> only — use pagination for older orders. New orders may need a quick <strong>Confirm</strong> before you ship.</p>
           </div>
           <div class="admin-page-head__actions seller-orders-head-actions">
+            <a class="admin-btn admin-btn--ghost-light" href="shipped-products.php">Shipped</a>
             <a class="admin-btn admin-btn--ghost-light" href="earnings.php">Earnings</a>
           </div>
         </div>

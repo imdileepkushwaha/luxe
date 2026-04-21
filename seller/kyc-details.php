@@ -83,6 +83,17 @@ function seller_handle_kyc_doc_upload(string $fieldName, int $sellerId, string $
     return ['ok' => true, 'path' => 'uploads/seller-kyc/' . $fileName];
 }
 
+function seller_kyc_attachment_display_name(string $path): string
+{
+    $path = trim(str_replace('\\', '/', $path));
+    if ($path === '') {
+        return '';
+    }
+    $base = basename($path);
+
+    return $base !== '' ? $base : 'document';
+}
+
 $sellerDetailsSt = $pdo->prepare(
     "SELECT business_name, gst_number, pan_number, aadhaar_number,
             gst_doc_path, pan_doc_path, aadhaar_doc_path,
@@ -529,14 +540,44 @@ require __DIR__ . '/partials/shell-top.php';
                   <div class="seller-kyc-field-group seller-kyc-field-group--stack">
                     <label for="gst_number">GST number <span class="seller-kyc-optional">(optional)</span></label>
                     <input id="gst_number" class="seller-kyc-input--gst" name="gst_number" maxlength="15" value="<?= h($form['gst_number']) ?>" placeholder="22AAAAA0000A1Z5" <?= !$isEditable ? 'disabled' : '' ?>>
-                    <label class="seller-kyc-file-label" for="gst_document">GST proof <span class="seller-kyc-file-hint-inline">PDF / image · 5 MB</span></label>
-                    <input id="gst_document" class="seller-kyc-file" type="file" name="gst_document" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp" <?= !$isEditable ? 'disabled' : '' ?>>
-                    <?php if ($form['gst_doc_path'] !== ''): ?>
-                      <div class="seller-kyc-uploaded-row">
-                        <span class="seller-kyc-uploaded-pill">On file</span>
-                        <a class="seller-kyc-uploaded-link" href="../<?= h($form['gst_doc_path']) ?>" target="_blank" rel="noopener">View document</a>
+                    <?php
+                    $gstAttachName = seller_kyc_attachment_display_name($form['gst_doc_path']);
+                    $gstAttachDefault = $gstAttachName !== '' ? $gstAttachName : 'No file attached';
+                    ?>
+                    <div class="seller-kyc-attach<?= !$isEditable ? ' seller-kyc-attach--locked' : '' ?>">
+                      <div class="seller-kyc-attach__heading">
+                        <span class="seller-kyc-attach__title">GST proof</span>
+                        <span class="seller-kyc-attach__types">PDF, JPG, PNG, WebP · max 5 MB</span>
                       </div>
-                    <?php endif; ?>
+                      <?php if ($isEditable): ?>
+                        <label class="seller-kyc-attach__row" for="gst_document">
+                          <input id="gst_document" class="seller-kyc-attach__input" type="file" name="gst_document" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp">
+                          <span class="seller-kyc-attach__icon" aria-hidden="true">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                          </span>
+                          <span class="seller-kyc-attach__text">
+                            <span class="seller-kyc-attach__filename" data-kyc-filename data-default="<?= h($gstAttachDefault) ?>"><?= h($gstAttachDefault) ?></span>
+                            <span class="seller-kyc-attach__hint">Click to attach or replace</span>
+                          </span>
+                          <span class="seller-kyc-attach__badge">Attach</span>
+                        </label>
+                      <?php else: ?>
+                        <div class="seller-kyc-attach__row seller-kyc-attach__row--readonly" aria-disabled="true">
+                          <span class="seller-kyc-attach__icon" aria-hidden="true">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                          </span>
+                          <span class="seller-kyc-attach__text">
+                            <span class="seller-kyc-attach__filename"><?= h($gstAttachDefault) ?></span>
+                            <span class="seller-kyc-attach__hint">Saved — editing locked</span>
+                          </span>
+                        </div>
+                      <?php endif; ?>
+                      <?php if ($form['gst_doc_path'] !== ''): ?>
+                        <div class="seller-kyc-attach__footer">
+                          <a class="seller-kyc-attach__open" href="../<?= h($form['gst_doc_path']) ?>" target="_blank" rel="noopener">Open current file</a>
+                        </div>
+                      <?php endif; ?>
+                    </div>
                   </div>
                 </div>
 
@@ -544,26 +585,86 @@ require __DIR__ . '/partials/shell-top.php';
                   <div class="seller-kyc-field-group seller-kyc-field-group--stack">
                     <label for="pan_number">PAN number</label>
                     <input id="pan_number" class="seller-kyc-input--pan" name="pan_number" required maxlength="10" value="<?= h($form['pan_number']) ?>" placeholder="ABCDE1234F" <?= !$isEditable ? 'disabled' : '' ?>>
-                    <label class="seller-kyc-file-label" for="pan_document">PAN card scan</label>
-                    <input id="pan_document" class="seller-kyc-file" type="file" name="pan_document" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp" <?= !$isEditable ? 'disabled' : '' ?>>
-                    <?php if ($form['pan_doc_path'] !== ''): ?>
-                      <div class="seller-kyc-uploaded-row">
-                        <span class="seller-kyc-uploaded-pill">On file</span>
-                        <a class="seller-kyc-uploaded-link" href="../<?= h($form['pan_doc_path']) ?>" target="_blank" rel="noopener">View document</a>
+                    <?php
+                    $panAttachName = seller_kyc_attachment_display_name($form['pan_doc_path']);
+                    $panAttachDefault = $panAttachName !== '' ? $panAttachName : 'No file attached';
+                    ?>
+                    <div class="seller-kyc-attach<?= !$isEditable ? ' seller-kyc-attach--locked' : '' ?>">
+                      <div class="seller-kyc-attach__heading">
+                        <span class="seller-kyc-attach__title">PAN card scan</span>
+                        <span class="seller-kyc-attach__types">PDF, JPG, PNG, WebP · max 5 MB</span>
                       </div>
-                    <?php endif; ?>
+                      <?php if ($isEditable): ?>
+                        <label class="seller-kyc-attach__row" for="pan_document">
+                          <input id="pan_document" class="seller-kyc-attach__input" type="file" name="pan_document" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp">
+                          <span class="seller-kyc-attach__icon" aria-hidden="true">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                          </span>
+                          <span class="seller-kyc-attach__text">
+                            <span class="seller-kyc-attach__filename" data-kyc-filename data-default="<?= h($panAttachDefault) ?>"><?= h($panAttachDefault) ?></span>
+                            <span class="seller-kyc-attach__hint">Click to attach or replace</span>
+                          </span>
+                          <span class="seller-kyc-attach__badge">Attach</span>
+                        </label>
+                      <?php else: ?>
+                        <div class="seller-kyc-attach__row seller-kyc-attach__row--readonly" aria-disabled="true">
+                          <span class="seller-kyc-attach__icon" aria-hidden="true">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                          </span>
+                          <span class="seller-kyc-attach__text">
+                            <span class="seller-kyc-attach__filename"><?= h($panAttachDefault) ?></span>
+                            <span class="seller-kyc-attach__hint">Saved — editing locked</span>
+                          </span>
+                        </div>
+                      <?php endif; ?>
+                      <?php if ($form['pan_doc_path'] !== ''): ?>
+                        <div class="seller-kyc-attach__footer">
+                          <a class="seller-kyc-attach__open" href="../<?= h($form['pan_doc_path']) ?>" target="_blank" rel="noopener">Open current file</a>
+                        </div>
+                      <?php endif; ?>
+                    </div>
                   </div>
                   <div class="seller-kyc-field-group seller-kyc-field-group--stack">
                     <label for="aadhaar_number">Aadhaar number</label>
                     <input id="aadhaar_number" class="seller-kyc-input--aadhaar" name="aadhaar_number" required pattern="^[0-9]{12}$" value="<?= h($form['aadhaar_number']) ?>" placeholder="12 digit Aadhaar" <?= !$isEditable ? 'disabled' : '' ?>>
-                    <label class="seller-kyc-file-label" for="aadhaar_document">Aadhaar scan</label>
-                    <input id="aadhaar_document" class="seller-kyc-file" type="file" name="aadhaar_document" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp" <?= !$isEditable ? 'disabled' : '' ?>>
-                    <?php if ($form['aadhaar_doc_path'] !== ''): ?>
-                      <div class="seller-kyc-uploaded-row">
-                        <span class="seller-kyc-uploaded-pill">On file</span>
-                        <a class="seller-kyc-uploaded-link" href="../<?= h($form['aadhaar_doc_path']) ?>" target="_blank" rel="noopener">View document</a>
+                    <?php
+                    $aadhaarAttachName = seller_kyc_attachment_display_name($form['aadhaar_doc_path']);
+                    $aadhaarAttachDefault = $aadhaarAttachName !== '' ? $aadhaarAttachName : 'No file attached';
+                    ?>
+                    <div class="seller-kyc-attach<?= !$isEditable ? ' seller-kyc-attach--locked' : '' ?>">
+                      <div class="seller-kyc-attach__heading">
+                        <span class="seller-kyc-attach__title">Aadhaar scan</span>
+                        <span class="seller-kyc-attach__types">PDF, JPG, PNG, WebP · max 5 MB</span>
                       </div>
-                    <?php endif; ?>
+                      <?php if ($isEditable): ?>
+                        <label class="seller-kyc-attach__row" for="aadhaar_document">
+                          <input id="aadhaar_document" class="seller-kyc-attach__input" type="file" name="aadhaar_document" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp">
+                          <span class="seller-kyc-attach__icon" aria-hidden="true">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                          </span>
+                          <span class="seller-kyc-attach__text">
+                            <span class="seller-kyc-attach__filename" data-kyc-filename data-default="<?= h($aadhaarAttachDefault) ?>"><?= h($aadhaarAttachDefault) ?></span>
+                            <span class="seller-kyc-attach__hint">Click to attach or replace</span>
+                          </span>
+                          <span class="seller-kyc-attach__badge">Attach</span>
+                        </label>
+                      <?php else: ?>
+                        <div class="seller-kyc-attach__row seller-kyc-attach__row--readonly" aria-disabled="true">
+                          <span class="seller-kyc-attach__icon" aria-hidden="true">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                          </span>
+                          <span class="seller-kyc-attach__text">
+                            <span class="seller-kyc-attach__filename"><?= h($aadhaarAttachDefault) ?></span>
+                            <span class="seller-kyc-attach__hint">Saved — editing locked</span>
+                          </span>
+                        </div>
+                      <?php endif; ?>
+                      <?php if ($form['aadhaar_doc_path'] !== ''): ?>
+                        <div class="seller-kyc-attach__footer">
+                          <a class="seller-kyc-attach__open" href="../<?= h($form['aadhaar_doc_path']) ?>" target="_blank" rel="noopener">Open current file</a>
+                        </div>
+                      <?php endif; ?>
+                    </div>
                   </div>
                 </div>
               </section>
@@ -645,5 +746,21 @@ require __DIR__ . '/partials/shell-top.php';
             </form>
           </div>
         </div>
+
+<script>
+  (function () {
+    document.querySelectorAll('.seller-kyc-attach__input').forEach(function (inp) {
+      inp.addEventListener('change', function () {
+        var wrap = inp.closest('.seller-kyc-attach');
+        if (!wrap) return;
+        var el = wrap.querySelector('[data-kyc-filename]');
+        if (!el) return;
+        var f = inp.files && inp.files[0];
+        var def = el.getAttribute('data-default') || 'No file attached';
+        el.textContent = f ? f.name : def;
+      });
+    });
+  })();
+</script>
 
 <?php require __DIR__ . '/partials/shell-bottom.php'; ?>
