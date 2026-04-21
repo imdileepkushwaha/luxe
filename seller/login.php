@@ -75,7 +75,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <input id="email" type="email" name="email" required autocomplete="email" placeholder="seller@luxe.com">
 
       <label for="password">Password</label>
-      <input id="password" type="password" name="password" required autocomplete="current-password" placeholder="********">
+      <div class="seller-password-wrap">
+        <input id="password" type="password" name="password" required autocomplete="current-password" placeholder="********">
+        <?php require __DIR__ . '/partials/password-toggle-button.php'; ?>
+      </div>
 
       <button type="submit">Login</button>
     </form>
@@ -83,5 +86,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="hint">Default: seller@luxe.com / seller123</div>
     <div class="hint"><a href="create-request.php">Need seller account? Submit registration request</a></div>
   </div>
+  <script src="js/password-toggle.js?v=2"></script>
 </body>
 </html>

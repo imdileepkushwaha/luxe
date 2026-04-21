@@ -49,6 +49,7 @@ foreach ($_SESSION['cart'] ?? [] as $ci) {
         <a href="index.php" class="nav-logo">LUXE</a>
       </div>
       <ul class="nav-links">
+        <li><a href="product-list.php">Shop</a></li>
         <li><a href="#collections">Collections</a></li>
         <li><a href="#trending">Trending</a></li>
         <li><a href="#deals">Deals</a></li>
@@ -278,7 +279,7 @@ foreach ($_SESSION['cart'] ?? [] as $ci) {
             <h3>Fashion</h3>
             <p>2,400+ Styles</p>
             </div>
-            <a href="#" class="col-link">Shop Now →</a>
+            <a href="product-list.php?category=fashion" class="col-link">Shop Now →</a>
           </div>
         </div>
         <div class="collection-card">
@@ -290,7 +291,7 @@ foreach ($_SESSION['cart'] ?? [] as $ci) {
            <h3>Electronics</h3>
            <p>1,800+ Items</p>
            </div>
-            <a href="#" class="col-link">Shop Now →</a>
+            <a href="product-list.php?category=electronics" class="col-link">Shop Now →</a>
           </div>
         </div>
         <div class="collection-card">
@@ -302,7 +303,7 @@ foreach ($_SESSION['cart'] ?? [] as $ci) {
            <h3>Beauty</h3>
            <p>900+ Products</p>
            </div>
-            <a href="#" class="col-link">Shop Now →</a>
+            <a href="product-list.php?category=beauty" class="col-link">Shop Now →</a>
           </div>
         </div>
         <div class="collection-card">
@@ -314,7 +315,7 @@ foreach ($_SESSION['cart'] ?? [] as $ci) {
            <h3>Home & Living</h3>
            <p>3,100+ Items</p>
            </div>
-            <a href="#" class="col-link">Shop Now →</a>
+            <a href="product-list.php?category=home" class="col-link">Shop Now →</a>
           </div>
         </div>
         <div class="collection-card">
@@ -326,7 +327,7 @@ foreach ($_SESSION['cart'] ?? [] as $ci) {
            <h3>Gaming</h3>
            <p>650+ Products</p>
            </div>
-            <a href="#" class="col-link">Shop Now →</a>
+            <a href="product-list.php?category=electronics" class="col-link">Shop Now →</a>
           </div>
         </div>
       </div>
@@ -335,18 +336,23 @@ foreach ($_SESSION['cart'] ?? [] as $ci) {
 
   <!-- Trending Products -->
   <section class="trending" id="trending">
-    <div class="container">
+    <div class="trending-bg" aria-hidden="true">
+      <div class="trending-bg__blob trending-bg__blob--1"></div>
+      <div class="trending-bg__blob trending-bg__blob--2"></div>
+      <div class="trending-bg__grid"></div>
+    </div>
+    <div class="container trending-container">
       <div class="section-header">
         <div class="section-badge">🔥 Hot Right Now</div>
         <h2 class="section-title">Trending Products</h2>
         <p class="section-subtitle">Most loved products this week</p>
       </div>
-      <div class="filter-tabs">
-        <button class="filter-btn active" data-filter="all">All</button>
-        <button class="filter-btn" data-filter="fashion">Fashion</button>
-        <button class="filter-btn" data-filter="electronics">Electronics</button>
-        <button class="filter-btn" data-filter="beauty">Beauty</button>
-        <button class="filter-btn" data-filter="home">Home</button>
+      <div class="filter-tabs" role="tablist" aria-label="Filter trending by category">
+        <button type="button" class="filter-btn active" data-filter="all" role="tab" aria-selected="true">All</button>
+        <button type="button" class="filter-btn" data-filter="fashion" role="tab" aria-selected="false">Fashion</button>
+        <button type="button" class="filter-btn" data-filter="electronics" role="tab" aria-selected="false">Electronics</button>
+        <button type="button" class="filter-btn" data-filter="beauty" role="tab" aria-selected="false">Beauty</button>
+        <button type="button" class="filter-btn" data-filter="home" role="tab" aria-selected="false">Home</button>
       </div>
       <div class="products-grid" id="productsGrid">
         <!-- Products rendered by JS -->
@@ -386,21 +392,49 @@ foreach ($_SESSION['cart'] ?? [] as $ci) {
   </section>
 
   <!-- Brands Section -->
-  <section class="brands" id="brands">
-    <div class="container">
-      <div class="section-header">
+  <section class="brands" id="brands" aria-labelledby="brandsHeading">
+    <div class="brands__bg" aria-hidden="true"></div>
+    <div class="brands__glow brands__glow--1" aria-hidden="true"></div>
+    <div class="brands__glow brands__glow--2" aria-hidden="true"></div>
+    <div class="container brands__container">
+      <div class="section-header brands__header">
         <div class="section-badge">Our Partners</div>
-        <h2 class="section-title">Top Brands</h2>
+        <h2 class="section-title" id="brandsHeading">Top Brands</h2>
+        <p class="section-subtitle brands__lead">Global names shoppers know and trust — crisp marks, zero clutter.</p>
       </div>
-      <div class="brands-row">
-        <div class="brand-logo">Nike</div>
-        <div class="brand-logo">Apple</div>
-        <div class="brand-logo">Samsung</div>
-        <div class="brand-logo">Adidas</div>
-        <div class="brand-logo">Sony</div>
-        <div class="brand-logo">Puma</div>
-        <div class="brand-logo">Zara</div>
-        <div class="brand-logo">H&M</div>
+      <div class="brands__grid" role="list">
+        <div class="brand-logo" role="listitem">
+          <span class="brand-logo__surface" aria-hidden="true"></span>
+          <img class="brand-logo__img" src="images/brands/nike.svg" alt="Nike" width="160" height="40" loading="lazy" decoding="async" />
+        </div>
+        <div class="brand-logo" role="listitem">
+          <span class="brand-logo__surface" aria-hidden="true"></span>
+          <img class="brand-logo__img" src="images/brands/apple.svg" alt="Apple" width="160" height="40" loading="lazy" decoding="async" />
+        </div>
+        <div class="brand-logo" role="listitem">
+          <span class="brand-logo__surface" aria-hidden="true"></span>
+          <img class="brand-logo__img" src="images/brands/samsung.svg" alt="Samsung" width="160" height="40" loading="lazy" decoding="async" />
+        </div>
+        <div class="brand-logo" role="listitem">
+          <span class="brand-logo__surface" aria-hidden="true"></span>
+          <img class="brand-logo__img" src="images/brands/adidas.svg" alt="Adidas" width="160" height="40" loading="lazy" decoding="async" />
+        </div>
+        <div class="brand-logo" role="listitem">
+          <span class="brand-logo__surface" aria-hidden="true"></span>
+          <img class="brand-logo__img" src="images/brands/sony.svg" alt="Sony" width="160" height="40" loading="lazy" decoding="async" />
+        </div>
+        <div class="brand-logo" role="listitem">
+          <span class="brand-logo__surface" aria-hidden="true"></span>
+          <img class="brand-logo__img" src="images/brands/puma.svg" alt="Puma" width="160" height="40" loading="lazy" decoding="async" />
+        </div>
+        <div class="brand-logo" role="listitem">
+          <span class="brand-logo__surface" aria-hidden="true"></span>
+          <img class="brand-logo__img" src="images/brands/zara.svg" alt="Zara" width="160" height="40" loading="lazy" decoding="async" />
+        </div>
+        <div class="brand-logo" role="listitem">
+          <span class="brand-logo__surface" aria-hidden="true"></span>
+          <img class="brand-logo__img" src="images/brands/hm.svg" alt="H&amp;M" width="160" height="40" loading="lazy" decoding="async" />
+        </div>
       </div>
     </div>
   </section>
@@ -629,6 +663,7 @@ foreach ($_SESSION['cart'] ?? [] as $ci) {
         'product' => 'product.php',
         'orders' => 'orders.php',
         'profile' => 'profile.php',
+        'productList' => 'product-list.php',
     ], JSON_THROW_ON_ERROR) ?>;
     window.__PRODUCTS__ = <?= json_encode($products, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
   </script>

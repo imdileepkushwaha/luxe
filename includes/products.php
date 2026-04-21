@@ -170,6 +170,9 @@ function products_fetch_related(PDO $pdo, int $excludeId, string $category, int 
 {
     $st = $pdo->prepare(
         'SELECT p.id, p.name, p.category, p.emoji, p.price, p.original_price AS original, p.badge, p.image_bg, p.image_path,
+                p.rating, p.review_count AS reviews,
+                p.size_options, p.color_options,
+                (SELECT COUNT(*) FROM product_variant_inventory pvi WHERE pvi.product_id = p.id AND pvi.active = 1) AS variant_row_count,
                 (SELECT pi.image_path FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.sort_order ASC, pi.id ASC LIMIT 1) AS gallery_first
          FROM products p
          LEFT JOIN seller_users s ON s.id = p.seller_id
@@ -194,6 +197,17 @@ function products_fetch_related(PDO $pdo, int $excludeId, string $category, int 
         $r['id'] = (int) $r['id'];
         $r['price'] = (int) $r['price'];
         $r['original'] = (int) $r['original'];
+        $r['reviews'] = (int) ($r['reviews'] ?? 0);
+        $r['rating'] = (float) ($r['rating'] ?? 0);
+        $variantRowCount = (int) ($r['variant_row_count'] ?? 0);
+        $sizes = seller_parse_product_option_csv((string) ($r['size_options'] ?? ''));
+        $colors = seller_parse_product_option_csv((string) ($r['color_options'] ?? ''));
+        $multiOption =
+            count($sizes) > 1
+            || count($colors) > 1
+            || (count($sizes) >= 1 && count($colors) >= 1);
+        $r['requires_variant_pick'] = $variantRowCount > 0 || $multiOption;
+        unset($r['variant_row_count'], $r['size_options'], $r['color_options']);
         $main = trim((string) ($r['image_path'] ?? ''));
         $gal = trim((string) ($r['gallery_first'] ?? ''));
         unset($r['gallery_first']);

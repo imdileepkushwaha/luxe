@@ -62,6 +62,7 @@ $emailNav = trim((string) ($userNav['email'] ?? ''));
       <div class="nav-drawer__section-label">Shop</div>
       <nav class="nav-drawer__links" aria-label="Store">
         <a href="index.php">Home</a>
+        <a href="product-list.php">All products</a>
         <a href="index.php#collections">Collections</a>
         <a href="index.php#trending">Trending</a>
         <a href="index.php#deals">Deals</a>

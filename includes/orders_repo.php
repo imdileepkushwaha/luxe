@@ -270,6 +270,94 @@ function profile_delivered_review_rows_for_user(PDO $pdo, int $userId): array
     return is_array($rows) ? $rows : [];
 }
 
+/**
+ * Whether the user has this product on at least one delivered order.
+ */
+function profile_user_has_delivered_product(PDO $pdo, int $userId, int $productId): bool
+{
+    if ($userId <= 0 || $productId <= 0) {
+        return false;
+    }
+    try {
+        $st = $pdo->prepare(
+            'SELECT 1
+             FROM order_items oi
+             INNER JOIN orders o ON o.id = oi.order_id
+             WHERE o.user_id = ?
+               AND oi.product_id = ?
+               AND LOWER(TRIM(o.status)) = ?
+             LIMIT 1'
+        );
+        $st->execute([$userId, $productId, 'delivered']);
+
+        return (bool) $st->fetchColumn();
+    } catch (Throwable) {
+        return false;
+    }
+}
+
+/**
+ * Submit or update a product review from a delivered order (same rules as orders page).
+ *
+ * @return array{ok: bool, message?: string}
+ */
+function orders_try_submit_product_review(PDO $pdo, int $uid, string $customerName, string $orderRef, int $productId, int $rating, string $reviewText): array
+{
+    $orderRef = trim($orderRef);
+    $reviewText = trim($reviewText);
+    if ($orderRef === '' || $productId <= 0 || strlen($reviewText) < 10) {
+        return ['ok' => false, 'message' => 'Please provide valid review details (min 10 characters).'];
+    }
+    $rating = max(1, min(5, $rating));
+    if (strlen($reviewText) > 1000) {
+        $reviewText = substr($reviewText, 0, 1000);
+    }
+    $customerName = trim($customerName);
+    if ($customerName === '') {
+        $customerName = 'Customer';
+    }
+
+    $ownOrderSt = $pdo->prepare('SELECT id, status FROM orders WHERE user_id = ? AND order_ref = ? LIMIT 1');
+    $ownOrderSt->execute([$uid, $orderRef]);
+    $ownOrder = $ownOrderSt->fetch();
+    $orderId = (int) ($ownOrder['id'] ?? 0);
+    $orderStatus = strtolower(trim((string) ($ownOrder['status'] ?? '')));
+
+    if ($orderId <= 0 || $orderStatus !== 'delivered') {
+        return ['ok' => false, 'message' => 'Review allowed only for delivered orders.'];
+    }
+
+    $itemSt = $pdo->prepare('SELECT id FROM order_items WHERE order_id = ? AND product_id = ? LIMIT 1');
+    $itemSt->execute([$orderId, $productId]);
+    if (!(bool) $itemSt->fetchColumn()) {
+        return ['ok' => false, 'message' => 'Selected product does not belong to this order.'];
+    }
+
+    $existingSt = $pdo->prepare('SELECT id FROM product_reviews WHERE product_id = ? AND user_id = ? LIMIT 1');
+    $existingSt->execute([$productId, $uid]);
+    $existingReviewId = (int) ($existingSt->fetchColumn() ?: 0);
+
+    if ($existingReviewId > 0) {
+        $upd = $pdo->prepare(
+            'UPDATE product_reviews
+             SET customer_name = ?, rating = ?, review_text = ?,
+                 review_status = ?, seller_response = \'\', seller_reviewed_at = NULL, seller_responded_at = NULL
+             WHERE id = ?
+             LIMIT 1'
+        );
+        $upd->execute([$customerName, $rating, $reviewText, 'pending', $existingReviewId]);
+    } else {
+        $ins = $pdo->prepare(
+            'INSERT INTO product_reviews
+                (product_id, user_id, customer_name, rating, review_text, review_status)
+             VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $ins->execute([$productId, $uid, $customerName, $rating, $reviewText, 'pending']);
+    }
+
+    return ['ok' => true, 'message' => 'Review submitted successfully. Seller approval ke baad show hoga.'];
+}
+
 /** @return list<string> */
 function order_tracking_steps(string $status): array
 {

@@ -19,66 +19,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $uid !== null) {
         $productId = (int) ($_POST['product_id'] ?? 0);
         $rating = max(1, min(5, (int) ($_POST['rating'] ?? 5)));
         $reviewText = trim((string) ($_POST['review_text'] ?? ''));
-
-        if ($orderRef === '' || $productId <= 0 || strlen($reviewText) < 10) {
-            $flashMessage = 'Please provide valid review details (min 10 characters).';
-            $flashType = 'error';
+        $user = auth_user($pdo);
+        $customerName = trim((string) (($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')));
+        $result = orders_try_submit_product_review($pdo, (int) $uid, $customerName, $orderRef, $productId, $rating, $reviewText);
+        if ($result['ok']) {
+            $flashMessage = (string) ($result['message'] ?? 'Review submitted successfully. Seller approval ke baad show hoga.');
+            $flashType = 'success';
         } else {
-            $ownOrderSt = $pdo->prepare('SELECT id, status, created_at, payment_method FROM orders WHERE user_id = ? AND order_ref = ? LIMIT 1');
-            $ownOrderSt->execute([$uid, $orderRef]);
-            $ownOrder = $ownOrderSt->fetch();
-            $orderId = (int) ($ownOrder['id'] ?? 0);
-            $orderStatus = (string) ($ownOrder['status'] ?? '');
-            $orderCreatedAt = (string) ($ownOrder['created_at'] ?? '');
-            $orderPaymentMethod = trim((string) ($ownOrder['payment_method'] ?? ''));
-
-            if ($orderId <= 0 || $orderStatus !== 'delivered') {
-                $flashMessage = 'Review allowed only for delivered orders.';
-                $flashType = 'error';
-            } else {
-                $itemSt = $pdo->prepare('SELECT id FROM order_items WHERE order_id = ? AND product_id = ? LIMIT 1');
-                $itemSt->execute([$orderId, $productId]);
-                $isValidItem = (bool) $itemSt->fetchColumn();
-
-                if (!$isValidItem) {
-                    $flashMessage = 'Selected product does not belong to this order.';
-                    $flashType = 'error';
-                } else {
-                    $user = auth_user($pdo);
-                    $customerName = trim((string) (($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')));
-                    if ($customerName === '') {
-                        $customerName = 'Customer';
-                    }
-                    if (strlen($reviewText) > 1000) {
-                        $reviewText = substr($reviewText, 0, 1000);
-                    }
-
-                    $existingSt = $pdo->prepare('SELECT id FROM product_reviews WHERE product_id = ? AND user_id = ? LIMIT 1');
-                    $existingSt->execute([$productId, $uid]);
-                    $existingReviewId = (int) ($existingSt->fetchColumn() ?: 0);
-
-                    if ($existingReviewId > 0) {
-                        $upd = $pdo->prepare(
-                            'UPDATE product_reviews
-                             SET customer_name = ?, rating = ?, review_text = ?,
-                                 review_status = ?, seller_response = \'\', seller_reviewed_at = NULL, seller_responded_at = NULL
-                             WHERE id = ?
-                             LIMIT 1'
-                        );
-                        $upd->execute([$customerName, $rating, $reviewText, 'pending', $existingReviewId]);
-                    } else {
-                        $ins = $pdo->prepare(
-                            'INSERT INTO product_reviews
-                                (product_id, user_id, customer_name, rating, review_text, review_status)
-                             VALUES (?, ?, ?, ?, ?, ?)'
-                        );
-                        $ins->execute([$productId, $uid, $customerName, $rating, $reviewText, 'pending']);
-                    }
-
-                    $flashMessage = 'Review submitted successfully. Seller approval ke baad show hoga.';
-                    $flashType = 'success';
-                }
-            }
+            $flashMessage = (string) ($result['message'] ?? 'Could not submit review.');
+            $flashType = 'error';
         }
     } elseif ($action === 'submit_return_request') {
         $orderRef = trim((string) ($_POST['order_ref'] ?? ''));

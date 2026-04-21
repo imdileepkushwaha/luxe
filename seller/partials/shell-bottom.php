@@ -3,6 +3,7 @@
         <span>Copyright © <?= (int) date('Y') ?> LUXE Seller</span>
         <div class="admin-footer__links">
           <a href="../index.php">Store</a>
+          <a href="settings.php">Settings</a>
           <a href="profile.php">Profile</a>
           <a href="orders.php">Orders</a>
           <a href="products.php">Products</a>
@@ -111,5 +112,6 @@
       });
     })();
   </script>
+  <script src="js/password-toggle.js?v=2"></script>
 </body>
 </html>

@@ -166,7 +166,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <input id="phone" name="phone" required pattern="^\+?[0-9 ]{10,15}$" value="<?= h($form['phone']) ?>" placeholder="+91 9876543210">
 
       <label for="password">Set password</label>
-      <input id="password" type="password" name="password" required minlength="8" placeholder="Minimum 8 chars (letters + numbers)">
+      <div class="seller-password-wrap">
+        <input id="password" type="password" name="password" required minlength="8" placeholder="Minimum 8 chars (letters + numbers)">
+        <?php require __DIR__ . '/partials/password-toggle-button.php'; ?>
+      </div>
 
       <h3 style="margin:18px 0 8px">Business details</h3>
       <label for="business_name">Business name</label>
@@ -201,5 +204,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <div class="hint"><a href="login.php">Back to seller login</a></div>
   </div>
+  <script src="js/password-toggle.js?v=2"></script>
 </body>
 </html>

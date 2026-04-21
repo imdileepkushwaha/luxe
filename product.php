@@ -112,78 +112,13 @@ function product_format_units_sold_label(int $units): string
 
 $currentUserId = auth_user_id();
 $currentUser = auth_user($pdo);
-$reviewError = '';
-$reviewSuccess = '';
-$postedRating = 5;
-$postedReviewText = '';
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') === 'submit_product_review') {
-    $reviewProductId = (int) ($_POST['product_id'] ?? 0);
-    $postedRating = max(1, min(5, (int) ($_POST['rating'] ?? 5)));
-    $postedReviewText = trim((string) ($_POST['review_text'] ?? ''));
-
-    if ($reviewProductId !== (int) $product['id']) {
-        $reviewError = 'Invalid product review request.';
-    } elseif ($currentUserId === null || !$currentUser) {
-        $reviewError = 'Please sign in to submit a review.';
-    } elseif (strlen($postedReviewText) < 10) {
-        $reviewError = 'Review must be at least 10 characters.';
-    } else {
-        if (strlen($postedReviewText) > 1000) {
-            $postedReviewText = substr($postedReviewText, 0, 1000);
-        }
-        $customerName = trim((string) (($currentUser['first_name'] ?? '') . ' ' . ($currentUser['last_name'] ?? '')));
-        if ($customerName === '') {
-            $customerName = 'Customer';
-        }
-
-        $existingSt = $pdo->prepare(
-            'SELECT id
-             FROM product_reviews
-             WHERE product_id = ? AND user_id = ?
-             LIMIT 1'
-        );
-        $existingSt->execute([(int) $product['id'], (int) $currentUserId]);
-        $existingReviewId = (int) ($existingSt->fetchColumn() ?: 0);
-
-        if ($existingReviewId > 0) {
-            $upd = $pdo->prepare(
-                'UPDATE product_reviews
-                 SET customer_name = ?, rating = ?, review_text = ?,
-                     review_status = ?, seller_response = \'\', seller_reviewed_at = NULL, seller_responded_at = NULL
-                 WHERE id = ?
-                 LIMIT 1'
-            );
-            $upd->execute([$customerName, $postedRating, $postedReviewText, 'pending', $existingReviewId]);
-        } else {
-            $ins = $pdo->prepare(
-                'INSERT INTO product_reviews (product_id, user_id, customer_name, rating, review_text, review_status)
-                 VALUES (?, ?, ?, ?, ?, ?)'
-            );
-            $ins->execute([(int) $product['id'], (int) $currentUserId, $customerName, $postedRating, $postedReviewText, 'pending']);
-        }
-
-        $aggSt = $pdo->prepare(
-            'SELECT COUNT(*) AS total_reviews, COALESCE(AVG(rating), 0) AS avg_rating
-             FROM product_reviews
-             WHERE product_id = ? AND review_status = ?'
-        );
-        $aggSt->execute([(int) $product['id'], 'approved']);
-        $agg = $aggSt->fetch() ?: ['total_reviews' => 0, 'avg_rating' => 0];
-        $totalReviews = (int) ($agg['total_reviews'] ?? 0);
-        $avgRating = (float) ($agg['avg_rating'] ?? 0.0);
-
-        $updProduct = $pdo->prepare(
-            'UPDATE products
-             SET review_count = ?, rating = ?
-             WHERE id = ?
-             LIMIT 1'
-        );
-        $updProduct->execute([$totalReviews, $avgRating, (int) $product['id']]);
-
-        header('Location: product.php?id=' . (int) $product['id'] . '&review_saved=1#tab-reviews');
-        exit;
-    }
+$userHasDeliveredThisProduct = $currentUserId !== null
+    && profile_user_has_delivered_product($pdo, (int) $currentUserId, (int) $product['id']);
+$userHasReviewForProduct = false;
+if ($currentUserId !== null) {
+    $userReviewChk = $pdo->prepare('SELECT 1 FROM product_reviews WHERE product_id = ? AND user_id = ? LIMIT 1');
+    $userReviewChk->execute([(int) $product['id'], (int) $currentUserId]);
+    $userHasReviewForProduct = (bool) $userReviewChk->fetchColumn();
 }
 
 $reviewRowsSt = $pdo->prepare(
@@ -217,12 +152,6 @@ $soldUnitsSt = $pdo->prepare(
 );
 $soldUnitsSt->execute([(int) $product['id'], 'cancelled']);
 $displaySoldLabel = product_format_units_sold_label((int) $soldUnitsSt->fetchColumn());
-
-if (isset($_GET['review_saved']) && (string) $_GET['review_saved'] === '1') {
-    $reviewSuccess = 'Review submitted. It will be visible after seller approval.';
-}
-
-$reviewFormExpanded = ($reviewError !== '');
 
 $variantRows = [];
 $variantSt = $pdo->prepare(
@@ -557,7 +486,7 @@ $pageProduct = [
 ];
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="product-page-root">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -567,7 +496,7 @@ $pageProduct = [
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,700;1,400&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/luxe.css" />
 </head>
-<body>
+<body class="page-product">
 
   <!-- Cursor -->
   <div class="cursor-dot" id="cursorDot"></div>
@@ -670,8 +599,9 @@ $pageProduct = [
         <?php endif; ?>
         <div class="product-layout">
 
-          <!-- LEFT: Image Gallery -->
+          <!-- LEFT: Image Gallery (outer cell stretches row; inner .gallery-sticky is position:sticky) -->
           <div class="gallery-col">
+            <div class="gallery-sticky">
             <!-- Thumbnails -->
             <div class="thumbnails" id="thumbs">
               <button class="thumb active" data-image="https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=80" onclick="switchImage(this)">
@@ -707,6 +637,7 @@ $pageProduct = [
                   <img id="zoomEmoji" src="https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=80" alt="<?= h($product['name']) ?> zoom" />
                 </div>
               </div>
+            </div>
             </div>
           </div>
 
@@ -865,6 +796,9 @@ $pageProduct = [
               <button class="btn-wishlist" id="wishlistBtn" onclick="toggleWishlist()" aria-label="Wishlist">
                 <svg id="wishIcon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
               </button>
+              <button type="button" class="btn-share" id="productShareBtn" aria-label="Share this product" title="Share">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.59 13.51 6.83 3.98M15.41 6.51l-6.82 3.98"/></svg>
+              </button>
             </div>
 
             <!-- Delivery -->
@@ -917,6 +851,7 @@ $pageProduct = [
                     $productDescription,
                     '<p><br><strong><b><em><i><u><ul><ol><li><h1><h2><h3><blockquote><span>'
                 );
+                $productDescriptionHtml = luxe_sanitize_product_description_html($productDescriptionHtml);
             }
             ?>
             <div class="desc-grid">
@@ -986,35 +921,14 @@ $pageProduct = [
                     </div>
                   <?php endforeach; ?>
                 </div>
-                <?php if ($reviewSuccess !== ''): ?>
-                  <div class="review-alert review-alert--success"><?= h($reviewSuccess) ?></div>
-                <?php endif; ?>
-                <?php if ($reviewError !== ''): ?>
-                  <div class="review-alert review-alert--error"><?= h($reviewError) ?></div>
-                <?php endif; ?>
-                <?php if ($currentUserId !== null): ?>
-                  <div class="review-write-stack">
-                    <button type="button" class="review-write-toggle" id="reviewWriteToggle" aria-expanded="<?= $reviewFormExpanded ? 'true' : 'false' ?>" aria-controls="reviewFormPanel">
-                      <span class="review-write-toggle__label"><?= $reviewFormExpanded ? 'Close' : 'Write a review' ?></span>
-                    </button>
-                    <div id="reviewFormPanel" class="review-form-panel<?= $reviewFormExpanded ? ' is-open' : '' ?>">
-                      <form method="post" class="review-form">
-                        <input type="hidden" name="action" value="submit_product_review">
-                        <input type="hidden" name="product_id" value="<?= (int) $product['id'] ?>">
-                        <label for="review_rating" class="review-form__label">Your rating</label>
-                        <select id="review_rating" name="rating" class="review-form__control" required>
-                          <?php for ($i = 5; $i >= 1; $i--): ?>
-                            <option value="<?= $i ?>"<?= $postedRating === $i ? ' selected' : '' ?>><?= $i ?> Star<?= $i > 1 ? 's' : '' ?></option>
-                          <?php endfor; ?>
-                        </select>
-                        <label for="review_text" class="review-form__label">Your review</label>
-                        <textarea id="review_text" name="review_text" rows="4" maxlength="1000" placeholder="Share your experience about this product..." class="review-form__control review-form__textarea" required><?= h($postedReviewText) ?></textarea>
-                        <button class="btn-primary" type="submit" style="width:100%">Submit Review</button>
-                      </form>
-                    </div>
-                  </div>
-                <?php else: ?>
-                  <a class="btn-primary" style="margin-top:20px;width:100%;text-decoration:none;display:inline-flex;justify-content:center" href="login.php">Sign in to write a review</a>
+                <?php
+                $profileReviewBase = 'profile.php?tab=reviews&highlight=' . (int) $product['id'];
+                $loginForReviewHref = 'login.php?redirect=' . rawurlencode($profileReviewBase);
+                ?>
+                <?php if ($currentUserId !== null && $userHasDeliveredThisProduct && !$userHasReviewForProduct): ?>
+                  <a class="btn-primary" style="margin-top:20px;width:100%;text-decoration:none;display:inline-flex;justify-content:center;align-items:center;gap:8px" href="<?= h($profileReviewBase) ?>">Write a review</a>
+                <?php elseif ($currentUserId === null): ?>
+                  <p class="review-cta-hint" style="margin-top:12px;font-size:0.85rem;opacity:0.85;line-height:1.45">Sirf <strong>delivered order</strong> wale buyers review de sakte hain — <a href="<?= h($loginForReviewHref) ?>" style="color:inherit;font-weight:600">Sign in</a> karke profile par manage karein.</p>
                 <?php endif; ?>
               </div>
               <!-- Review Cards -->
@@ -1074,11 +988,16 @@ $pageProduct = [
     </section>
 
     <!-- ===== RELATED PRODUCTS ===== -->
-    <section class="related-section">
-      <div class="container">
+    <section class="related-section" aria-labelledby="related-heading">
+      <div class="related-bg" aria-hidden="true">
+        <div class="related-bg__blob related-bg__blob--1"></div>
+        <div class="related-bg__blob related-bg__blob--2"></div>
+      </div>
+      <div class="container related-container">
         <div class="section-header">
           <div class="section-badge">You May Also Like</div>
-          <h2 class="section-title">Related Products</h2>
+          <h2 class="section-title" id="related-heading">Related Products</h2>
+          <p class="section-subtitle">Hand-picked from the same universe as this piece</p>
         </div>
         <div class="related-grid" id="relatedGrid">
           <!-- Rendered by JS -->
