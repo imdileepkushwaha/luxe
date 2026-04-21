@@ -2,7 +2,7 @@
 :root {
   --admin-accent: #e53935;
   --admin-accent-hover: #c62828;
-  --admin-accent-soft: rgba(229, 57, 53, 0.12);
+  --admin-accent-soft: color-mix(in srgb, var(--admin-accent) 12%, transparent);
   --admin-bg: #f8f9fa;
   --admin-surface: #ffffff;
   --admin-drop-surface: #ffffff;
@@ -20,6 +20,54 @@
   --status-lost: #ef4444;
   --status-open: #3b82f6;
   --status-warn: #eab308;
+}
+
+/* Platform admin (admin/) — indigo/slate identity; distinct from seller merchant UI */
+/* Surfaces (--admin-bg, card strip) must not override html.admin-theme-dark; only in light: */
+body.admin-app--platform {
+  --admin-accent: #4338ca;
+  --admin-accent-hover: #3730a3;
+  --admin-accent-soft: color-mix(in srgb, var(--admin-accent) 14%, transparent);
+}
+
+html:not(.admin-theme-dark) body.admin-app--platform {
+  --admin-bg: #f3f4fa;
+  --admin-card-cap-bg: #eceef7;
+}
+
+body.admin-app--platform .admin-sidebar {
+  border-right: 0;
+  box-shadow: inset 3px 0 0 0 var(--admin-accent), 1px 0 0 var(--admin-border);
+}
+
+body.admin-app--platform .admin-sidebar__logo-bit--a {
+  background: linear-gradient(135deg, #6366f1, #818cf8);
+}
+
+body.admin-app--platform .admin-sidebar__logo-bit--b {
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+}
+
+body.admin-app--platform .admin-sidebar__logo-bit--c {
+  background: linear-gradient(90deg, #0ea5e9, #6366f1);
+}
+
+body.admin-app--platform .admin-sidebar__user-avatar {
+  background: linear-gradient(135deg, #312e81, #6366f1);
+}
+
+/* Seller panel — warm light surfaces only (dark uses tokens from html.admin-theme-dark) */
+html:not(.admin-theme-dark) body.admin-app--merchant {
+  --admin-bg: #ffffff;
+  /* --admin-card-cap-bg: #f1ede9; */
+}
+
+body.admin-app--merchant .admin-sidebar__user-avatar {
+  background: linear-gradient(135deg, #dc2626, #ea580c);
+}
+
+html:not(.admin-theme-dark) {
+  color-scheme: light;
 }
 
 *,
@@ -48,6 +96,18 @@
 /* Hover effect */
 ::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(180deg, #555, #222);
+}
+
+html.admin-theme-dark ::-webkit-scrollbar-track {
+  background: #1c1c1c;
+}
+
+html.admin-theme-dark ::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #454545, #2f2f2f);
+}
+
+html.admin-theme-dark ::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #5c5c5c, #383838);
 }
 
 .visually-hidden {
@@ -266,7 +326,7 @@ a {
 }
 
 .admin-nav__link--active:hover {
-  background: rgba(229, 57, 53, 0.18);
+  background: color-mix(in srgb, var(--admin-accent) 18%, transparent);
   color: var(--admin-accent-hover);
 }
 
@@ -336,7 +396,7 @@ a {
 }
 
 .admin-nav__sublink--active:hover {
-  background: rgba(229, 57, 53, 0.18);
+  background: color-mix(in srgb, var(--admin-accent) 18%, transparent);
   color: var(--admin-accent-hover);
 }
 
@@ -393,6 +453,7 @@ a {
   width: 100%;
   height: 40px;
   border: 1px solid transparent;
+  margin: 0;
 }
 
 .admin-search:focus-within {
@@ -584,21 +645,42 @@ html.admin-theme-dark .admin-apps-wrap:focus-within .admin-apps-wrap__btn {
 .admin-notify-row__body {
   min-width: 0;
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.admin-notify-row__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .admin-notify-row__title {
   display: block;
+  flex: 1;
+  min-width: 0;
   font-size: 0.88rem;
   font-weight: 600;
   color: var(--admin-text);
   line-height: 1.35;
 }
 
+.admin-notify-row__when {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
+  color: var(--admin-text-muted);
+  white-space: nowrap;
+}
+
 .admin-notify-row__meta {
   display: block;
   font-size: 0.75rem;
   color: var(--admin-text-muted);
-  margin-top: 2px;
 }
 
 .admin-notify-dropdown__foot {
@@ -1021,7 +1103,7 @@ a.admin-user-dropdown__item:hover {
 }
 
 .admin-form-stack--narrow {
-  max-width: 440px;
+  /* max-width: 440px; */
 }
 
 .admin-field {
@@ -1128,7 +1210,8 @@ a.admin-user-dropdown__item:hover {
 .admin-sellers-kpi-grid,
 .admin-kyc-kpi-grid,
 .admin-wd-kpi-grid,
-.admin-deletions-kpi-grid {
+.admin-deletions-kpi-grid,
+.admin-seller-view-kpi-grid {
   margin-bottom: 20px;
 }
 
@@ -1139,7 +1222,8 @@ a.admin-user-dropdown__item:hover {
 .admin-sellers-kpi .admin-sellers-kpi__label,
 .admin-kyc-kpi .admin-kyc-kpi__label,
 .admin-wd-kpi .admin-wd-kpi__label,
-.admin-deletions-kpi .admin-deletions-kpi__label {
+.admin-deletions-kpi .admin-deletions-kpi__label,
+.admin-seller-view-kpi .admin-seller-view-kpi__label {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-size: 0.68rem;
@@ -1188,7 +1272,7 @@ a.admin-user-dropdown__item:hover {
   border-color: var(--admin-accent);
   background: var(--admin-accent-soft);
   color: var(--admin-accent);
-  box-shadow: 0 0 0 1px rgba(229, 57, 53, 0.15);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--admin-accent) 15%, transparent);
 }
 
 .admin-pa-tab__label {
@@ -1206,7 +1290,7 @@ a.admin-user-dropdown__item:hover {
 }
 
 .admin-pa-tab--active .admin-pa-tab__meta {
-  background: rgba(229, 57, 53, 0.18);
+  background: color-mix(in srgb, var(--admin-accent) 18%, transparent);
   color: var(--admin-accent);
 }
 
@@ -1433,6 +1517,27 @@ a.admin-user-dropdown__item:hover {
   max-width: 1280px;
 }
 
+.admin-seller-view-page {
+  max-width: 1280px;
+}
+
+.admin-seller-view-page .admin-page-head {
+  margin-bottom: 20px;
+}
+
+.admin-seller-view-kpi__lead {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.admin-seller-view-kpi__status {
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
 .admin-sellers-flash {
   margin-bottom: 18px;
 }
@@ -1622,6 +1727,73 @@ a.admin-user-dropdown__item:hover {
 
 .admin-wd-search-wrap {
   max-width: 380px;
+}
+
+/* Seller detail — products & orders search */
+.card-header.admin-seller-view-table-header {
+  display: block;
+  padding: 14px 20px 16px;
+}
+
+.admin-seller-view-table-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.admin-seller-view-table-head-text {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.admin-seller-view-table-head .card-title {
+  margin-bottom: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.admin-seller-view-table-sub {
+  margin-top: 0.4rem;
+  max-width: 44rem;
+  line-height: 1.45;
+}
+
+.admin-seller-view-table-head .admin-seller-view-search-wrap {
+  flex: 0 1 auto;
+  align-self: center;
+}
+
+.admin-seller-view-search-wrap {
+  max-width: 320px;
+  min-width: 200px;
+}
+
+.admin-seller-view-no-match-row {
+  display: none;
+}
+
+.admin-seller-view-no-match-row td {
+  text-align: center;
+  padding: 28px 20px !important;
+  border-bottom: 0 !important;
+}
+
+.admin-seller-view-no-match__title {
+  display: block;
+  font-size: 0.95rem;
+  margin: 0 0 6px;
+  color: var(--admin-text);
+}
+
+.admin-seller-view-no-match__text {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--admin-text-muted);
+  line-height: 1.5;
 }
 
 .admin-wd-seller {
@@ -2745,7 +2917,7 @@ a.admin-user-dropdown__item:hover {
 }
 
 .admin-card--interactive:hover {
-  border-color: rgba(229, 57, 53, 0.22);
+  border-color: color-mix(in srgb, var(--admin-accent) 22%, transparent);
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.08);
   transform: translateY(-2px);
 }
@@ -3037,7 +3209,7 @@ a.admin-user-dropdown__item:hover {
 }
 
 .admin-stat__icon--red {
-  background: rgba(229, 57, 53, 0.12);
+  background: color-mix(in srgb, var(--admin-accent) 12%, transparent);
   color: var(--admin-accent);
 }
 
@@ -3341,7 +3513,7 @@ a.admin-user-dropdown__item:hover {
   margin-bottom: 22px;
   border-radius: var(--admin-radius);
   background:
-    radial-gradient(ellipse 120% 80% at 100% 0%, rgba(229, 57, 53, 0.18) 0%, transparent 50%),
+    radial-gradient(ellipse 120% 80% at 100% 0%, color-mix(in srgb, var(--admin-accent) 18%, transparent) 0%, transparent 50%),
     radial-gradient(ellipse 80% 60% at 0% 100%, rgba(59, 130, 246, 0.12) 0%, transparent 45%),
     linear-gradient(135deg, #1a1d24 0%, #12151c 45%, #0d0f14 100%);
   color: #fff;
@@ -3526,7 +3698,7 @@ html.admin-theme-dark .admin-btn--outline:hover {
 
 .admin-dash-shortcuts__link:hover {
   background: var(--admin-accent-soft);
-  border-color: rgba(229, 57, 53, 0.22);
+  border-color: color-mix(in srgb, var(--admin-accent) 22%, transparent);
   color: var(--admin-accent);
 }
 
@@ -3722,10 +3894,94 @@ body.admin-login {
   margin: 0;
   min-height: 100vh;
   font-family: "Inter", system-ui, sans-serif;
-  background: linear-gradient(145deg, #f8f9fa 0%, #eef0f4 50%, #fde8e8 100%);
+  background: linear-gradient(145deg, #f8f9fa 0%, #eef0f4 50%, #e8eaed 100%);
   display: grid;
   place-items: center;
   padding: 24px;
+}
+
+body.admin-login.admin-app--platform {
+  background: linear-gradient(145deg, #f3f4fa 0%, #e8eaf5 50%, #e0e7ff 100%);
+}
+
+body.admin-login.admin-app--merchant {
+  background: linear-gradient(145deg, #f8f9fa 0%, #eef0f4 50%, #fde8e8 100%);
+}
+
+html.admin-theme-dark body.admin-login {
+  background: linear-gradient(160deg, #0a0a0c 0%, #12121a 40%, #181420 100%);
+}
+
+html.admin-theme-dark body.admin-login.admin-app--platform {
+  background: linear-gradient(160deg, #090b12 0%, #12172a 45%, #1a1d32 100%);
+}
+
+html.admin-theme-dark body.admin-login.admin-app--merchant {
+  background: linear-gradient(160deg, #0c0a09 0%, #1a1412 45%, #221a18 100%);
+}
+
+html.admin-theme-dark .admin-login-card {
+  background: #161618;
+  border-color: var(--admin-border);
+  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.55);
+}
+
+html.admin-theme-dark .admin-login-card h1 {
+  color: var(--admin-text);
+}
+
+html.admin-theme-dark .admin-login-card p,
+html.admin-theme-dark .admin-login-card .hint {
+  color: var(--admin-text-muted);
+}
+
+html.admin-theme-dark .admin-login-card label {
+  color: var(--admin-text-muted);
+}
+
+html.admin-theme-dark .admin-login-card input {
+  background: #121212;
+  border-color: var(--admin-border);
+  color: var(--admin-text);
+}
+
+html.admin-theme-dark .admin-login-card input:focus {
+  background: #171717;
+}
+
+html.admin-theme-dark .admin-login-card .err {
+  background: rgba(220, 38, 38, 0.14);
+  border-color: rgba(248, 113, 113, 0.45);
+  color: #fecaca;
+}
+
+html.admin-theme-dark .seller-category-card {
+  border-color: var(--admin-border);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+html.admin-theme-dark .seller-category-card:hover {
+  border-color: #4b5563;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+html.admin-theme-dark .seller-category-card__label {
+  color: var(--admin-text);
+}
+
+html.admin-theme-dark .seller-category-card__hint {
+  color: var(--admin-text-muted);
+}
+
+html.admin-theme-dark .seller-category-card__check {
+  border-color: #4b5563;
+  background: #121212;
+}
+
+html.admin-theme-dark .seller-category-card:has(input:checked) {
+  border-color: rgba(248, 113, 113, 0.55);
+  background: rgba(220, 38, 38, 0.12);
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
 }
 
 .admin-login-card {
@@ -3852,7 +4108,7 @@ body.admin-login {
   font-weight: 700;
   background: var(--admin-accent-soft);
   color: var(--admin-accent);
-  border: 1px solid rgba(229, 57, 53, 0.25);
+  border: 1px solid color-mix(in srgb, var(--admin-accent) 25%, transparent);
 }
 
 .admin-del-breadcrumb {
@@ -4300,7 +4556,7 @@ body.admin-login {
   display: grid;
   place-items: center;
   cursor: pointer;
-  box-shadow: 0 8px 24px rgba(229, 57, 53, 0.35);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--admin-accent) 35%, transparent);
   z-index: 60;
   transition: transform 0.15s, background 0.15s;
 }
@@ -4328,8 +4584,22 @@ html.admin-theme-dark {
   --admin-text-muted: #9098ae;
   --admin-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
   --admin-shadow-card: 0 4px 24px rgba(0, 0, 0, 0.45);
-  --admin-accent-soft: rgba(229, 57, 53, 0.22);
+  --admin-accent-soft: color-mix(in srgb, var(--admin-accent) 22%, transparent);
   --admin-card-cap-bg: #222222;
+}
+
+/* Dark + platform admin: indigo accent */
+html.admin-theme-dark body.admin-app--platform {
+  --admin-accent: #a5b4fc;
+  --admin-accent-hover: #c7d2fe;
+  --admin-accent-soft: color-mix(in srgb, var(--admin-accent) 22%, transparent);
+}
+
+/* Dark + seller: readable coral on dark surfaces */
+html.admin-theme-dark body.admin-app--merchant {
+  --admin-accent: #f87171;
+  --admin-accent-hover: #fca5a5;
+  --admin-accent-soft: color-mix(in srgb, var(--admin-accent) 22%, transparent);
 }
 
 html.admin-theme-dark .admin-sidebar__logo {
@@ -4342,7 +4612,7 @@ html.admin-theme-dark .admin-nav__link:hover {
 }
 
 html.admin-theme-dark .admin-nav__link--active:hover {
-  background: rgba(229, 57, 53, 0.28);
+  background: color-mix(in srgb, var(--admin-accent) 28%, transparent);
 }
 
 html.admin-theme-dark .admin-nav__sublink:hover {
@@ -4351,7 +4621,7 @@ html.admin-theme-dark .admin-nav__sublink:hover {
 }
 
 html.admin-theme-dark .admin-nav__sublink--active:hover {
-  background: rgba(229, 57, 53, 0.28);
+  background: color-mix(in srgb, var(--admin-accent) 28%, transparent);
 }
 
 html.admin-theme-dark .admin-menu-btn {
@@ -4468,7 +4738,7 @@ html.admin-theme-dark .admin-list-feed__row:hover {
 }
 
 html.admin-theme-dark .admin-card--interactive:hover {
-  border-color: rgba(229, 57, 53, 0.35);
+  border-color: color-mix(in srgb, var(--admin-accent) 35%, transparent);
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
 }
 
@@ -4509,7 +4779,8 @@ html.admin-theme-dark .admin-pa-search-wrap,
 html.admin-theme-dark .admin-sellers-search-wrap,
 html.admin-theme-dark .admin-kyc-search-wrap,
 html.admin-theme-dark .admin-wd-search-wrap,
-html.admin-theme-dark .admin-deletions-search-wrap {
+html.admin-theme-dark .admin-deletions-search-wrap,
+html.admin-theme-dark .admin-seller-view-search-wrap {
   background: #121212;
   border-color: var(--admin-border);
 }
@@ -4520,9 +4791,10 @@ html.admin-theme-dark .admin-pa-search-wrap:focus-within,
 html.admin-theme-dark .admin-sellers-search-wrap:focus-within,
 html.admin-theme-dark .admin-kyc-search-wrap:focus-within,
 html.admin-theme-dark .admin-wd-search-wrap:focus-within,
-html.admin-theme-dark .admin-deletions-search-wrap:focus-within {
+html.admin-theme-dark .admin-deletions-search-wrap:focus-within,
+html.admin-theme-dark .admin-seller-view-search-wrap:focus-within {
   border-color: var(--admin-accent);
-  box-shadow: 0 0 0 3px rgba(229, 57, 53, 0.22);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--admin-accent) 22%, transparent);
 }
 
 html.admin-theme-dark .admin-users-search-icon,
@@ -4531,7 +4803,8 @@ html.admin-theme-dark .admin-pa-search-icon,
 html.admin-theme-dark .admin-sellers-search-icon,
 html.admin-theme-dark .admin-kyc-search-icon,
 html.admin-theme-dark .admin-wd-search-icon,
-html.admin-theme-dark .admin-deletions-search-icon {
+html.admin-theme-dark .admin-deletions-search-icon,
+html.admin-theme-dark .admin-seller-view-search-icon {
   color: #94a3b8;
 }
 
@@ -4541,7 +4814,8 @@ html.admin-theme-dark .admin-pa-search-input,
 html.admin-theme-dark .admin-sellers-search-input,
 html.admin-theme-dark .admin-kyc-search-input,
 html.admin-theme-dark .admin-wd-search-input,
-html.admin-theme-dark .admin-deletions-search-input {
+html.admin-theme-dark .admin-deletions-search-input,
+html.admin-theme-dark .admin-seller-view-search-input {
   color: #f3f4f6;
 }
 
@@ -4550,7 +4824,8 @@ html.admin-theme-dark .admin-orders-search-input::placeholder,
 html.admin-theme-dark .admin-pa-search-input::placeholder,
 html.admin-theme-dark .admin-sellers-search-input::placeholder,
 html.admin-theme-dark .admin-kyc-search-input::placeholder,
-html.admin-theme-dark .admin-wd-search-input::placeholder {
+html.admin-theme-dark .admin-wd-search-input::placeholder,
+html.admin-theme-dark .admin-seller-view-search-input::placeholder {
   color: #94a3b8;
 }
 
@@ -4571,8 +4846,8 @@ html.admin-theme-dark .admin-pa-tab__meta {
 }
 
 html.admin-theme-dark .admin-pa-tab--active .admin-pa-tab__meta {
-  background: rgba(229, 57, 53, 0.22);
-  color: #fca5a5;
+  background: var(--admin-accent-soft);
+  color: var(--admin-accent);
 }
 
 html.admin-theme-dark .admin-pa-footnote {
@@ -4850,5 +5125,23 @@ html.admin-theme-dark .admin-del-pill--muted {
     padding-top: 0;
     z-index: 85;
   }
+}
+
+/* Global admin search (search.php) */
+.admin-search-page__block {
+  margin-bottom: 1.25rem;
+}
+
+.admin-search-page-form {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+  width: 100%;
+}
+
+.admin-search-page-form__input {
+  flex: 1;
+  min-width: 200px;
 }
 

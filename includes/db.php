@@ -315,6 +315,15 @@ function db_ensure_products_seller_column(PDO $pdo): void
             $pdo->exec('ALTER TABLE products ADD COLUMN sku VARCHAR(80) NULL AFTER slug');
         }
 
+        $productTypeChk = $pdo->prepare(
+            'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $productTypeChk->execute([$dbName, 'products', 'product_type']);
+        if (!(bool) $productTypeChk->fetchColumn()) {
+            $pdo->exec("ALTER TABLE products ADD COLUMN product_type VARCHAR(64) NOT NULL DEFAULT '' AFTER category");
+        }
+
         $offerFlashChk = $pdo->prepare(
             'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
              WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?'
@@ -343,6 +352,51 @@ function db_ensure_products_seller_column(PDO $pdo): void
         $hasOfferBankText = (bool) $offerBankChk->fetchColumn();
         if (!$hasOfferBankText) {
             $pdo->exec("ALTER TABLE products ADD COLUMN offer_bank_text VARCHAR(150) NOT NULL DEFAULT '' AFTER offer_countdown_seconds");
+        }
+
+        $shipClassChk = $pdo->prepare(
+            'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $shipClassChk->execute([$dbName, 'products', 'shipping_class']);
+        if (!(bool) $shipClassChk->fetchColumn()) {
+            $pdo->exec("ALTER TABLE products ADD COLUMN shipping_class VARCHAR(32) NOT NULL DEFAULT 'standard' AFTER offer_bank_text");
+        }
+
+        $mfgGenericChk = $pdo->prepare(
+            'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $mfgGenericChk->execute([$dbName, 'products', 'manufacturer_generic_name']);
+        if (!(bool) $mfgGenericChk->fetchColumn()) {
+            $pdo->exec("ALTER TABLE products ADD COLUMN manufacturer_generic_name VARCHAR(255) NOT NULL DEFAULT '' AFTER shipping_class");
+        }
+
+        $mfgCountryChk = $pdo->prepare(
+            'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $mfgCountryChk->execute([$dbName, 'products', 'manufacturer_country']);
+        if (!(bool) $mfgCountryChk->fetchColumn()) {
+            $pdo->exec("ALTER TABLE products ADD COLUMN manufacturer_country VARCHAR(128) NOT NULL DEFAULT '' AFTER manufacturer_generic_name");
+        }
+
+        $mfgAddrChk = $pdo->prepare(
+            'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $mfgAddrChk->execute([$dbName, 'products', 'manufacturer_name_address']);
+        if (!(bool) $mfgAddrChk->fetchColumn()) {
+            $pdo->exec("ALTER TABLE products ADD COLUMN manufacturer_name_address VARCHAR(2000) NOT NULL DEFAULT '' AFTER manufacturer_country");
+        }
+
+        $packerAddrChk = $pdo->prepare(
+            'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $packerAddrChk->execute([$dbName, 'products', 'packer_name_address']);
+        if (!(bool) $packerAddrChk->fetchColumn()) {
+            $pdo->exec("ALTER TABLE products ADD COLUMN packer_name_address VARCHAR(2000) NOT NULL DEFAULT '' AFTER manufacturer_name_address");
         }
 
         $approvalChk = $pdo->prepare(

@@ -11,8 +11,26 @@ $pageTitle = 'Earnings';
 $activeNav = 'earnings';
 
 $summary = seller_finance_summary($pdo, (int) $seller['id']);
-$recentOrders = seller_finance_recent_delivered_orders($pdo, (int) $seller['id'], 12);
-$withdraws = seller_finance_withdraw_requests($pdo, (int) $seller['id'], 12);
+
+require_once __DIR__ . '/../admin/_pagination.php';
+
+$deliveredOrdersTotal = seller_finance_delivered_order_count($pdo, (int) $seller['id']);
+$withdrawHistoryTotal = seller_finance_withdraw_request_count($pdo, (int) $seller['id']);
+
+['page' => $_earnPgUnused, 'perPage' => $earnPerPage] = admin_pagination_read(25);
+$earnOrdersPageReq = max(1, (int) ($_GET['earn_orders_page'] ?? 1));
+$earnWithdrawPageReq = max(1, (int) ($_GET['earn_withdraw_page'] ?? 1));
+$earnOrdersMeta = admin_pagination_resolve($deliveredOrdersTotal, $earnOrdersPageReq, $earnPerPage);
+$earnWithdrawMeta = admin_pagination_resolve($withdrawHistoryTotal, $earnWithdrawPageReq, $earnPerPage);
+$earnOrdersPage = $earnOrdersMeta['page'];
+$earnOrdersPerPage = $earnOrdersMeta['perPage'];
+$earnOrdersTotalPages = $earnOrdersMeta['totalPages'];
+$earnWithdrawPage = $earnWithdrawMeta['page'];
+$earnWithdrawPerPage = $earnWithdrawMeta['perPage'];
+$earnWithdrawTotalPages = $earnWithdrawMeta['totalPages'];
+
+$recentOrders = seller_finance_recent_delivered_orders($pdo, (int) $seller['id'], $earnOrdersPerPage, $earnOrdersMeta['offset']);
+$withdraws = seller_finance_withdraw_requests($pdo, (int) $seller['id'], $earnWithdrawPerPage, $earnWithdrawMeta['offset']);
 
 function seller_earnings_format_dt(?string $raw): string
 {
@@ -55,7 +73,7 @@ require __DIR__ . '/partials/shell-top.php';
         <div class="admin-page-head seller-txn-head seller-earnings-page-head">
           <div>
             <h1>Earnings</h1>
-            <p class="seller-txn-subtitle">Delivered orders aapke <strong>credited</strong> total ko banate hain. Withdrawable = delivered − paid out − pending requests. Pipeline = abhi deliver nahi hua.</p>
+            <p class="seller-txn-subtitle">Delivered orders aapke <strong>credited</strong> total ko banate hain. Withdrawable = delivered − paid out − pending requests. Pipeline = abhi deliver nahi hua. Neeche tables me search sirf <strong>us page</strong> par lagta hai.</p>
           </div>
           <div class="admin-page-head__actions seller-txn-card-head-actions">
             <a class="admin-btn admin-btn--ghost-light" href="transactions.php">Transactions</a>
@@ -119,10 +137,10 @@ require __DIR__ . '/partials/shell-top.php';
         <div class="card seller-txn-card seller-earnings-card">
           <div class="card-header seller-txn-card-head">
             <div>
-              <h2 class="card-title">Recent delivered orders</h2>
-              <p class="card-subtitle seller-txn-card-sub">Aapke products wale line items ka total jab order <strong>delivered</strong> ho chuka ho. Pichhle 12 orders.</p>
+              <h2 class="card-title">Delivered orders</h2>
+              <p class="card-subtitle seller-txn-card-sub">Aapke products wale line items ka total jab order <strong>delivered</strong> ho chuka ho. Poori history ke liye <a href="transactions.php">Transactions</a> dekho.</p>
             </div>
-            <span class="seller-txn-count-pill"><?= count($recentOrders) ?> order<?= count($recentOrders) === 1 ? '' : 's' ?></span>
+            <span class="seller-txn-count-pill"><?= (int) $deliveredOrdersTotal ?> order<?= $deliveredOrdersTotal === 1 ? '' : 's' ?></span>
           </div>
           <div class="card-body card-body--flush">
             <div class="seller-txn-search-bar">
@@ -215,18 +233,27 @@ require __DIR__ . '/partials/shell-top.php';
                 </tbody>
               </table>
             </div>
+            <?php
+            $paginationScript = 'earnings.php';
+            $paginationTotal = $deliveredOrdersTotal;
+            $paginationPage = $earnOrdersPage;
+            $paginationPerPage = $earnOrdersPerPage;
+            $paginationTotalPages = $earnOrdersTotalPages;
+            $paginationPageKey = 'earn_orders_page';
+            require __DIR__ . '/partials/table-pagination.php';
+            ?>
           </div>
         </div>
 
         <div class="card seller-txn-card seller-earnings-card seller-earnings-card--withdraw">
           <div class="card-header seller-txn-card-head">
             <div>
-              <h2 class="card-title">Recent withdraw requests</h2>
-              <p class="card-subtitle seller-txn-card-sub">Pichhle 12 requests. Poori history ke liye Withdraw page kholo.</p>
+              <h2 class="card-title">Withdraw requests</h2>
+              <p class="card-subtitle seller-txn-card-sub">OTP flow aur nayi request ke liye <a href="withdraw-requests.php">Withdraw requests</a> page kholo.</p>
             </div>
             <div class="seller-txn-card-head-actions">
-              <span class="seller-txn-count-pill"><?= count($withdraws) ?> shown</span>
-              <a class="admin-btn admin-btn--ghost-light" href="withdraw-requests.php">View all</a>
+              <span class="seller-txn-count-pill"><?= (int) $withdrawHistoryTotal ?> total</span>
+              <a class="admin-btn admin-btn--ghost-light" href="withdraw-requests.php">Withdraw</a>
             </div>
           </div>
           <div class="card-body card-body--flush">
@@ -325,6 +352,15 @@ require __DIR__ . '/partials/shell-top.php';
                 </tbody>
               </table>
             </div>
+            <?php
+            $paginationScript = 'earnings.php';
+            $paginationTotal = $withdrawHistoryTotal;
+            $paginationPage = $earnWithdrawPage;
+            $paginationPerPage = $earnWithdrawPerPage;
+            $paginationTotalPages = $earnWithdrawTotalPages;
+            $paginationPageKey = 'earn_withdraw_page';
+            require __DIR__ . '/partials/table-pagination.php';
+            ?>
           </div>
         </div>
 

@@ -14,10 +14,20 @@ foreach ($_SESSION['cart'] ?? [] as $ci) {
 $addresses = [];
 $wishlistArr = [];
 $orderStats = ['order_count' => 0, 'lifetime_spend_rupees' => 0, 'total_saved_rupees' => 0];
+$deliveredReviewRows = [];
 if ($user) {
     $addresses = addresses_fetch_for_user($pdo, (int) $user['id']);
     $orderStats = profile_order_stats_for_user($pdo, (int) $user['id']);
+    $deliveredReviewRows = profile_delivered_review_rows_for_user($pdo, (int) $user['id']);
 }
+$deliveredReviewCount = count($deliveredReviewRows);
+$reviewedPurchasesCount = 0;
+foreach ($deliveredReviewRows as $_rr) {
+    if (!empty($_rr['review_id'])) {
+        $reviewedPurchasesCount++;
+    }
+}
+$pendingReviewCount = $deliveredReviewCount - $reviewedPurchasesCount;
 foreach (array_slice(products_fetch_all($pdo), 0, 8) as $p) {
     $wishlistArr[] = [
         'id' => $p['id'],
@@ -168,6 +178,10 @@ $profileBadgeLabel = $orderStats['order_count'] > 0 ? '⭐ LUXE Premium Member' 
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
               Wishlist
             </button>
+            <button class="smenu-item" data-tab="reviews" onclick="switchTab(this)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+              My Reviews
+            </button>
             <button class="smenu-item" data-tab="rewards" onclick="switchTab(this)">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
               LUXE Rewards
@@ -260,6 +274,133 @@ $profileBadgeLabel = $orderStats['order_count'] > 0 ? '⭐ LUXE Premium Member' 
               <a href="index.php" class="wishlist-cta-outline">Browse collection</a>
             </header>
             <div class="wishlist-grid" id="wishlistGrid"></div>
+          </div>
+
+          <!-- Reviews Tab -->
+          <div class="tab-panel hidden" id="tab-reviews">
+            <header class="wishlist-panel-head profile-reviews-head">
+              <div class="wishlist-panel-head__main">
+                <span class="wishlist-kicker">Delivered orders</span>
+                <div class="wishlist-title-row">
+                  <h2 class="wishlist-title">My Reviews</h2>
+                  <span class="wishlist-count-chip"><?= (int) $deliveredReviewCount ?></span>
+                </div>
+                <p class="wishlist-lede">Sirf <strong>delivered</strong> orders ke products. Pending review: <strong><?= (int) $pendingReviewCount ?></strong> · Submitted: <strong><?= (int) $reviewedPurchasesCount ?></strong>. <em>Write review</em> product page par reviews tab kholta hai.</p>
+              </div>
+              <a href="orders.php" class="wishlist-cta-outline">My orders</a>
+            </header>
+            <?php if ($deliveredReviewRows === []): ?>
+            <div class="wishlist-empty--premium profile-reviews-empty" role="status">
+              <div class="wishlist-empty__glow" aria-hidden="true"></div>
+              <span class="wishlist-empty__mark" aria-hidden="true">📦</span>
+              <h3 class="wishlist-empty__title">Abhi koi delivered product nahi</h3>
+              <p class="wishlist-empty__text">Jab aapka order <strong>Delivered</strong> ho jaye, woh products yahan dikhenge — phir aap review de sakte hain.</p>
+              <a href="orders.php" class="wishlist-empty__cta">Orders dekhein</a>
+            </div>
+            <?php else: ?>
+            <div class="profile-reviews-list">
+              <?php foreach ($deliveredReviewRows as $rev):
+                  $pid = (int) ($rev['product_id'] ?? 0);
+                  $pnameDb = trim((string) ($rev['product_name'] ?? ''));
+                  $pname = $pnameDb !== '' ? $pnameDb : trim((string) ($rev['item_name'] ?? 'Product'));
+                  $pemoji = trim((string) ($rev['product_emoji'] ?? ''));
+                  if ($pemoji === '') {
+                      $pemoji = (string) ($rev['item_emoji'] ?? '📦');
+                  }
+                  $variantLine = trim((string) ($rev['variant_text'] ?? ''));
+                  $hasReview = !empty($rev['review_id']);
+                  $rating = $hasReview ? max(1, min(5, (int) ($rev['rating'] ?? 5))) : 0;
+                  $status = strtolower(trim((string) ($rev['review_status'] ?? 'pending')));
+                  $statusLabel = match ($status) {
+                      'approved' => 'Live on product',
+                      'rejected' => 'Not published',
+                      default => 'Pending approval',
+                  };
+                  $statusClass = match ($status) {
+                      'approved' => 'profile-review-status--ok',
+                      'rejected' => 'profile-review-status--no',
+                      default => 'profile-review-status--wait',
+                  };
+                  $mainImg = trim((string) ($rev['image_path'] ?? ''));
+                  $galImg = trim((string) ($rev['gallery_first'] ?? ''));
+                  $rawImg = $mainImg !== '' ? $mainImg : $galImg;
+                  $hasUpload = $rawImg !== '' && strcasecmp($rawImg, 'default') !== 0;
+                  $thumbSrc = $hasUpload
+                      ? $rawImg
+                      : 'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=600&q=80';
+                  $thumbSrcEsc = h($thumbSrc);
+                  $reviewBody = trim((string) ($rev['review_text'] ?? ''));
+                  $sellerReply = trim((string) ($rev['seller_response'] ?? ''));
+                  $createdRaw = (string) ($rev['review_created_at'] ?? '');
+                  $reviewDate = $createdRaw !== '' && strtotime($createdRaw) !== false
+                      ? date('M j, Y', strtotime($createdRaw))
+                      : '';
+                  $deliveredRaw = (string) ($rev['delivered_at'] ?? '');
+                  $deliveredDate = $deliveredRaw !== '' && strtotime($deliveredRaw) !== false
+                      ? date('M j, Y', strtotime($deliveredRaw))
+                      : '';
+                  $productUrl = 'product.php?id=' . $pid;
+                  $reviewUrl = $productUrl . '#tab-reviews';
+                  ?>
+              <article class="profile-review-card<?= $hasReview ? '' : ' profile-review-card--needs-review' ?>">
+                <a href="<?= h($productUrl) ?>" class="profile-review-card__media" aria-label="<?= h('View ' . $pname) ?>">
+                  <?php if ($hasUpload): ?>
+                  <img src="<?= $thumbSrcEsc ?>" alt="" width="96" height="96" loading="lazy" decoding="async" />
+                  <?php else: ?>
+                  <span class="profile-review-card__emoji" aria-hidden="true"><?= h($pemoji) ?></span>
+                  <?php endif; ?>
+                </a>
+                <div class="profile-review-card__body">
+                  <div class="profile-review-card__top">
+                    <div class="profile-review-card__title-block">
+                      <a href="<?= h($productUrl) ?>" class="profile-review-card__title"><?= h($pname) ?></a>
+                      <?php if ($variantLine !== ''): ?>
+                      <p class="profile-review-variant"><?= h($variantLine) ?></p>
+                      <?php endif; ?>
+                      <div class="profile-review-card__meta">
+                        <?php if ($deliveredDate !== ''): ?>
+                        <span class="profile-review-date">Delivered <?= h($deliveredDate) ?></span>
+                        <?php endif; ?>
+                        <?php if ($hasReview): ?>
+                        <span class="profile-review-stars" aria-label="<?= h($rating . ' out of 5 stars') ?>"><?php
+                            for ($i = 1; $i <= 5; $i++) {
+                                echo $i <= $rating ? '★' : '☆';
+                            }
+                        ?></span>
+                        <?php if ($reviewDate !== ''): ?>
+                        <span class="profile-review-date">Review · <?= h($reviewDate) ?></span>
+                        <?php endif; ?>
+                        <?php else: ?>
+                        <span class="profile-review-pending-label">Abhi review nahi diya</span>
+                        <?php endif; ?>
+                      </div>
+                    </div>
+                    <?php if ($hasReview): ?>
+                    <span class="profile-review-status <?= h($statusClass) ?>"><?= h($statusLabel) ?></span>
+                    <?php else: ?>
+                    <span class="profile-review-status profile-review-status--cta">Review pending</span>
+                    <?php endif; ?>
+                  </div>
+                  <?php if ($hasReview && $reviewBody !== ''): ?>
+                  <p class="profile-review-text"><?= nl2br(h($reviewBody)) ?></p>
+                  <?php elseif (!$hasReview): ?>
+                  <p class="profile-review-text profile-review-text--muted">Is purchase par apna experience share karein — product page par reviews section khulega.</p>
+                  <div class="profile-review-actions">
+                    <a href="<?= h($reviewUrl) ?>" class="checkout-btn profile-review-write-btn">Write review</a>
+                    <a href="<?= h($productUrl) ?>" class="ghost-btn profile-review-write-secondary">View product</a>
+                  </div>
+                  <?php endif; ?>
+                  <?php if ($hasReview && $sellerReply !== ''): ?>
+                  <div class="profile-review-seller-reply">
+                    <strong>Seller reply</strong>
+                    <p><?= nl2br(h($sellerReply)) ?></p>
+                  </div>
+                  <?php endif; ?>
+                </div>
+              </article>
+              <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
           </div>
 
           <!-- Rewards Tab -->

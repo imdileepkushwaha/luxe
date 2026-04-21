@@ -1,5 +1,9 @@
 <?php
 require_once __DIR__ . '/includes/bootstrap.php';
+require_once __DIR__ . '/includes/seller_product_catalog.php';
+if (!headers_sent()) {
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+}
 $pdo = db();
 $id = isset($_GET['id']) ? (int) $_GET['id'] : 1;
 $sellerSessionId = isset($_SESSION['seller_id']) ? (int) $_SESSION['seller_id'] : 0;
@@ -20,6 +24,7 @@ $searchCatalogProducts = products_fetch_all($pdo);
 
 function product_parse_options_csv(string $csv): array
 {
+    $csv = str_replace(["\r\n", "\r", "\n", "\t", ';', '|', '،'], ',', $csv);
     $parts = array_map('trim', explode(',', $csv));
     $parts = array_values(array_filter($parts, static fn(string $v): bool => $v !== ''));
     return array_values(array_unique($parts));
@@ -237,6 +242,8 @@ foreach ($variantRows as $vr) {
     $key = mb_strtolower($sz) . '|' . mb_strtolower($cl);
     $variantStockMap[$key] = $qty;
 }
+/** DB-only keys (no storefront aliases); used for total inventory sum. */
+$variantStockMapForTotals = $variantStockMap;
 $hasVariantInventory = $variantRows !== [];
 
 $csvSizes = product_parse_options_csv((string) ($product['size_options'] ?? ''));
@@ -253,8 +260,13 @@ foreach ($csvSizes as $s) {
         $sizeOptions[] = $t;
     }
 }
-foreach ($variantRows as $vr) {
-    $t = trim((string) ($vr['size_label'] ?? ''));
+$variantSizesAllSt = $pdo->prepare(
+    'SELECT DISTINCT TRIM(size_label) AS s FROM product_variant_inventory
+     WHERE product_id = ? AND TRIM(COALESCE(size_label, \'\')) <> \'\''
+);
+$variantSizesAllSt->execute([(int) $product['id']]);
+foreach ($variantSizesAllSt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+    $t = trim((string) ($row['s'] ?? ''));
     if ($t === '') {
         continue;
     }
@@ -282,8 +294,13 @@ foreach ($csvColors as $c) {
         $colorOptions[] = $t;
     }
 }
-foreach ($variantRows as $vr) {
-    $t = trim((string) ($vr['color_label'] ?? ''));
+$variantColorsAllSt = $pdo->prepare(
+    'SELECT DISTINCT TRIM(color_label) AS c FROM product_variant_inventory
+     WHERE product_id = ? AND TRIM(COALESCE(color_label, \'\')) <> \'\''
+);
+$variantColorsAllSt->execute([(int) $product['id']]);
+foreach ($variantColorsAllSt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+    $t = trim((string) ($row['c'] ?? ''));
     if ($t === '') {
         continue;
     }
@@ -296,6 +313,58 @@ foreach ($variantRows as $vr) {
 usort($colorOptions, static function (string $a, string $b): int {
     return strnatcasecmp($a, $b);
 });
+
+/*
+ * Variant rows use size|color keys. Sellers often leave color_label empty while CSV still lists colors,
+ * or store a color while the storefront has no color swatches — both break size|color lookups.
+ * Add alias keys so PHP + JS variantStock matches selected swatches / "Default".
+ */
+if ($variantStockMap !== []) {
+    if ($colorOptions !== []) {
+        $aliasAdd = [];
+        foreach ($variantStockMap as $key => $qty) {
+            $parts = explode('|', (string) $key, 2);
+            $szKey = $parts[0] ?? '';
+            $clKey = $parts[1] ?? '';
+            if ($clKey !== '') {
+                continue;
+            }
+            // Blank-color rows (e.g. "30|") must not clone into "30|blue" when real "30|blue" rows exist,
+            // or every size can show the same stale total as the blanket row.
+            if (product_variant_map_has_color_specific_rows_for_size($variantStockMap, $szKey)) {
+                continue;
+            }
+            foreach ($colorOptions as $col) {
+                $alias = $szKey . '|' . mb_strtolower(trim($col));
+                if (!array_key_exists($alias, $variantStockMap)) {
+                    $aliasAdd[$alias] = $qty;
+                }
+            }
+        }
+        foreach ($aliasAdd as $ak => $qv) {
+            $variantStockMap[$ak] = $qv;
+        }
+    } else {
+        $aliasAdd = [];
+        foreach ($variantStockMap as $key => $qty) {
+            $parts = explode('|', (string) $key, 2);
+            $szKey = $parts[0] ?? '';
+            $clKey = $parts[1] ?? '';
+            if ($clKey === '') {
+                continue;
+            }
+            $blank = $szKey . '|';
+            if (!array_key_exists($blank, $variantStockMap)) {
+                $aliasAdd[$blank] = ($aliasAdd[$blank] ?? 0) + $qty;
+            }
+        }
+        foreach ($aliasAdd as $ak => $qv) {
+            if (!array_key_exists($ak, $variantStockMap)) {
+                $variantStockMap[$ak] = $qv;
+            }
+        }
+    }
+}
 
 /** @var list<string> */
 $sizeKeysForVariant = $sizeOptions !== [] ? $sizeOptions : [''];
@@ -332,15 +401,19 @@ if ($sizeOptions !== [] && $hasVariantInventory) {
 $initialSpecStockQty = (int) ($product['stock_qty'] ?? 0);
 if ($hasVariantInventory) {
     $initSizeForSpec = $sizeOptions !== [] ? trim((string) ($sizeOptions[$activeSizeIdx] ?? '')) : '';
-    $specK = mb_strtolower($initSizeForSpec) . '|' . $colorKeyForDefault;
-    $initialSpecStockQty = (int) ($variantStockMap[$specK] ?? 0);
+    $initialSpecStockQty = product_variant_display_qty_from_map(
+        $variantStockMap,
+        $colorOptions !== [],
+        $colorKeyForDefault,
+        $initSizeForSpec
+    );
 }
 
 /** Sum of all active variant rows; if no variants, same as product stock. */
 $totalInventoryUnits = (int) ($product['stock_qty'] ?? 0);
 if ($hasVariantInventory) {
     $totalInventoryUnits = 0;
-    foreach ($variantStockMap as $unitQty) {
+    foreach ($variantStockMapForTotals as $unitQty) {
         $totalInventoryUnits += max(0, (int) $unitQty);
     }
 }
@@ -379,6 +452,33 @@ $estimatedDays = max(1, (int) ($shippingSettings['handling_time_days'] ?? 2) + 3
 $estimatedDateText = (new DateTimeImmutable())
     ->modify('+' . $estimatedDays . ' days')
     ->format('D, M j');
+
+$productTypeSlug = strtolower(trim((string) ($product['product_type'] ?? 'general')));
+$productTypeLabel = $productTypeSlug === '' || $productTypeSlug === 'general'
+    ? 'General'
+    : ucfirst(str_replace(['-', '_'], ' ', $productTypeSlug));
+foreach (seller_product_types_for_category((string) ($product['category'] ?? '')) as $_pt) {
+    if (($_pt['slug'] ?? '') === $productTypeSlug) {
+        $productTypeLabel = (string) ($_pt['label'] ?? $productTypeLabel);
+        break;
+    }
+}
+
+$shippingClassKey = strtolower(trim((string) ($product['shipping_class'] ?? 'standard')));
+if (!in_array($shippingClassKey, ['standard', 'express', 'free'], true)) {
+    $shippingClassKey = 'standard';
+}
+$productShippingTitle = match ($shippingClassKey) {
+    'express' => 'Express shipping',
+    'free' => 'Free shipping',
+    default => 'Standard shipping',
+};
+$productShippingDeliveryLine = match ($shippingClassKey) {
+    'express' => 'Express handling — estimated by ' . $estimatedDateText,
+    'free' => 'Includes free delivery — estimated by ' . $estimatedDateText,
+    default => 'Estimated delivery by ' . $estimatedDateText,
+};
+
 $returnWindowDays = max(0, (int) ($returnSettings['return_window_days'] ?? 30));
 $returnPolicySummary = trim((string) ($returnSettings['return_conditions'] ?? ''));
 if ($returnPolicySummary === '') {
@@ -423,6 +523,12 @@ $sellerPreviewOnly = $approvalStatus !== 'approved'
         || $adminSessionId > 0
     );
 
+/** @var list<array{k:string,q:int}> Stable list for JS — avoids JSON object-key quirks for size|color keys. */
+$variantStockEntries = [];
+foreach ($variantStockMap as $vk => $vq) {
+    $variantStockEntries[] = ['k' => (string) $vk, 'q' => max(0, (int) $vq)];
+}
+
 $pageProduct = [
     'id' => $product['id'],
     'name' => $product['name'],
@@ -443,8 +549,11 @@ $pageProduct = [
     'hasColorOptions' => $colorOptions !== [],
     'hasVariantInventory' => $hasVariantInventory,
     'variantStock' => $variantStockMap,
+    'variantStockEntries' => $variantStockEntries,
     'offerCountdownSeconds' => $offerCountdownSeconds,
     'sellerPreviewOnly' => $sellerPreviewOnly,
+    'shippingClass' => $shippingClassKey,
+    'shippingTitle' => $productShippingTitle,
 ];
 ?>
 <!DOCTYPE html>
@@ -686,31 +795,41 @@ $pageProduct = [
                 <?php if ($sizeOptions !== []): ?>
                   <?php foreach ($sizeOptions as $idx => $size): ?>
                     <?php
-                    $vk = mb_strtolower(trim($size)) . '|' . $colorKeyForDefault;
                     $sizeQty = $hasVariantInventory
-                        ? (int) ($variantStockMap[$vk] ?? 0)
-                        : max(0, (int) ($product['stock_qty'] ?? 0));
+                        ? product_variant_display_qty_from_map(
+                            $variantStockMap,
+                            $colorOptions !== [],
+                            $colorKeyForDefault,
+                            $size
+                        )
+                        : (count($sizeOptions) > 1
+                            ? 0
+                            : max(0, (int) ($product['stock_qty'] ?? 0)));
                     $sizeOut = $hasVariantInventory && $sizeQty <= 0;
                     $isActive = $idx === $activeSizeIdx;
                     ?>
                     <button class="size-btn<?= $isActive ? ' active' : '' ?><?= $sizeOut ? ' out' : '' ?>" type="button" data-size="<?= h($size) ?>" onclick="selectSize(this)">
                       <span class="size-btn-label"><?= h($size) ?></span>
-                      <?php if ($hasVariantInventory): ?>
+                      <?php if ($hasVariantInventory || ($sizeQty > 0 && count($sizeOptions) <= 1)): ?>
                         <span class="size-btn-stock"><?= $sizeQty > 0 ? '(' . (int) $sizeQty . ')' : '' ?></span>
                       <?php endif; ?>
                     </button>
                   <?php endforeach; ?>
                 <?php else: ?>
                   <?php
-                  $stdStockKey = mb_strtolower('') . '|' . $colorKeyForDefault;
                   $stdQty = $hasVariantInventory
-                      ? (int) ($variantStockMap[$stdStockKey] ?? 0)
+                      ? product_variant_display_qty_from_map(
+                          $variantStockMap,
+                          $colorOptions !== [],
+                          $colorKeyForDefault,
+                          ''
+                      )
                       : max(0, (int) ($product['stock_qty'] ?? 0));
                   $stdOut = $hasVariantInventory && $stdQty <= 0;
                   ?>
                   <button class="size-btn active<?= $stdOut ? ' out' : '' ?>" type="button" data-size="" onclick="selectSize(this)">
                     <span class="size-btn-label">Standard</span>
-                    <?php if ($hasVariantInventory): ?>
+                    <?php if ($hasVariantInventory || $stdQty > 0): ?>
                       <span class="size-btn-stock"><?= $stdQty > 0 ? '(' . (int) $stdQty . ')' : '' ?></span>
                     <?php endif; ?>
                   </button>
@@ -753,8 +872,8 @@ $pageProduct = [
               <div class="delivery-card">
                 <span class="dc-icon">🚚</span>
                 <div>
-                  <strong>Free Delivery</strong>
-                  <span>Estimated by <b><?= h($estimatedDateText) ?></b></span>
+                  <strong><?= h($productShippingTitle) ?></strong>
+                  <span><?= h($productShippingDeliveryLine) ?></span>
                 </div>
               </div>
               <div class="delivery-card">
@@ -792,12 +911,19 @@ $pageProduct = [
           <div class="tab-panel active" id="tab-description">
             <?php
             $productDescription = trim((string) ($product['description'] ?? ''));
+            $productDescriptionHtml = '';
+            if ($productDescription !== '') {
+                $productDescriptionHtml = strip_tags(
+                    $productDescription,
+                    '<p><br><strong><b><em><i><u><ul><ol><li><h1><h2><h3><blockquote><span>'
+                );
+            }
             ?>
             <div class="desc-grid">
               <div class="desc-text">
                 <h3>About this product</h3>
-                <?php if ($productDescription !== ''): ?>
-                <div class="desc-body"><p><?= h($productDescription) ?></p></div>
+                <?php if ($productDescriptionHtml !== ''): ?>
+                <div class="desc-body"><?= $productDescriptionHtml ?></div>
                 <?php else: ?>
                 <p class="desc-placeholder">The seller has not added a long description yet. See specifications and reviews for more about <?= h((string) ($product['name'] ?? 'this product')) ?>.</p>
                 <?php endif; ?>
@@ -820,6 +946,8 @@ $pageProduct = [
               <div class="spec-row"><span class="spec-key">Brand</span><span class="spec-val"><?= h((string) ($product['brand'] ?? 'LUXE')) ?></span></div>
               <div class="spec-row"><span class="spec-key">Model</span><span class="spec-val"><?= h((string) ($product['name'] ?? '-')) ?></span></div>
               <div class="spec-row"><span class="spec-key">Category</span><span class="spec-val"><?= h((string) ucfirst((string) ($product['category'] ?? '-'))) ?></span></div>
+              <div class="spec-row"><span class="spec-key">Product type</span><span class="spec-val"><?= h($productTypeLabel) ?></span></div>
+              <div class="spec-row"><span class="spec-key">Shipping</span><span class="spec-val"><?= h($productShippingTitle) ?></span></div>
               <div class="spec-row"><span class="spec-key">Seller</span><span class="spec-val"><?php if ($pubSellerId > 0): ?><a href="seller-store.php?id=<?= $pubSellerId ?>" class="product-seller-link"><?= h($pubSellerName) ?></a><?php else: ?><?= h($pubSellerName) ?><?php endif; ?></span></div>
               <div class="spec-row"><span class="spec-key">Sizes Available</span><span class="spec-val"><?= h($sizeOptions !== [] ? implode(', ', $sizeOptions) : 'Standard') ?></span></div>
               <div class="spec-row"><span class="spec-key">Colors Available</span><span class="spec-val"><?= h($colorOptions !== [] ? implode(', ', $colorOptions) : 'Default') ?></span></div>

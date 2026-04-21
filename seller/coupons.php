@@ -110,7 +110,7 @@ require __DIR__ . '/partials/shell-top.php';
         <div class="admin-page-head">
           <div>
             <h1>Coupons</h1>
-            <p class="seller-coupons-subtitle">Offer codes for your store. Discounts apply only to <strong>your</strong> products in the customer’s cart — then show up on checkout.</p>
+            <p class="seller-coupons-subtitle">Offer codes for your store. Discounts apply only to <strong>your</strong> products in the customer’s cart — then show up on checkout. List me search se code ya status dhundho.</p>
           </div>
         </div>
 
@@ -245,6 +245,21 @@ require __DIR__ . '/partials/shell-top.php';
                   <p class="seller-coupons-empty__text">Create a code on the left. It will show as a chip on the cart page when it’s live.</p>
                 </div>
               <?php else: ?>
+                <div class="seller-txn-search-bar seller-coupons-search-bar">
+                  <label class="seller-inventory-search-wrap seller-txn-search" for="sellerCouponsSearch">
+                    <span class="seller-inventory-search-icon" aria-hidden="true">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                    </span>
+                    <input
+                      type="search"
+                      id="sellerCouponsSearch"
+                      class="seller-inventory-search-input"
+                      placeholder="Search code, discount, status, dates, min order…"
+                      autocomplete="off"
+                      aria-label="Search coupons"
+                    >
+                  </label>
+                </div>
                 <ul class="seller-coupons-list" role="list">
                   <?php foreach ($couponRows as $row): ?>
                     <?php
@@ -269,8 +284,21 @@ require __DIR__ . '/partials/shell-top.php';
                           $statusClass = 'seller-status-chip--rejected';
                           $statusLabel = 'Out of date';
                       }
+                      $vf = trim((string) ($row['valid_from'] ?? ''));
+                      $vu = trim((string) ($row['valid_until'] ?? ''));
+                      $couponSearchBlob = mb_strtolower(
+                          (string) ($row['code'] ?? '') . ' '
+                          . $deal . ' '
+                          . strtolower($statusLabel) . ' '
+                          . strtolower($def['type'] ?? '') . ' '
+                          . (string) $minRu . ' '
+                          . $descShow . ' '
+                          . $vf . ' ' . $vu . ' '
+                          . ($datesOk ? 'dates ok' : '') . ' '
+                          . ($isOn ? 'active' : 'inactive')
+                      );
                       ?>
-                    <li class="seller-coupon-item">
+                    <li class="seller-coupon-item" data-coupon-search="<?= h($couponSearchBlob) ?>">
                       <div class="seller-coupon-item__top">
                         <div class="seller-coupon-item__identity">
                           <span class="seller-coupon-item__code"><?= h((string) $row['code']) ?></span>
@@ -310,6 +338,17 @@ require __DIR__ . '/partials/shell-top.php';
                     </li>
                   <?php endforeach; ?>
                 </ul>
+                <div id="sellerCouponsNoMatch" class="seller-coupons-no-match" style="display:none" role="status">
+                  <div class="seller-coupons-no-match__inner">
+                    <span class="seller-coupons-no-match__icon" aria-hidden="true">
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                    </span>
+                    <div>
+                      <strong>No matching coupons</strong>
+                      <p>Try code, “live”, “paused”, percent amount, ya date.</p>
+                    </div>
+                  </div>
+                </div>
               <?php endif; ?>
             </div>
           </div>
@@ -330,6 +369,28 @@ require __DIR__ . '/partials/shell-top.php';
           }
           typeEl?.addEventListener("change", sync);
           sync();
+        })();
+        (function () {
+          var input = document.getElementById("sellerCouponsSearch");
+          if (!input) return;
+          var items = document.querySelectorAll("li.seller-coupon-item");
+          var noMatch = document.getElementById("sellerCouponsNoMatch");
+          function apply() {
+            var q = (input.value || "").trim().toLowerCase();
+            var words = q.split(/\s+/).filter(Boolean);
+            var anyShown = false;
+            items.forEach(function (el) {
+              var hay = (el.getAttribute("data-coupon-search") || "").toLowerCase();
+              var show = words.length === 0 || words.every(function (w) { return hay.indexOf(w) !== -1; });
+              el.style.display = show ? "" : "none";
+              if (show) anyShown = true;
+            });
+            if (noMatch) {
+              noMatch.style.display = (words.length > 0 && !anyShown) ? "" : "none";
+            }
+          }
+          input.addEventListener("input", apply);
+          input.addEventListener("search", apply);
         })();
         </script>
 

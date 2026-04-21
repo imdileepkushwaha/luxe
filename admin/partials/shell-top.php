@@ -2,12 +2,15 @@
 declare(strict_types=1);
 
 /** @var string $pageTitle */
-/** @var string $activeNav dashboard|settings|users|orders|earnings|sellers|seller_kyc|seller_withdrawals|deletions|product_approvals */
+/** @var string $activeNav dashboard|settings|users|orders|earnings|sellers|seller_kyc|seller_withdrawals|deletions|product_approvals|search */
 /** @var array $admin */
+/** @var string $adminSearchQuery optional; top bar search input value */
 
 if (!isset($pageTitle, $activeNav, $admin) || !is_array($admin)) {
     throw new RuntimeException('shell-top: set $pageTitle, $activeNav, $admin');
 }
+
+$topbarSearchValue = isset($adminSearchQuery) && is_string($adminSearchQuery) ? $adminSearchQuery : '';
 
 $initials = '';
 $name = trim((string) ($admin['full_name'] ?? ''));
@@ -23,28 +26,28 @@ if ($name !== '') {
 if ($initials === '') {
     $initials = 'A';
 }
+
+$adminNotifyItems = [
+    ['href' => 'orders.php', 'title' => 'New order received', 'meta' => 'Shop · Review in Orders', 'at' => strtotime('-14 minutes'), 'dot' => ''],
+    ['href' => 'users.php', 'title' => 'New user registration', 'meta' => 'Accounts · Users', 'at' => strtotime('-2 hours'), 'dot' => 'muted'],
+    ['href' => 'seller-kyc.php', 'title' => 'Seller KYC pending', 'meta' => 'Seller onboarding · Review now', 'at' => strtotime('-5 hours'), 'dot' => 'warn'],
+    ['href' => 'seller-withdrawals.php', 'title' => 'Seller withdrawals', 'meta' => 'Finance · Mark paid / Reject', 'at' => strtotime('-1 day'), 'dot' => 'warn'],
+    ['href' => 'account-deletions.php', 'title' => 'Deletion request pending', 'meta' => 'Compliance · Action needed', 'at' => strtotime('-2 days'), 'dot' => 'warn'],
+];
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script>
-    (function () {
-      try {
-        if (localStorage.getItem('luxeAdminTheme') === 'dark') {
-          document.documentElement.classList.add('admin-theme-dark');
-        }
-      } catch (e) {}
-    })();
-  </script>
+<?php require __DIR__ . '/theme-head-script.php'; ?>
   <title><?= h($pageTitle) ?> — LUXE Admin</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/admin.css">
 </head>
-<body class="admin-app">
+<body class="admin-app admin-app--platform">
   <div class="admin-layout" id="adminLayout">
     <aside class="admin-sidebar" id="adminSidebar" aria-label="Main navigation">
       <div class="admin-sidebar__brand">
@@ -138,10 +141,10 @@ if ($initials === '') {
           <button type="button" class="admin-menu-btn" id="adminMenuBtn" aria-label="Open menu" aria-expanded="false" aria-controls="adminSidebar">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
           </button>
-          <div class="admin-search">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-            <input type="search" placeholder="Search keyword" name="q" autocomplete="off">
-          </div>
+          <form class="admin-search" method="get" action="search.php" role="search">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input type="search" name="q" value="<?= h($topbarSearchValue) ?>" placeholder="Search users, orders, sellers…" autocomplete="off" aria-label="Search admin">
+          </form>
         </div>
         <div class="admin-topbar__actions">
           <button type="button" class="admin-icon-btn" id="adminFullscreenBtn" title="Fullscreen" aria-label="Fullscreen" aria-pressed="false">
@@ -176,6 +179,7 @@ if ($initials === '') {
                 <a class="admin-apps-dropdown__item" role="menuitem" href="seller-kyc.php">Seller KYC</a>
                 <a class="admin-apps-dropdown__item" role="menuitem" href="seller-withdrawals.php">Seller withdrawals</a>
                 <a class="admin-apps-dropdown__item" role="menuitem" href="account-deletions.php">Deletion requests</a>
+                <a class="admin-apps-dropdown__item" role="menuitem" href="search.php">Search</a>
               </div>
             </div>
           </div>
@@ -187,51 +191,24 @@ if ($initials === '') {
               <div class="admin-notify-dropdown__inner">
                 <div class="admin-notify-dropdown__head">Notifications</div>
                 <ul class="admin-notify-list">
+<?php foreach ($adminNotifyItems as $n):
+    $dot = (string) ($n['dot'] ?? '');
+    $dotClass = 'admin-notify-row__dot' . ($dot === 'muted' ? ' admin-notify-row__dot--muted' : ($dot === 'warn' ? ' admin-notify-row__dot--warn' : ''));
+    $at = (int) ($n['at'] ?? time());
+    ?>
                   <li>
-                    <a class="admin-notify-row" href="orders.php">
-                      <span class="admin-notify-row__dot" aria-hidden="true"></span>
+                    <a class="admin-notify-row" href="<?= h((string) $n['href']) ?>">
+                      <span class="<?= h($dotClass) ?>" aria-hidden="true"></span>
                       <span class="admin-notify-row__body">
-                        <span class="admin-notify-row__title">New order received</span>
-                        <span class="admin-notify-row__meta">Shop · Review in Orders</span>
+                        <span class="admin-notify-row__top">
+                          <span class="admin-notify-row__title"><?= h((string) $n['title']) ?></span>
+                          <time class="admin-notify-row__when" datetime="<?= h(date('c', $at)) ?>"><?= h(date('j M, g:i A', $at)) ?></time>
+                        </span>
+                        <span class="admin-notify-row__meta"><?= h((string) $n['meta']) ?></span>
                       </span>
                     </a>
                   </li>
-                  <li>
-                    <a class="admin-notify-row" href="users.php">
-                      <span class="admin-notify-row__dot admin-notify-row__dot--muted" aria-hidden="true"></span>
-                      <span class="admin-notify-row__body">
-                        <span class="admin-notify-row__title">New user registration</span>
-                        <span class="admin-notify-row__meta">Accounts · Users</span>
-                      </span>
-                    </a>
-                  </li>
-                  <li>
-                    <a class="admin-notify-row" href="seller-kyc.php">
-                      <span class="admin-notify-row__dot admin-notify-row__dot--warn" aria-hidden="true"></span>
-                      <span class="admin-notify-row__body">
-                        <span class="admin-notify-row__title">Seller KYC pending</span>
-                        <span class="admin-notify-row__meta">Seller onboarding · Review now</span>
-                      </span>
-                    </a>
-                  </li>
-                  <li>
-                    <a class="admin-notify-row" href="seller-withdrawals.php">
-                      <span class="admin-notify-row__dot admin-notify-row__dot--warn" aria-hidden="true"></span>
-                      <span class="admin-notify-row__body">
-                        <span class="admin-notify-row__title">Seller withdrawals</span>
-                        <span class="admin-notify-row__meta">Finance · Mark paid / Reject</span>
-                      </span>
-                    </a>
-                  </li>
-                  <li>
-                    <a class="admin-notify-row" href="account-deletions.php">
-                      <span class="admin-notify-row__dot admin-notify-row__dot--warn" aria-hidden="true"></span>
-                      <span class="admin-notify-row__body">
-                        <span class="admin-notify-row__title">Deletion request pending</span>
-                        <span class="admin-notify-row__meta">Compliance · Action needed</span>
-                      </span>
-                    </a>
-                  </li>
+<?php endforeach; ?>
                 </ul>
                 <a class="admin-notify-dropdown__foot" href="index.php">View dashboard</a>
               </div>

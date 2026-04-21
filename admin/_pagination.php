@@ -3,20 +3,34 @@
 declare(strict_types=1);
 
 /**
+ * Read page and per-page from query string using custom GET keys (e.g. multiple tables on one page).
+ *
+ * @return array{page: int, perPage: int}
+ */
+function admin_pagination_read_keys(
+    string $pageKey = 'page',
+    string $perPageKey = 'per_page',
+    int $defaultPerPage = 25,
+    int $maxPerPage = 100,
+): array {
+    $raw = (int) ($_GET[$perPageKey] ?? $defaultPerPage);
+    $perPage = $raw;
+    if ($perPage < 5 || $perPage > $maxPerPage) {
+        $perPage = $defaultPerPage;
+    }
+    $page = max(1, (int) ($_GET[$pageKey] ?? 1));
+
+    return ['page' => $page, 'perPage' => $perPage];
+}
+
+/**
  * Read page and per-page from query string.
  *
  * @return array{page: int, perPage: int}
  */
 function admin_pagination_read(int $defaultPerPage = 25, int $maxPerPage = 100): array
 {
-    $raw = (int) ($_GET['per_page'] ?? $defaultPerPage);
-    $perPage = $raw;
-    if ($perPage < 5 || $perPage > $maxPerPage) {
-        $perPage = $defaultPerPage;
-    }
-    $page = max(1, (int) ($_GET['page'] ?? 1));
-
-    return ['page' => $page, 'perPage' => $perPage];
+    return admin_pagination_read_keys('page', 'per_page', $defaultPerPage, $maxPerPage);
 }
 
 /**
@@ -53,10 +67,18 @@ function admin_pagination_visible_range(int $total, int $page, int $perPage): ar
     return ['from' => $from, 'to' => $to];
 }
 
-/** @param array<string, scalar|array|null> $extra */
-function admin_pagination_href(string $script, int $page, int $perPage, array $extra = []): string
-{
-    $q = array_merge($_GET, $extra, ['page' => $page, 'per_page' => $perPage]);
+/**
+ * @param array<string, scalar|array|null> $extra
+ */
+function admin_pagination_href(
+    string $script,
+    int $page,
+    int $perPage,
+    array $extra = [],
+    string $pageKey = 'page',
+    string $perPageKey = 'per_page',
+): string {
+    $q = array_merge($_GET, $extra, [$pageKey => $page, $perPageKey => $perPage]);
 
     return $script . '?' . http_build_query($q);
 }

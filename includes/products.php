@@ -2,13 +2,17 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/seller_variant_inventory.php';
+
 /**
- * @return list<array{id:int,name:string,category:string,price:int,original:int,emoji:string,badge:string,rating:float,reviews:int,brand:string,slug:string,image_bg:string,image_path:string}>
+ * @return list<array{id:int,name:string,category:string,price:int,original:int,emoji:string,badge:string,rating:float,reviews:int,brand:string,slug:string,image_bg:string,image_path:string,requires_variant_pick:bool}>
  */
 function products_fetch_all(PDO $pdo): array
 {
     $st = $pdo->query(
         'SELECT p.id, p.name, p.slug, p.category, p.price, p.original_price AS original, p.emoji, p.badge, p.rating, p.review_count AS reviews, p.brand, p.image_bg, p.image_path,
+                p.size_options, p.color_options,
+                (SELECT COUNT(*) FROM product_variant_inventory pvi WHERE pvi.product_id = p.id AND pvi.active = 1) AS variant_row_count,
                 (SELECT pi.image_path FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.sort_order ASC, pi.id ASC LIMIT 1) AS gallery_first
          FROM products p
          LEFT JOIN seller_users s ON s.id = p.seller_id
@@ -31,6 +35,15 @@ function products_fetch_all(PDO $pdo): array
         $r['original'] = (int) $r['original'];
         $r['reviews'] = (int) $r['reviews'];
         $r['rating'] = (float) $r['rating'];
+        $variantRowCount = (int) ($r['variant_row_count'] ?? 0);
+        $sizes = seller_parse_product_option_csv((string) ($r['size_options'] ?? ''));
+        $colors = seller_parse_product_option_csv((string) ($r['color_options'] ?? ''));
+        $multiOption =
+            count($sizes) > 1
+            || count($colors) > 1
+            || (count($sizes) >= 1 && count($colors) >= 1);
+        $r['requires_variant_pick'] = $variantRowCount > 0 || $multiOption;
+        unset($r['variant_row_count'], $r['size_options'], $r['color_options']);
         $main = trim((string) ($r['image_path'] ?? ''));
         $gal = trim((string) ($r['gallery_first'] ?? ''));
         unset($r['gallery_first']);
@@ -47,9 +60,10 @@ function products_fetch_by_id(PDO $pdo, int $id, ?int $forSellerOwnerId = null):
 {
     if ($forSellerOwnerId !== null && $forSellerOwnerId > 0) {
         $st = $pdo->prepare(
-            "SELECT p.id, p.seller_id, p.name, p.slug, p.sku, p.category, p.price, p.original_price AS original, p.emoji, p.badge,
-                    p.rating, p.review_count AS reviews, p.brand, p.image_bg, p.image_path, p.stock_qty, p.description,
+            "SELECT p.id, p.seller_id, p.name, p.slug, p.sku, p.category, COALESCE(NULLIF(TRIM(p.product_type), ''), 'general') AS product_type, p.price, p.original_price AS original, p.emoji, p.badge,
+                    p.rating, p.review_count AS reviews, p.brand, p.image_bg, p.image_path, p.stock_qty, p.size_options, p.color_options, p.description,
                     p.offer_flash_text, p.offer_countdown_seconds, p.offer_bank_text, p.approval_status,
+                    COALESCE(NULLIF(TRIM(p.shipping_class), ''), 'standard') AS shipping_class,
                     COALESCE(NULLIF(TRIM(s.full_name), ''), 'LUXE Store') AS seller_name
              FROM products p
              LEFT JOIN seller_users s ON s.id = p.seller_id
@@ -67,9 +81,10 @@ function products_fetch_by_id(PDO $pdo, int $id, ?int $forSellerOwnerId = null):
         $st->execute([$id, $forSellerOwnerId]);
     } else {
         $st = $pdo->prepare(
-            "SELECT p.id, p.seller_id, p.name, p.slug, p.sku, p.category, p.price, p.original_price AS original, p.emoji, p.badge,
-                    p.rating, p.review_count AS reviews, p.brand, p.image_bg, p.image_path, p.stock_qty, p.description,
+            "SELECT p.id, p.seller_id, p.name, p.slug, p.sku, p.category, COALESCE(NULLIF(TRIM(p.product_type), ''), 'general') AS product_type, p.price, p.original_price AS original, p.emoji, p.badge,
+                    p.rating, p.review_count AS reviews, p.brand, p.image_bg, p.image_path, p.stock_qty, p.size_options, p.color_options, p.description,
                     p.offer_flash_text, p.offer_countdown_seconds, p.offer_bank_text, p.approval_status,
+                    COALESCE(NULLIF(TRIM(p.shipping_class), ''), 'standard') AS shipping_class,
                     COALESCE(NULLIF(TRIM(s.full_name), ''), 'LUXE Store') AS seller_name
              FROM products p
              LEFT JOIN seller_users s ON s.id = p.seller_id
@@ -116,9 +131,10 @@ function products_fetch_by_id(PDO $pdo, int $id, ?int $forSellerOwnerId = null):
 function products_fetch_by_id_for_admin(PDO $pdo, int $id): ?array
 {
     $st = $pdo->prepare(
-        "SELECT p.id, p.seller_id, p.name, p.slug, p.sku, p.category, p.price, p.original_price AS original, p.emoji, p.badge,
-                p.rating, p.review_count AS reviews, p.brand, p.image_bg, p.image_path, p.stock_qty, p.description,
+        "SELECT p.id, p.seller_id, p.name, p.slug, p.sku, p.category, COALESCE(NULLIF(TRIM(p.product_type), ''), 'general') AS product_type, p.price, p.original_price AS original, p.emoji, p.badge,
+                p.rating, p.review_count AS reviews, p.brand, p.image_bg, p.image_path, p.stock_qty, p.size_options, p.color_options, p.description,
                 p.offer_flash_text, p.offer_countdown_seconds, p.offer_bank_text, p.approval_status,
+                COALESCE(NULLIF(TRIM(p.shipping_class), ''), 'standard') AS shipping_class,
                 COALESCE(NULLIF(TRIM(s.full_name), ''), 'LUXE Store') AS seller_name
          FROM products p
          LEFT JOIN seller_users s ON s.id = p.seller_id
@@ -266,4 +282,68 @@ function products_fetch_by_seller_for_store(PDO $pdo, int $sellerId): array
     }
 
     return $rows;
+}
+
+/**
+ * True if the map has any key "size|something" where something is non-empty (color-specific stock).
+ *
+ * @param array<string,int> $map
+ */
+function product_variant_map_has_color_specific_rows_for_size(array $map, string $sizeLower): bool
+{
+    $prefix = $sizeLower . '|';
+    $plen = strlen($prefix);
+    foreach ($map as $mk => $_) {
+        $mks = (string) $mk;
+        if (!str_starts_with($mks, $prefix)) {
+            continue;
+        }
+        if (strlen($mks) > $plen) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Per-variant qty for product page (matches storefront JS getVariantStock after map expansion).
+ *
+ * @param array<string,int> $map
+ */
+function product_variant_display_qty_from_map(
+    array $map,
+    bool $hasColorSwatches,
+    string $colorKeyLower,
+    string $sizeLabel
+): int {
+    $sz = mb_strtolower(trim($sizeLabel));
+    $k = $sz . '|' . $colorKeyLower;
+    if (array_key_exists($k, $map)) {
+        return max(0, (int) $map[$k]);
+    }
+    if ($hasColorSwatches) {
+        $blank = $sz . '|';
+        if (array_key_exists($blank, $map) && !product_variant_map_has_color_specific_rows_for_size($map, $sz)) {
+            return max(0, (int) $map[$blank]);
+        }
+
+        return 0;
+    }
+    $blank = $sz . '|';
+    if (array_key_exists($blank, $map)) {
+        return max(0, (int) $map[$blank]);
+    }
+    if ($sz === '') {
+        return 0;
+    }
+    $prefix = $sz . '|';
+    $best = 0;
+    foreach ($map as $mk => $mv) {
+        if (str_starts_with((string) $mk, $prefix)) {
+            $best = max($best, (int) $mv);
+        }
+    }
+
+    return $best;
 }

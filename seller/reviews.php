@@ -87,40 +87,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
     }
 }
 
+require_once __DIR__ . '/../admin/_pagination.php';
+
+$revStatsSt = $pdo->prepare(
+    "SELECT
+        COUNT(*) AS total,
+        COALESCE(AVG(r.rating), 0) AS avg_rating,
+        SUM(CASE WHEN r.review_status = 'pending' THEN 1 ELSE 0 END) AS pending_cnt,
+        SUM(CASE WHEN r.review_status = 'approved' THEN 1 ELSE 0 END) AS approved_cnt,
+        SUM(CASE WHEN r.review_status = 'rejected' THEN 1 ELSE 0 END) AS rejected_cnt
+     FROM product_reviews r
+     INNER JOIN products p ON p.id = r.product_id
+     WHERE p.seller_id = ?"
+);
+$revStatsSt->execute([(int) $seller['id']]);
+$revStats = $revStatsSt->fetch() ?: [];
+$totalReviews = (int) ($revStats['total'] ?? 0);
+$avgRating = $totalReviews > 0 ? round((float) ($revStats['avg_rating'] ?? 0), 2) : 0.0;
+$pendingCount = (int) ($revStats['pending_cnt'] ?? 0);
+$approvedCount = (int) ($revStats['approved_cnt'] ?? 0);
+$rejectedCount = (int) ($revStats['rejected_cnt'] ?? 0);
+
+['page' => $reviewsListPage, 'perPage' => $reviewsPerPage] = admin_pagination_read(25);
+$reviewsPageMeta = admin_pagination_resolve($totalReviews, $reviewsListPage, $reviewsPerPage);
+$reviewsPage = $reviewsPageMeta['page'];
+$reviewsOffset = $reviewsPageMeta['offset'];
+$reviewsPerPage = $reviewsPageMeta['perPage'];
+$reviewsTotalPages = $reviewsPageMeta['totalPages'];
+
 $reviewsSt = $pdo->prepare(
     'SELECT r.id, r.customer_name, r.rating, r.review_text, r.review_status, r.seller_response, r.created_at, r.seller_reviewed_at, r.seller_responded_at,
             p.id AS product_id, p.name AS product_name
      FROM product_reviews r
      INNER JOIN products p ON p.id = r.product_id
      WHERE p.seller_id = ?
-     ORDER BY r.created_at DESC, r.id DESC'
+     ORDER BY r.created_at DESC, r.id DESC
+     LIMIT ' . (int) $reviewsPerPage . ' OFFSET ' . (int) $reviewsOffset
 );
 $reviewsSt->execute([(int) $seller['id']]);
 $reviews = $reviewsSt->fetchAll();
-
-$totalReviews = count($reviews);
-$avgRating = 0.0;
-if ($totalReviews > 0) {
-    $sum = 0;
-    foreach ($reviews as $row) {
-        $sum += max(0, min(5, (int) ($row['rating'] ?? 0)));
-    }
-    $avgRating = round($sum / $totalReviews, 2);
-}
-
-$pendingCount = 0;
-$approvedCount = 0;
-$rejectedCount = 0;
-foreach ($reviews as $row) {
-    $rs = (string) ($row['review_status'] ?? 'pending');
-    if ($rs === 'pending') {
-        $pendingCount++;
-    } elseif ($rs === 'approved') {
-        $approvedCount++;
-    } elseif ($rs === 'rejected') {
-        $rejectedCount++;
-    }
-}
+$reviewsFormAction = 'reviews.php?' . http_build_query(['page' => $reviewsPage, 'per_page' => $reviewsPerPage]);
 
 function seller_reviews_format_dt(?string $raw): string
 {
@@ -201,7 +207,7 @@ require __DIR__ . '/partials/shell-top.php';
             <div>
               <div class="seller-kpi-card__label">Average rating</div>
               <div class="seller-kpi-card__value"><?= $totalReviews > 0 ? number_format($avgRating, 2) : '—' ?><?= $totalReviews > 0 ? '<span class="seller-reviews-kpi-suffix">/5</span>' : '' ?></div>
-              <div class="seller-kpi-card__hint">Is list ke hisaab se</div>
+              <div class="seller-kpi-card__hint">Saare reviews ka average</div>
             </div>
             <div class="seller-kpi-card__icon" aria-hidden="true">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
@@ -233,7 +239,7 @@ require __DIR__ . '/partials/shell-top.php';
           <div class="card-header seller-txn-card-head">
             <div>
               <h2 class="card-title">Moderate &amp; reply</h2>
-              <p class="card-subtitle seller-txn-card-sub">Har card par status, public reply, aur timestamps. Search se customer, product, ya review text dhundho.</p>
+              <p class="card-subtitle seller-txn-card-sub">Har card par status, public reply, aur timestamps. Search <strong>is page</strong> par filter karta hai — baaki pages ke liye neeche pagination use karein.</p>
             </div>
             <span class="seller-txn-count-pill"><?= (int) $totalReviews ?> review<?= $totalReviews === 1 ? '' : 's' ?></span>
           </div>
@@ -333,7 +339,7 @@ require __DIR__ . '/partials/shell-top.php';
                       </div>
                     </div>
                     <div class="seller-review-card__aside<?= $isLockedByDefault ? ' seller-review-card__aside--locked' : ' seller-review-card__aside--editable' ?>">
-                      <form method="post" class="seller-review-form" data-locked="<?= $isLockedByDefault ? '1' : '0' ?>">
+                      <form method="post" class="seller-review-form" action="<?= h($reviewsFormAction) ?>" data-locked="<?= $isLockedByDefault ? '1' : '0' ?>">
                         <input type="hidden" name="action" value="save_review_response">
                         <input type="hidden" name="review_id" value="<?= $rid ?>">
                         <div class="seller-review-form__head">
@@ -409,6 +415,14 @@ require __DIR__ . '/partials/shell-top.php';
                 </div>
               <?php endif; ?>
             </div>
+            <?php
+            $paginationScript = 'reviews.php';
+            $paginationTotal = $totalReviews;
+            $paginationPage = $reviewsPage;
+            $paginationPerPage = $reviewsPerPage;
+            $paginationTotalPages = $reviewsTotalPages;
+            require __DIR__ . '/partials/table-pagination.php';
+            ?>
             </div>
           </div>
         </div>

@@ -12,6 +12,40 @@ $activeNav = 'transactions';
 
 $summary = seller_finance_summary($pdo, (int) $seller['id']);
 
+require_once __DIR__ . '/../admin/_pagination.php';
+
+$creditsCountSt = $pdo->prepare(
+    "SELECT COUNT(*) FROM (
+         SELECT o.id
+         FROM order_items oi
+         INNER JOIN orders o ON o.id = oi.order_id
+         INNER JOIN products p ON p.id = oi.product_id
+         WHERE p.seller_id = ?
+           AND o.status = 'delivered'
+         GROUP BY o.id
+     ) x"
+);
+$creditsCountSt->execute([(int) $seller['id']]);
+$creditsTotal = (int) $creditsCountSt->fetchColumn();
+
+$debitsCountSt = $pdo->prepare('SELECT COUNT(*) FROM seller_withdraw_requests WHERE seller_id = ?');
+$debitsCountSt->execute([(int) $seller['id']]);
+$debitsTotal = (int) $debitsCountSt->fetchColumn();
+
+['page' => $_txnPageUnused, 'perPage' => $txnPerPage] = admin_pagination_read(25);
+$creditsReqPage = max(1, (int) ($_GET['credits_page'] ?? 1));
+$debitsReqPage = max(1, (int) ($_GET['debits_page'] ?? 1));
+$creditsMeta = admin_pagination_resolve($creditsTotal, $creditsReqPage, $txnPerPage);
+$debitsMeta = admin_pagination_resolve($debitsTotal, $debitsReqPage, $txnPerPage);
+$creditsPage = $creditsMeta['page'];
+$creditsPerPage = $creditsMeta['perPage'];
+$creditsOffset = $creditsMeta['offset'];
+$creditsTotalPages = $creditsMeta['totalPages'];
+$debitsPage = $debitsMeta['page'];
+$debitsPerPage = $debitsMeta['perPage'];
+$debitsOffset = $debitsMeta['offset'];
+$debitsTotalPages = $debitsMeta['totalPages'];
+
 $creditSt = $pdo->prepare(
     "SELECT o.id, o.order_ref, o.created_at, SUM(oi.price * oi.qty) AS amount
      FROM order_items oi
@@ -20,7 +54,8 @@ $creditSt = $pdo->prepare(
      WHERE p.seller_id = ?
        AND o.status = 'delivered'
      GROUP BY o.id, o.order_ref, o.created_at
-     ORDER BY o.id DESC"
+     ORDER BY o.id DESC
+     LIMIT " . (int) $creditsPerPage . ' OFFSET ' . (int) $creditsOffset
 );
 $creditSt->execute([(int) $seller['id']]);
 $credits = $creditSt->fetchAll();
@@ -29,7 +64,8 @@ $debitSt = $pdo->prepare(
     "SELECT id, amount, method, account_ref, status, requested_at, reviewed_at, note, rejection_reason
      FROM seller_withdraw_requests
      WHERE seller_id = ?
-     ORDER BY id DESC"
+     ORDER BY id DESC
+     LIMIT " . (int) $debitsPerPage . ' OFFSET ' . (int) $debitsOffset
 );
 $debitSt->execute([(int) $seller['id']]);
 $debits = $debitSt->fetchAll();
@@ -75,7 +111,7 @@ require __DIR__ . '/partials/shell-top.php';
         <div class="admin-page-head seller-txn-head">
           <div>
             <h1>Transaction history</h1>
-            <p class="seller-txn-subtitle">Order earnings and withdrawal requests are listed separately. Credits appear when an order is <strong>delivered</strong>; debits when a withdraw request is approved or paid.</p>
+            <p class="seller-txn-subtitle">Order earnings and withdrawal requests are listed separately. Credits appear when an order is <strong>delivered</strong>; debits when a withdraw request is approved or paid. Search filters <strong>this page</strong> only in each table.</p>
           </div>
           <div class="admin-page-head__actions">
             <a class="admin-btn admin-btn--ghost-light" href="withdraw-requests.php">Withdraw</a>
@@ -121,7 +157,7 @@ require __DIR__ . '/partials/shell-top.php';
               <h2 class="card-title">Order earnings</h2>
               <p class="card-subtitle seller-txn-card-sub">Your line-item total per order after status is <strong>delivered</strong>. This is what counts toward your balance.</p>
             </div>
-            <span class="seller-txn-count-pill"><?= count($credits) ?> order<?= count($credits) === 1 ? '' : 's' ?></span>
+            <span class="seller-txn-count-pill"><?= (int) $creditsTotal ?> order<?= $creditsTotal === 1 ? '' : 's' ?></span>
           </div>
           <div class="card-body card-body--flush">
             <div class="seller-txn-search-bar">
@@ -210,6 +246,15 @@ require __DIR__ . '/partials/shell-top.php';
                 </tbody>
               </table>
             </div>
+            <?php
+            $paginationScript = 'transactions.php';
+            $paginationTotal = $creditsTotal;
+            $paginationPage = $creditsPage;
+            $paginationPerPage = $creditsPerPage;
+            $paginationTotalPages = $creditsTotalPages;
+            $paginationPageKey = 'credits_page';
+            require __DIR__ . '/partials/table-pagination.php';
+            ?>
           </div>
         </div>
 
@@ -220,7 +265,7 @@ require __DIR__ . '/partials/shell-top.php';
               <p class="card-subtitle seller-txn-card-sub">Payout requests you submitted. Pending amounts reduce withdrawable balance until approved, rejected, or paid.</p>
             </div>
             <div class="seller-txn-card-head-actions">
-              <span class="seller-txn-count-pill"><?= count($debits) ?> request<?= count($debits) === 1 ? '' : 's' ?></span>
+              <span class="seller-txn-count-pill"><?= (int) $debitsTotal ?> request<?= $debitsTotal === 1 ? '' : 's' ?></span>
               <a class="admin-btn admin-btn--primary" href="withdraw-requests.php">New request</a>
             </div>
           </div>
@@ -337,6 +382,15 @@ require __DIR__ . '/partials/shell-top.php';
                 </tbody>
               </table>
             </div>
+            <?php
+            $paginationScript = 'transactions.php';
+            $paginationTotal = $debitsTotal;
+            $paginationPage = $debitsPage;
+            $paginationPerPage = $debitsPerPage;
+            $paginationTotalPages = $debitsTotalPages;
+            $paginationPageKey = 'debits_page';
+            require __DIR__ . '/partials/table-pagination.php';
+            ?>
           </div>
         </div>
 

@@ -154,6 +154,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $details['kyc_edit_rejection_reason'] = '';
             $details['kyc_edit_unlocked'] = 0;
         }
+    } elseif ($action === 'cancel_edit_unlock') {
+        if (!$isFinalApproved || !$isEditUnlocked) {
+            $error = 'Edit unlock active nahi hai.';
+        } else {
+            $cancelUpd = $pdo->prepare(
+                "UPDATE seller_users
+                 SET kyc_edit_request_status = 'none',
+                     kyc_edit_requested_at = NULL,
+                     kyc_edit_reviewed_by = NULL,
+                     kyc_edit_reviewed_at = NULL,
+                     kyc_edit_rejection_reason = '',
+                     kyc_edit_unlocked = 0
+                 WHERE id = ?
+                   AND kyc_final_approved = 1
+                   AND kyc_edit_unlocked = 1
+                   AND kyc_edit_request_status = 'approved'
+                 LIMIT 1"
+            );
+            $cancelUpd->execute([(int) $seller['id']]);
+            if ($cancelUpd->rowCount() < 1) {
+                $error = 'Lock wapas nahi ho saka. Page refresh karke dubara try karein.';
+            } else {
+                $success = 'Edit band kar diya — details phir se lock hain. Zarurat ho to dubara request bhej sakte ho.';
+                $editRequestStatus = 'none';
+                $isEditUnlocked = false;
+                $isEditable = false;
+                $details['kyc_edit_request_status'] = 'none';
+                $details['kyc_edit_requested_at'] = null;
+                $details['kyc_edit_reviewed_at'] = null;
+                $details['kyc_edit_rejection_reason'] = '';
+                $details['kyc_edit_unlocked'] = 0;
+            }
+        }
     } else {
         if (!$isEditable) {
             if ($isFinalApproved && $editRequestStatus === 'pending') {
@@ -165,6 +198,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($error === '') {
             foreach ($form as $key => $_) {
+                if ($key === 'gst_doc_path' || $key === 'pan_doc_path' || $key === 'aadhaar_doc_path') {
+                    continue;
+                }
                 $form[$key] = trim((string) ($_POST[$key] ?? ''));
             }
             $form['gst_number'] = strtoupper($form['gst_number']);
@@ -403,7 +439,7 @@ require __DIR__ . '/partials/shell-top.php';
                 <?php if ($kycSubmitted && $isFinalApproved): ?>
                   Final approval: <strong><?= h(seller_kyc_format_dt((string) ($details['kyc_final_reviewed_at'] ?? ''))) ?></strong>.
                   <?php if ($isEditUnlocked): ?>
-                    Admin ne edit unlock kiya — form bhar kar dubara <strong>Save</strong> karein.
+                    Admin ne edit unlock kiya — form bhar kar dubara <strong>Save</strong> karein. Pehle upload ki files tab tak rehti hain jab tak nayi file choose na ho. Edit band karna ho to neeche <strong>Cancel edit — lock again</strong> use karein.
                   <?php elseif ($editRequestStatus === 'pending'): ?>
                     <strong>Edit request</strong> admin ke review me hai.
                   <?php elseif ($editRequestStatus === 'rejected' && trim((string) ($details['kyc_edit_rejection_reason'] ?? '')) !== ''): ?>
@@ -458,6 +494,20 @@ require __DIR__ . '/partials/shell-top.php';
                   <input type="hidden" name="action" value="request_edit_access">
                   <button type="submit" class="admin-btn admin-btn--outline seller-kyc-request-btn" <?= $editRequestStatus === 'pending' ? ' disabled' : '' ?>>
                     Request edit access
+                  </button>
+                </form>
+              </div>
+            <?php endif; ?>
+
+            <?php if ($isFinalApproved && $isEditUnlocked): ?>
+              <div class="seller-kyc-request-banner">
+                <div class="seller-kyc-request-banner__text">
+                  <strong>Edit nahi karna?</strong> Bina save kiye lock wapas laga sakte ho — database me jo documents pehle se hain wahi rahenge.
+                </div>
+                <form method="post" class="seller-kyc-request-form">
+                  <input type="hidden" name="action" value="cancel_edit_unlock">
+                  <button type="submit" class="admin-btn admin-btn--outline seller-kyc-request-btn" onclick="return confirm('KYC form dubara lock karna hai? Baad mein badlav ke liye phir se admin se edit request karni hogi.');">
+                    Cancel edit — lock again
                   </button>
                 </form>
               </div>
