@@ -211,6 +211,65 @@ function profile_order_stats_for_user(PDO $pdo, int $userId): array
     ];
 }
 
+/**
+ * One row per product the user received on a delivered order, with optional review (same user + product).
+ * Pending reviews sort first, then by most recent delivery.
+ *
+ * @return list<array<string, mixed>>
+ */
+function profile_delivered_review_rows_for_user(PDO $pdo, int $userId): array
+{
+    if ($userId <= 0) {
+        return [];
+    }
+    try {
+        $st = $pdo->prepare(
+            'SELECT d.product_id,
+                    oi.name AS item_name,
+                    oi.emoji AS item_emoji,
+                    oi.variant_text,
+                    o.order_ref,
+                    COALESCE(o.delivered_at, o.created_at) AS delivered_at,
+                    p.name AS product_name,
+                    p.slug,
+                    p.emoji AS product_emoji,
+                    p.image_path,
+                    (SELECT pi.image_path FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.sort_order ASC, pi.id ASC LIMIT 1) AS gallery_first,
+                    r.id AS review_id,
+                    r.rating,
+                    r.review_text,
+                    r.review_status,
+                    r.seller_response,
+                    r.seller_responded_at,
+                    r.created_at AS review_created_at
+             FROM (
+                SELECT oi.product_id, MAX(oi.id) AS max_oi_id
+                FROM order_items oi
+                INNER JOIN orders o ON o.id = oi.order_id
+                WHERE o.user_id = ?
+                  AND LOWER(TRIM(o.status)) = ?
+                  AND oi.product_id IS NOT NULL
+                GROUP BY oi.product_id
+             ) d
+             INNER JOIN order_items oi ON oi.id = d.max_oi_id
+             INNER JOIN orders o ON o.id = oi.order_id
+                AND o.user_id = ?
+                AND LOWER(TRIM(o.status)) = ?
+             LEFT JOIN products p ON p.id = d.product_id
+             LEFT JOIN product_reviews r ON r.product_id = d.product_id AND r.user_id = ?
+             ORDER BY (r.id IS NULL) DESC, delivered_at DESC, d.product_id DESC
+             LIMIT 200'
+        );
+        $delivered = 'delivered';
+        $st->execute([$userId, $delivered, $userId, $delivered, $userId]);
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Throwable) {
+        return [];
+    }
+
+    return is_array($rows) ? $rows : [];
+}
+
 /** @return list<string> */
 function order_tracking_steps(string $status): array
 {

@@ -3248,12 +3248,13 @@ function initThemeToggle() {
   document.addEventListener("DOMContentLoaded", () => {
     renderAddresses();
     if (profileForm) {
-      const allowedProfileTabs = ["personal", "addresses", "wishlist", "rewards", "settings"];
+      const allowedProfileTabs = ["personal", "addresses", "wishlist", "reviews", "rewards", "settings"];
       const params = new URLSearchParams(window.location.search);
       let deepTab = params.get("tab");
       if (!deepTab) {
         const h = (window.location.hash || "").replace(/^#/, "").toLowerCase();
         if (h === "wishlist" || h === "tab-wishlist") deepTab = "wishlist";
+        if (h === "reviews" || h === "tab-reviews") deepTab = "reviews";
       }
       if (deepTab && allowedProfileTabs.includes(deepTab)) {
         const tabBtn = document.querySelector('.smenu-item[data-tab="' + deepTab + '"]');

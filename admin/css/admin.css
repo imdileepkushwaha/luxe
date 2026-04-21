@@ -58,8 +58,8 @@ body.admin-app--platform .admin-sidebar__user-avatar {
 
 /* Seller panel — warm light surfaces only (dark uses tokens from html.admin-theme-dark) */
 html:not(.admin-theme-dark) body.admin-app--merchant {
-  --admin-bg: #faf8f6;
-  --admin-card-cap-bg: #f1ede9;
+  --admin-bg: #ffffff;
+  /* --admin-card-cap-bg: #f1ede9; */
 }
 
 body.admin-app--merchant .admin-sidebar__user-avatar {
