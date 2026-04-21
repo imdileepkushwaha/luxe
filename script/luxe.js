@@ -6,7 +6,7 @@
 // ================================================================
 
 const LUXE_URLS = (typeof window.LUXE_URLS !== "undefined" && window.LUXE_URLS) ? window.LUXE_URLS : {
-  home: "index.php", login: "login.php", cart: "cart.php", product: "product.php", orders: "orders.php", profile: "profile.php"
+  home: "index.php", login: "login.php", cart: "cart.php", product: "product.php", orders: "orders.php", profile: "profile.php", productList: "product-list.php"
 };
 function luxeProductUrl(id) { return LUXE_URLS.product + "?id=" + encodeURIComponent(String(id)); }
 
@@ -722,12 +722,21 @@ function initThemeToggle() {
 // ================================================================
 
 (function initIndexPage() {
-  if (!document.getElementById("loader")) return;
+  const pageKind = document.body.getAttribute("data-page") || "";
+  const isProductList = pageKind === "product-list";
+  if (!document.getElementById("loader") && !isProductList) return;
+  if (!document.getElementById("productsGrid")) return;
 
   // ---- Products Data (MySQL via PHP or fallback) ----
   const products = luxeGetSearchCatalog();
 
   let currentCategoryFilter = "all";
+  if (isProductList && typeof window.__PRODUCT_LIST_INITIAL_CATEGORY__ !== "undefined") {
+    const ic = String(window.__PRODUCT_LIST_INITIAL_CATEGORY__ || "all").toLowerCase().trim();
+    if (ic === "fashion" || ic === "electronics" || ic === "beauty" || ic === "home") {
+      currentCategoryFilter = ic;
+    }
+  }
   let currentSearchQuery = "";
 
   function applyUrlSearchQueryParam() {
@@ -767,10 +776,12 @@ function initThemeToggle() {
   window.addEventListener("load", () => {
     setTimeout(() => {
       const loaderEl = document.getElementById("loader");
-      loaderEl.classList.add("hidden");
-      loaderEl.setAttribute("aria-busy", "false");
+      if (loaderEl) {
+        loaderEl.classList.add("hidden");
+        loaderEl.setAttribute("aria-busy", "false");
+      }
       initAnimations();
-    }, 1900);
+    }, isProductList ? 0 : 1900);
   });
 
   // ---- Render Products ----
@@ -807,6 +818,19 @@ function initThemeToggle() {
     });
   }
 
+  function luxeProductListSyncUrlCategory(filter) {
+    if (!isProductList || typeof history.replaceState !== "function") return;
+    try {
+      const u = new URL(window.location.href);
+      if (filter === "all") {
+        u.searchParams.delete("category");
+      } else {
+        u.searchParams.set("category", filter);
+      }
+      history.replaceState({}, "", u.pathname + u.search + u.hash);
+    } catch (_e) {}
+  }
+
   // ---- Filter Tabs ----
   document.querySelectorAll(".filter-btn").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -817,6 +841,7 @@ function initThemeToggle() {
       btn.classList.add("active");
       btn.setAttribute("aria-selected", "true");
       currentCategoryFilter = btn.dataset.filter || "all";
+      luxeProductListSyncUrlCategory(currentCategoryFilter);
       renderProducts();
     });
   });
@@ -910,26 +935,29 @@ function initThemeToggle() {
     setTimeout(() => { window.location.href = LUXE_URLS.cart; }, 1000);
   };
 
-  // ---- Countdown Timer ----
-  let endTime = Date.now() + (8 * 3600 + 45 * 60 + 30) * 1000;
-  function updateCountdown() {
-    const remaining = Math.max(0, endTime - Date.now());
-    const h = Math.floor(remaining / 3600000);
-    const m = Math.floor((remaining % 3600000) / 60000);
-    const s = Math.floor((remaining % 60000) / 1000);
-    const hEl = document.getElementById("hours"), mEl = document.getElementById("mins"), sEl = document.getElementById("secs");
-    if (hEl) hEl.textContent = String(h).padStart(2, "0");
-    if (mEl) mEl.textContent = String(m).padStart(2, "0");
-    if (sEl) sEl.textContent = String(s).padStart(2, "0");
+  // ---- Countdown Timer (homepage flash deals only) ----
+  if (document.getElementById("hours")) {
+    let endTime = Date.now() + (8 * 3600 + 45 * 60 + 30) * 1000;
+    function updateCountdown() {
+      const remaining = Math.max(0, endTime - Date.now());
+      const h = Math.floor(remaining / 3600000);
+      const m = Math.floor((remaining % 3600000) / 60000);
+      const s = Math.floor((remaining % 60000) / 1000);
+      const hEl = document.getElementById("hours"), mEl = document.getElementById("mins"), sEl = document.getElementById("secs");
+      if (hEl) hEl.textContent = String(h).padStart(2, "0");
+      if (mEl) mEl.textContent = String(m).padStart(2, "0");
+      if (sEl) sEl.textContent = String(s).padStart(2, "0");
+    }
+    setInterval(updateCountdown, 1000);
+    updateCountdown();
   }
-  setInterval(updateCountdown, 1000);
-  updateCountdown();
 
   // ---- Newsletter ----
   window.handleSubscribe = function(e) {
     e.preventDefault();
     showToast("🎉 Subscribed successfully! Welcome to LUXE.");
-    document.getElementById("nlEmail").value = "";
+    const nl = document.getElementById("nlEmail");
+    if (nl) nl.value = "";
   };
 
   // ---- Animations ----
