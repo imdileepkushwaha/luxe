@@ -590,6 +590,65 @@ function db_ensure_product_variant_inventory_table(PDO $pdo): void
     }
 }
 
+function db_ensure_seller_bank_accounts_table(PDO $pdo): void
+{
+    try {
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS seller_bank_accounts (
+                id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                seller_id INT UNSIGNED NOT NULL,
+                bank_name VARCHAR(120) NOT NULL,
+                account_holder_name VARCHAR(120) NOT NULL,
+                account_number VARCHAR(40) NOT NULL,
+                ifsc VARCHAR(20) NOT NULL,
+                upi_id VARCHAR(100) NOT NULL DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_seller_bank_account (seller_id, account_number),
+                KEY idx_seller_bank_accounts_seller (seller_id, created_at),
+                CONSTRAINT fk_seller_bank_accounts_seller FOREIGN KEY (seller_id) REFERENCES seller_users(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+
+        $dbName = (string) $pdo->query('SELECT DATABASE()')->fetchColumn();
+        if ($dbName !== '') {
+            $colChk = $pdo->prepare(
+                'SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                 WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+            );
+            $colChk->execute([$dbName, 'seller_bank_accounts', 'upi_id']);
+            if ((int) $colChk->fetchColumn() === 0) {
+                $pdo->exec(
+                    "ALTER TABLE seller_bank_accounts ADD COLUMN upi_id VARCHAR(100) NOT NULL DEFAULT '' AFTER ifsc"
+                );
+            }
+        }
+    } catch (Throwable) {
+        // Missing permissions or non-MySQL: rely on manual migrations
+    }
+}
+
+function db_ensure_seller_payment_gateway_configs_table(PDO $pdo): void
+{
+    try {
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS seller_payment_gateway_configs (
+                seller_id INT UNSIGNED PRIMARY KEY,
+                gateway VARCHAR(32) NOT NULL DEFAULT 'none',
+                mode VARCHAR(8) NOT NULL DEFAULT 'test',
+                public_key VARCHAR(255) NOT NULL DEFAULT '',
+                secret_key VARCHAR(255) NOT NULL DEFAULT '',
+                merchant_id VARCHAR(120) NOT NULL DEFAULT '',
+                webhook_secret VARCHAR(255) NOT NULL DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                CONSTRAINT fk_seller_pgw_seller FOREIGN KEY (seller_id) REFERENCES seller_users(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+    } catch (Throwable) {
+        // Missing permissions or non-MySQL: rely on manual migrations
+    }
+}
+
 function db_ensure_seller_withdraw_requests_table(PDO $pdo): void
 {
     try {
@@ -950,6 +1009,8 @@ function db(): PDO
     db_ensure_product_images_table($pdo);
     db_ensure_product_variant_inventory_table($pdo);
     db_ensure_seller_withdraw_requests_table($pdo);
+    db_ensure_seller_bank_accounts_table($pdo);
+    db_ensure_seller_payment_gateway_configs_table($pdo);
     db_ensure_seller_shipping_settings_table($pdo);
     db_ensure_seller_delivery_options_table($pdo);
     db_ensure_seller_return_settings_table($pdo);
