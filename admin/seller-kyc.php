@@ -228,6 +228,8 @@ $regTotalPages = $pReg['totalPages'];
 if ($totalRegRequests === 0) {
     $requests = [];
 } else {
+    $regLimit = max(1, (int) $regPerPage);
+    $regOff = max(0, (int) $regOffset);
     $requestsSt = $pdo->prepare(
         "SELECT r.id, r.full_name, r.email, r.phone, r.requested_categories, r.note,
                 r.business_name, r.gst_number, r.pan_number, r.aadhaar_number,
@@ -240,10 +242,9 @@ if ($totalRegRequests === 0) {
          LEFT JOIN admin_users a ON a.id = r.reviewed_by
          {$whereSql}
          ORDER BY r.id DESC
-         LIMIT ? OFFSET ?"
+         LIMIT {$regLimit} OFFSET {$regOff}"
     );
-    $execReg = array_merge($params, [$regPerPage, $regOffset]);
-    $requestsSt->execute($execReg);
+    $requestsSt->execute($params);
     $requests = $requestsSt->fetchAll();
 }
 
@@ -262,6 +263,8 @@ $pFin = admin_pagination_resolve($totalFinalKyc, $finReqPage, $finPerPage);
 if ($totalFinalKyc === 0) {
     $finalKycRows = [];
 } else {
+    $finLimit = max(1, (int) $pFin['perPage']);
+    $finOff = max(0, (int) $pFin['offset']);
     $finalKycSt = $pdo->prepare(
         "SELECT s.id, s.full_name, s.email, s.business_name, s.gst_number, s.pan_number, s.aadhaar_number,
                 s.gst_doc_path, s.pan_doc_path, s.aadhaar_doc_path,
@@ -275,10 +278,8 @@ if ($totalFinalKyc === 0) {
          LEFT JOIN admin_users a ON a.id = s.kyc_final_reviewed_by
          WHERE s.is_active = 1
          ORDER BY s.id DESC
-         LIMIT ? OFFSET ?"
+         LIMIT {$finLimit} OFFSET {$finOff}"
     );
-    $finalKycSt->bindValue(1, $pFin['perPage'], PDO::PARAM_INT);
-    $finalKycSt->bindValue(2, $pFin['offset'], PDO::PARAM_INT);
     $finalKycSt->execute();
     $finalKycRows = $finalKycSt->fetchAll();
 }
@@ -289,6 +290,8 @@ $pEdit = admin_pagination_resolve($pendingEditCount, $editReqPage, $editPerPage)
 if ($pendingEditCount === 0) {
     $pendingEditRows = [];
 } else {
+    $editLimit = max(1, (int) $pEdit['perPage']);
+    $editOff = max(0, (int) $pEdit['offset']);
     $pendingEditSt = $pdo->prepare(
         "SELECT s.id, s.full_name, s.email, s.kyc_edit_requested_at, s.kyc_updated_at
          FROM seller_users s
@@ -296,10 +299,8 @@ if ($pendingEditCount === 0) {
            AND s.kyc_final_approved = 1
            AND s.kyc_edit_request_status = 'pending'
          ORDER BY s.kyc_edit_requested_at DESC, s.id DESC
-         LIMIT ? OFFSET ?"
+         LIMIT {$editLimit} OFFSET {$editOff}"
     );
-    $pendingEditSt->bindValue(1, $pEdit['perPage'], PDO::PARAM_INT);
-    $pendingEditSt->bindValue(2, $pEdit['offset'], PDO::PARAM_INT);
     $pendingEditSt->execute();
     $pendingEditRows = $pendingEditSt->fetchAll();
 }

@@ -2,55 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/_auth.php';
-
-/**
- * @return list<string>
- */
-function seller_parse_option_csv(string $csv): array
-{
-    $parts = array_map('trim', explode(',', $csv));
-    $parts = array_values(array_filter($parts, static fn(string $v): bool => $v !== ''));
-    return array_values(array_unique($parts));
-}
-
-/**
- * @param list<string> $sizes
- * @param list<string> $colors
- * @return list<array{size:string,color:string,key:string,label:string}>
- */
-function seller_variant_combinations(array $sizes, array $colors): array
-{
-    if ($sizes === [] && $colors === []) {
-        return [];
-    }
-    $sizeList = $sizes === [] ? [''] : $sizes;
-    $colorList = $colors === [] ? [''] : $colors;
-    $rows = [];
-    foreach ($sizeList as $size) {
-        foreach ($colorList as $color) {
-            $sz = trim((string) $size);
-            $cl = trim((string) $color);
-            $key = strtolower($sz) . '|' . strtolower($cl);
-            $label = '';
-            if ($sz !== '' && $cl !== '') {
-                $label = $sz . ' / ' . $cl;
-            } elseif ($sz !== '') {
-                $label = $sz;
-            } elseif ($cl !== '') {
-                $label = $cl;
-            } else {
-                $label = 'Default';
-            }
-            $rows[] = [
-                'size' => $sz,
-                'color' => $cl,
-                'key' => $key,
-                'label' => $label,
-            ];
-        }
-    }
-    return $rows;
-}
+require_once __DIR__ . '/../includes/seller_variant_inventory.php';
 
 $pdo = db();
 $seller = seller_require_login($pdo);
@@ -611,6 +563,13 @@ require __DIR__ . '/partials/shell-top.php';
                           </div>
                         <?php endforeach; ?>
                       </div>
+                    </div>
+                  </div>
+                  <div class="seller-drawer__foot seller-variant-drawer__foot">
+                    <p class="seller-variant-drawer__foot-hint">Changes yahan se save karein — poori inventory form submit hogi.</p>
+                    <div class="seller-drawer__foot-actions">
+                      <button type="button" class="admin-btn admin-btn--ghost-light" data-variant-drawer-close>Close</button>
+                      <button type="submit" class="admin-btn admin-btn--primary">Save inventory</button>
                     </div>
                   </div>
                 </aside>

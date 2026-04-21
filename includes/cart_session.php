@@ -24,6 +24,44 @@ function cart_normalize_variant_color(string $c): string
     return $c;
 }
 
+/**
+ * Merge cart lines that refer to the same product + variant (normalized) so total qty
+ * is capped once against stock instead of per duplicate row.
+ *
+ * @param list<array<string,mixed>> $items
+ * @return list<array<string,mixed>>
+ */
+function cart_merge_duplicate_lines(array $items): array
+{
+    if ($items === []) {
+        return [];
+    }
+
+    /** @var array<string, array<string,mixed>> */
+    $merged = [];
+    foreach ($items as $it) {
+        if (!is_array($it)) {
+            continue;
+        }
+        $pid = (int) ($it['id'] ?? 0);
+        if ($pid <= 0) {
+            continue;
+        }
+        $sz = mb_strtolower(cart_normalize_variant_size((string) ($it['size'] ?? '')));
+        $cl = mb_strtolower(cart_normalize_variant_color((string) ($it['color'] ?? '')));
+        $groupKey = $pid . "\x1f" . $sz . "\x1f" . $cl;
+        $q = max(1, (int) ($it['qty'] ?? 1));
+        if (!isset($merged[$groupKey])) {
+            $merged[$groupKey] = $it;
+            $merged[$groupKey]['qty'] = $q;
+        } else {
+            $merged[$groupKey]['qty'] = max(1, (int) ($merged[$groupKey]['qty'] ?? 1)) + $q;
+        }
+    }
+
+    return array_values($merged);
+}
+
 function cart_line_max_qty(PDO $pdo, int $productId, string $size, string $color): int
 {
     $cntSt = $pdo->prepare('SELECT COUNT(*) FROM product_variant_inventory WHERE product_id = ? AND active = 1');
@@ -62,6 +100,8 @@ function cart_filter_available_items(PDO $pdo, array $items): array
     if ($items === []) {
         return [];
     }
+
+    $items = cart_merge_duplicate_lines($items);
 
     $productSt = $pdo->prepare(
         'SELECT p.id, p.name, p.emoji, p.price, p.stock_qty, p.brand, p.seller_id

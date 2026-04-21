@@ -37,6 +37,11 @@ function luxeGetSearchCatalog() {
   return LUXE_DEMO_CATALOG;
 }
 
+/** True when listing must not quick-add (variant stock or multiple size/color options). User picks on product page. */
+function luxeProductRequiresVariantPick(p) {
+  return !!(p && p.requires_variant_pick);
+}
+
 function luxeProductMatchesSearchQuery(p, query) {
   const rawQ = String(query || "").trim().toLowerCase();
   if (!rawQ) return true;
@@ -689,7 +694,7 @@ function initThemeToggle() {
           </div>
           <div class="product-card-actions">
             <a href="${luxeProductUrl(p.id)}" class="view-product-btn">View Details</a>
-            <button class="add-cart-btn" data-id="${p.id}">Add to Cart</button>
+            <button type="button" class="add-cart-btn" data-id="${p.id}" data-needs-options="${luxeProductRequiresVariantPick(p) ? "1" : "0"}">${luxeProductRequiresVariantPick(p) ? "Choose options" : "Add to Cart"}</button>
           </div>
         </div>
       `;
@@ -706,6 +711,11 @@ function initThemeToggle() {
 
       card.querySelector(".add-cart-btn").addEventListener("click", function(e) {
         e.stopPropagation();
+        if (luxeProductRequiresVariantPick(p)) {
+          showToast("Size / colour chunne ke liye product page khul raha hai…");
+          window.location.href = luxeProductUrl(p.id);
+          return;
+        }
         addToCart(p);
       });
     });
@@ -1276,15 +1286,45 @@ function initThemeToggle() {
 (function initProductPage() {
   if (!document.getElementById("mainImage")) return;
   const P = window.__PRODUCT_PAGE__ || {};
+  /** Rebuild variant stock map from server list — JSON object keys for "size|color" can be unreliable in some environments. */
+  if (Array.isArray(P.variantStockEntries) && P.variantStockEntries.length) {
+    const rebuilt = Object.create(null);
+    for (let i = 0; i < P.variantStockEntries.length; i++) {
+      const row = P.variantStockEntries[i];
+      if (!row || typeof row !== "object") continue;
+      const k = String(row.k ?? "").trim();
+      if (!k) continue;
+      rebuilt[k] = Math.max(0, Number(row.q ?? 0) || 0);
+    }
+    P.variantStock = rebuilt;
+  }
+  /** Uploaded paths (uploads/...) need a leading slash for img src from product.php */
+  function luxeResolveProductImgUrl(u) {
+    if (!u || typeof u !== "string") return "";
+    const t = u.trim();
+    if (!t) return "";
+    if (/^https?:\/\//i.test(t)) return t;
+    if (t.startsWith("/")) return t;
+    return "/" + t.replace(/^\/+/, "");
+  }
+  let productGalleryUrls = [];
   const stockQty = Math.max(0, Number(P.stockQty ?? 0) || 0);
   const isDiscontinuedBadge = String(P.badge || "").toLowerCase() === "discontinued";
-  const hasVariantInventory = !!P.hasVariantInventory;
+  const hasVariantInventory =
+    !!P.hasVariantInventory ||
+    (Array.isArray(P.variantStockEntries) && P.variantStockEntries.length > 0);
   const hasColorOptions = !!P.hasColorOptions;
   const sellerPreviewOnly = !!P.sellerPreviewOnly;
 
+  function normalizeVariantColorForStock(c) {
+    const t = String(c ?? "").trim();
+    if (!t || t.toLowerCase() === "default") return "";
+    return t.toLowerCase();
+  }
+
   function variantStockKey(size, color) {
     const sz = String(size ?? "").trim().toLowerCase();
-    const col = hasColorOptions ? String(color ?? "").trim().toLowerCase() : "";
+    const col = hasColorOptions ? normalizeVariantColorForStock(color) : "";
     return sz + "|" + col;
   }
 
@@ -1293,8 +1333,41 @@ function initThemeToggle() {
     if (isDiscontinuedBadge) return 0;
     if (!hasVariantInventory) return stockQty;
     const map = P.variantStock || {};
-    const v = map[variantStockKey(size, color)];
-    return Math.max(0, Number(v ?? 0) || 0);
+    const pick = key => {
+      if (!Object.prototype.hasOwnProperty.call(map, key)) return null;
+      return Math.max(0, Number(map[key]) || 0);
+    };
+    const k = variantStockKey(size, color);
+    let v = pick(k);
+    if (v !== null) return v;
+    const sz = String(size ?? "").trim().toLowerCase();
+    const blankKey = sz + "|";
+    if (hasColorOptions) {
+      const prefix = sz + "|";
+      let hasColorSpecificRow = false;
+      for (const key of Object.keys(map)) {
+        if (key.startsWith(prefix) && key.length > prefix.length) {
+          hasColorSpecificRow = true;
+          break;
+        }
+      }
+      if (!hasColorSpecificRow) {
+        v = pick(blankKey);
+        if (v !== null) return v;
+      }
+      return 0;
+    } else {
+      v = pick(blankKey);
+      if (v !== null) return v;
+      let best = 0;
+      const p = sz + "|";
+      for (const key of Object.keys(map)) {
+        if (key.startsWith(p)) {
+          best = Math.max(best, Number(map[key]) || 0);
+        }
+      }
+      return best;
+    }
   }
 
   function anyVariantInStock() {
@@ -1320,17 +1393,44 @@ function initThemeToggle() {
     const pct = Pb.original > 0 ? Math.round((1 - Pb.price / Pb.original) * 100) : 0;
     const psv = document.querySelector(".price-save"); if (psv) psv.textContent = "Save ₹" + (Pb.original - Pb.price).toLocaleString("en-IN") + " (" + pct + "%)";
     const rc = document.querySelector(".rating-count"); if (rc) rc.innerHTML = Pb.rating + " <span>(" + Pb.reviews.toLocaleString("en-IN") + " reviews)</span>";
-    const galleryImages = (Array.isArray(Pb.images) && Pb.images.length)
-      ? Pb.images
+    const rawList = (Array.isArray(Pb.images) && Pb.images.length) ? Pb.images : null;
+    productGalleryUrls = rawList
+      ? rawList.map(luxeResolveProductImgUrl).filter(u => u !== "")
       : luxeProductImageSet(Pb);
-    const pe = document.getElementById("productEmoji"); if (pe) pe.src = galleryImages[0];
-    const ze = document.getElementById("zoomEmoji"); if (ze) ze.src = galleryImages[0];
-    document.querySelectorAll(".thumb").forEach((thumb, idx) => {
-      const imgUrl = galleryImages[idx % galleryImages.length];
+    if (productGalleryUrls.length === 0) {
+      productGalleryUrls = luxeProductImageSet(Pb);
+    }
+    const maxGallery = 6;
+    productGalleryUrls = productGalleryUrls.slice(0, maxGallery);
+    const thumbsRoot = document.getElementById("thumbs");
+    let thumbEls = Array.from(document.querySelectorAll("#thumbs .thumb"));
+    while (productGalleryUrls.length > thumbEls.length && thumbsRoot && thumbEls[0] && thumbEls.length < maxGallery) {
+      const clone = thumbEls[0].cloneNode(true);
+      clone.classList.remove("active");
+      thumbsRoot.appendChild(clone);
+      thumbEls = Array.from(document.querySelectorAll("#thumbs .thumb"));
+    }
+    thumbEls.forEach((thumb, idx) => {
+      if (idx >= productGalleryUrls.length) {
+        thumb.style.display = "none";
+        thumb.setAttribute("aria-hidden", "true");
+        return;
+      }
+      thumb.style.display = "";
+      thumb.removeAttribute("aria-hidden");
+      thumb.classList.toggle("active", idx === 0);
+      const imgUrl = productGalleryUrls[idx];
       thumb.dataset.image = imgUrl;
       const img = thumb.querySelector("img");
-      if (img) img.src = imgUrl;
+      if (img) {
+        img.src = imgUrl;
+        img.alt = (Pb.name || "Product") + " — " + (idx + 1);
+      }
     });
+    const pe = document.getElementById("productEmoji");
+    if (pe && productGalleryUrls[0]) pe.src = productGalleryUrls[0];
+    const ze = document.getElementById("zoomEmoji");
+    if (ze && productGalleryUrls[0]) ze.src = productGalleryUrls[0];
     const saleBadge = document.querySelector(".main-image .badge-sale"); if (saleBadge) saleBadge.textContent = pct + "% OFF";
   }
 
@@ -1360,8 +1460,8 @@ function initThemeToggle() {
     ];
 
   // ---- Gallery ----
-  let currentImage = (window.__PRODUCT_PAGE__ && Array.isArray(window.__PRODUCT_PAGE__.images) && window.__PRODUCT_PAGE__.images.length)
-    ? window.__PRODUCT_PAGE__.images[0]
+  let currentImage = productGalleryUrls.length
+    ? productGalleryUrls[0]
     : luxeProductImageUrl(window.__PRODUCT_PAGE__ || { category: "fashion", id: 1 });
   window.switchImage = function(btn) {
     document.querySelectorAll(".thumb").forEach(t => t.classList.remove("active"));
@@ -1440,13 +1540,23 @@ function initThemeToggle() {
       }
     }
 
+    const sizeBtnCount = document.querySelectorAll(".size-btn").length;
+    const multiSizeNoVariants = !hasVariantInventory && sizeBtnCount > 1;
     document.querySelectorAll(".size-btn").forEach(b => {
       const sz = readSizeFromButton(b);
       const v = getVariantStock(sz, colorTxt);
+      const sub = b.querySelector(".size-btn-stock");
       if (hasVariantInventory) {
         b.classList.toggle("out", v <= 0);
-        const sub = b.querySelector(".size-btn-stock");
         if (sub) sub.textContent = v > 0 ? "(" + v + ")" : "";
+      } else if (sub) {
+        if (multiSizeNoVariants) {
+          sub.textContent = "";
+          b.classList.toggle("out", v <= 0);
+        } else {
+          b.classList.toggle("out", v <= 0);
+          sub.textContent = v > 0 ? "(" + v + ")" : "";
+        }
       }
     });
 
@@ -1641,15 +1751,8 @@ function initThemeToggle() {
     const colorTxt = colorEl ? colorEl.textContent.trim() : "Default";
     const btn = document.getElementById("addCartBtn");
     const cartBtn = document.getElementById("cartNavBtn");
-    const countEl = document.getElementById("cartCount");
-    btn.innerHTML = `<span>✓ Added!</span>`;
-    btn.style.background = "linear-gradient(135deg, #10b981, #059669)";
-    setTimeout(() => { btn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg> Add to Cart`; btn.style.background = ""; }, 1500);
-    cartBtn?.classList.remove("bounce"); void cartBtn?.offsetWidth; cartBtn?.classList.add("bounce");
-    if (countEl) countEl.textContent = parseInt(countEl.textContent || "0", 10) + qty;
     const rawSize = selectedSize == null ? "" : String(selectedSize).trim();
     const sizeLine = rawSize === "" ? "Standard" : rawSize;
-    showToast(`🛒 ${qty}x ${P.name} (${sizeLine}) added to cart!`);
     const line = {
       id: P.id,
       name: P.name,
@@ -1664,13 +1767,40 @@ function initThemeToggle() {
     };
     luxeFetchCart().then(sessionCart => {
       const idx = sessionCart.findIndex(i => luxeCartLineMatches(i, line));
-      if (idx >= 0) {
-        sessionCart[idx].qty = (sessionCart[idx].qty || 1) + qty;
-      } else {
-        sessionCart.push(line);
+      const existingQty = idx >= 0 ? Math.max(0, Number(sessionCart[idx].qty) || 0) : 0;
+      const cap = Math.max(0, maxQty - existingQty);
+      const addQty = Math.min(qty, cap);
+      if (addQty <= 0) {
+        showToast("⚠️ You already have the maximum available for this size / color.");
+        return Promise.reject(new Error("cap"));
       }
-      return luxeSaveCart(sessionCart);
-    }).then(() => hydrateProductCartCount()).catch(() => {});
+      if (idx >= 0) {
+        sessionCart[idx].qty = existingQty + addQty;
+      } else {
+        sessionCart.push({ ...line, qty: addQty });
+      }
+      return luxeSaveCart(sessionCart).then(saved => ({ saved, addQty, sizeLine }));
+    }).then(result => {
+      if (!result || !result.saved) return;
+      const { addQty: added, sizeLine: szLine } = result;
+      if (btn) {
+        btn.innerHTML = `<span>✓ Added!</span>`;
+        btn.style.background = "linear-gradient(135deg, #10b981, #059669)";
+        setTimeout(() => {
+          btn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg> Add to Cart`;
+          btn.style.background = "";
+        }, 1500);
+      }
+      cartBtn?.classList.remove("bounce"); void cartBtn?.offsetWidth; cartBtn?.classList.add("bounce");
+      const countEl = document.getElementById("cartCount");
+      if (countEl) countEl.textContent = parseInt(countEl.textContent || "0", 10) + added;
+      if (added < qty) {
+        showToast(`⚠️ Only ${maxQty} in stock for this variant. Added ${added} to cart.`);
+      } else {
+        showToast(`🛒 ${added}x ${P.name} (${szLine}) added to cart!`);
+      }
+      hydrateProductCartCount();
+    }).catch(() => {});
   };
 
   window.buyNow = function() {
@@ -1708,10 +1838,17 @@ function initThemeToggle() {
     luxeFetchCart()
       .then(sessionCart => {
         const idx = sessionCart.findIndex(i => luxeCartLineMatches(i, line));
+        const existingQty = idx >= 0 ? Math.max(0, Number(sessionCart[idx].qty) || 0) : 0;
+        const cap = Math.max(0, maxQty - existingQty);
+        const addQty = Math.min(qty, cap);
+        if (addQty <= 0) {
+          showToast("⚠️ You already have the maximum available for this size / color.");
+          return Promise.reject(new Error("cap"));
+        }
         if (idx >= 0) {
-          sessionCart[idx].qty = (sessionCart[idx].qty || 1) + qty;
+          sessionCart[idx].qty = existingQty + addQty;
         } else {
-          sessionCart.push(line);
+          sessionCart.push({ ...line, qty: addQty });
         }
         return luxeSaveCart(sessionCart);
       })

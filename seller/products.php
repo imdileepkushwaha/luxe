@@ -2,6 +2,8 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/_auth.php';
+require_once __DIR__ . '/../includes/seller_product_catalog.php';
+require_once __DIR__ . '/../includes/seller_variant_inventory.php';
 
 $pdo = db();
 $seller = seller_require_login($pdo);
@@ -13,7 +15,7 @@ $kycCompleted = (int) ($seller['kyc_completed'] ?? 0) === 1;
 $kycFinalApproved = (int) ($seller['kyc_final_approved'] ?? 0) === 1;
 $canAddProducts = $kycCompleted && $kycFinalApproved;
 $kycRejectionReason = trim((string) ($seller['kyc_rejection_reason'] ?? ''));
-$sizeCatalog = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'UK 6', 'UK 7', 'UK 8', 'UK 9', 'UK 10', 'UK 11', 'UK 12', 'Free Size'];
+$sizeCatalog = seller_base_size_catalog();
 $colorCatalog = ['Black', 'White', 'Blue', 'Navy', 'Red', 'Green', 'Yellow', 'Orange', 'Pink', 'Purple', 'Brown', 'Grey', 'Silver', 'Gold', 'Beige', 'Maroon'];
 $selectedSizes = [];
 $selectedColors = [];
@@ -52,6 +54,27 @@ function seller_sku_exists(PDO $pdo, string $sku, int $ignoreProductId = 0): boo
     $st = $pdo->prepare('SELECT id FROM products WHERE sku = ? AND id != ? LIMIT 1');
     $st->execute([$sku, $ignoreProductId]);
     return (bool) $st->fetchColumn();
+}
+
+/** Whitespace-separated words (Unicode-safe). */
+function seller_word_count(string $text): int
+{
+    $text = trim(preg_replace('/\s+/u', ' ', $text) ?? '');
+    if ($text === '') {
+        return 0;
+    }
+    $parts = preg_split('/\s+/u', $text, -1, PREG_SPLIT_NO_EMPTY);
+
+    return is_array($parts) ? count($parts) : 0;
+}
+
+/** @return 'standard'|'express'|'free' */
+function seller_normalize_shipping_class(string $raw): string
+{
+    $v = strtolower(trim($raw));
+    $allowed = ['standard', 'express', 'free'];
+
+    return in_array($v, $allowed, true) ? $v : 'standard';
 }
 
 function seller_generate_unique_sku(PDO $pdo, string $name, string $category, int $ignoreProductId = 0): string
@@ -111,33 +134,6 @@ function seller_normalize_options_from_post($posted, array $allowed): string
     return implode(', ', array_values(array_unique($clean)));
 }
 
-/**
- * @param list<string> $allowed
- * @return list<string>
- */
-function seller_parse_saved_options(string $value, array $allowed): array
-{
-    if (trim($value) === '') {
-        return [];
-    }
-
-    $allowedMap = [];
-    foreach ($allowed as $item) {
-        $allowedMap[strtolower($item)] = $item;
-    }
-
-    $clean = [];
-    foreach (explode(',', $value) as $part) {
-        $key = strtolower(trim($part));
-        if ($key === '' || !isset($allowedMap[$key])) {
-            continue;
-        }
-        $clean[] = $allowedMap[$key];
-    }
-
-    return array_values(array_unique($clean));
-}
-
 function seller_parse_offer_countdown_to_seconds(string $value): int
 {
     $value = trim($value);
@@ -151,17 +147,6 @@ function seller_parse_offer_countdown_to_seconds(string $value): int
     $minutes = (int) $m[2];
     $seconds = (int) $m[3];
     return ($hours * 3600) + ($minutes * 60) + $seconds;
-}
-
-function seller_format_offer_countdown(int $seconds): string
-{
-    if ($seconds <= 0) {
-        return '';
-    }
-    $hours = intdiv($seconds, 3600);
-    $minutes = intdiv($seconds % 3600, 60);
-    $secs = $seconds % 60;
-    return sprintf('%02d:%02d:%02d', $hours, $minutes, $secs);
 }
 
 /**
@@ -192,7 +177,8 @@ function seller_handle_product_images_upload(array $files, int $sellerId): array
 
     $paths = [];
     foreach ($names as $idx => $name) {
-        if (count($paths) >= 6) {
+        /* Main image + up to 6 gallery = 7 files from add-product wizard */
+        if (count($paths) >= 7) {
             break;
         }
 
@@ -258,21 +244,18 @@ $toastIsError = false;
 $drawerMode = 'add';
 $editingProduct = null;
 $productByIdSt = $pdo->prepare(
-    'SELECT id, name, sku, category, price, original_price, emoji, badge, brand, size_options, color_options, stock_qty, description, image_path,
-            offer_flash_text, offer_countdown_seconds, offer_bank_text, active, approval_status
+    'SELECT id, name, sku, category, product_type, price, original_price, emoji, badge, brand, size_options, color_options, stock_qty, description, image_path,
+            offer_flash_text, offer_countdown_seconds, offer_bank_text, shipping_class,
+            manufacturer_generic_name, manufacturer_country, manufacturer_name_address, packer_name_address,
+            active, approval_status
      FROM products
      WHERE id = ? AND seller_id = ?
      LIMIT 1'
 );
 $editIdFromQuery = (int) ($_GET['edit'] ?? 0);
 if ($editIdFromQuery > 0) {
-    $productByIdSt->execute([$editIdFromQuery, (int) $seller['id']]);
-    $editingProduct = $productByIdSt->fetch() ?: null;
-    if ($editingProduct) {
-        $drawerMode = 'edit';
-        $selectedSizes = seller_parse_saved_options((string) ($editingProduct['size_options'] ?? ''), $sizeCatalog);
-        $selectedColors = seller_parse_saved_options((string) ($editingProduct['color_options'] ?? ''), $colorCatalog);
-    }
+    header('Location: add-product.php?id=' . $editIdFromQuery);
+    exit;
 }
 $msg = (string) ($_GET['msg'] ?? '');
 if ($msg === 'added') {
@@ -365,18 +348,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $offerCountdownInput = trim((string) ($_POST['offer_countdown'] ?? ''));
         $offerBankText = trim((string) ($_POST['offer_bank_text'] ?? ''));
         $offerCountdownSeconds = seller_parse_offer_countdown_to_seconds($offerCountdownInput);
+        $shippingClassPrev = ($drawerMode === 'edit' && $editingProduct)
+            ? (string) ($editingProduct['shipping_class'] ?? 'standard')
+            : 'standard';
+        $shippingClass = seller_normalize_shipping_class((string) ($_POST['shipping_class'] ?? $shippingClassPrev));
+        $manufacturerGenericName = mb_substr(trim((string) ($_POST['manufacturer_generic_name'] ?? '')), 0, 255);
+        $manufacturerCountry = mb_substr(trim((string) ($_POST['manufacturer_country'] ?? '')), 0, 128);
+        $manufacturerNameAddress = mb_substr(trim((string) ($_POST['manufacturer_name_address'] ?? '')), 0, 2000);
+        $packerNameAddress = mb_substr(trim((string) ($_POST['packer_name_address'] ?? '')), 0, 2000);
+        $productTypePrev = ($drawerMode === 'edit' && $editingProduct)
+            ? (string) ($editingProduct['product_type'] ?? '')
+            : '';
+        $productType = seller_normalize_product_type($category, (string) ($_POST['product_type'] ?? $productTypePrev));
 
         if ($error === '' && $name === '') {
             $error = 'Product name required hai.';
+        } elseif ($error === '' && seller_word_count($name) < 2) {
+            $error = 'Product title me kam se kam 2 shabd hon.';
+        } elseif ($error === '' && seller_word_count(trim(html_entity_decode(strip_tags($description), ENT_QUOTES | ENT_HTML5, 'UTF-8'))) < 2) {
+            $error = 'Description me kam se kam 2 shabd hon.';
         } elseif ($error === '' && ($price <= 0 || $originalPrice <= 0)) {
             $error = 'Price aur original price valid honi chahiye.';
         } elseif ($error === '' && $stockQty < 0) {
             $error = 'Stock quantity negative nahi ho sakti.';
         } elseif ($error === '' && !in_array($category, $allowedCategories, true)) {
             $error = 'Aap is category me product add nahi kar sakte.';
-        } elseif ($error === '' && $skuInput !== '' && !preg_match('/^[A-Z0-9_-]{4,40}$/', $skuInput)) {
+        } elseif ($error === '' && $action !== 'edit_product' && $skuInput !== '' && !preg_match('/^[A-Z0-9_-]{4,40}$/', $skuInput)) {
             $error = 'SKU format invalid hai. 4-40 chars, sirf A-Z, 0-9, - aur _ allowed hai.';
-        } elseif ($error === '' && $skuInput !== '' && seller_sku_exists($pdo, $skuInput, (int) ($editingProduct['id'] ?? 0))) {
+        } elseif ($error === '' && $action !== 'edit_product' && $skuInput !== '' && seller_sku_exists($pdo, $skuInput, 0)) {
             $error = 'Yeh SKU already use ho raha hai. Dusra SKU daalein ya auto-generate karein.';
         } elseif ($error === '' && strlen($offerFlashText) > 150) {
             $error = 'Flash offer text 150 characters se zyada nahi ho sakta.';
@@ -397,9 +396,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $sku = $skuInput !== '' ? $skuInput : seller_generate_unique_sku($pdo, $name, $category);
             $ins = $pdo->prepare(
                 'INSERT INTO products
-                    (seller_id, name, slug, sku, category, price, original_price, emoji, badge, rating, review_count, brand, image_bg, image_path, size_options, color_options, stock_qty, description,
-                     offer_flash_text, offer_countdown_seconds, offer_bank_text, active, approval_status)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 4.5, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, \'pending\')'
+                    (seller_id, name, slug, sku, category, product_type, price, original_price, emoji, badge, rating, review_count, brand, image_bg, image_path, size_options, color_options, stock_qty, description,
+                     offer_flash_text, offer_countdown_seconds, offer_bank_text, shipping_class,
+                     manufacturer_generic_name, manufacturer_country, manufacturer_name_address, packer_name_address,
+                     active, approval_status)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 4.5, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, \'pending\')'
             );
             $uploadedPaths = is_array($upload['paths'] ?? null) ? $upload['paths'] : [];
             $mainImagePath = $uploadedPaths[0] ?? null;
@@ -409,6 +410,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $slug,
                 $sku,
                 $category,
+                $productType,
                 $price,
                 $originalPrice,
                 $emoji === '' ? '📦' : $emoji,
@@ -423,6 +425,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $offerFlashText,
                 max(0, $offerCountdownSeconds),
                 $offerBankText,
+                $shippingClass,
+                $manufacturerGenericName,
+                $manufacturerCountry,
+                $manufacturerNameAddress,
+                $packerNameAddress,
             ]);
             $productId = (int) $pdo->lastInsertId();
             if ($uploadedPaths !== [] && $productId > 0) {
@@ -430,6 +437,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 foreach ($uploadedPaths as $i => $path) {
                     $imgIns->execute([$productId, $path, $i]);
                 }
+            }
+            if ($productId > 0) {
+                seller_seed_variant_inventory($pdo, $productId, max(0, $stockQty), $sizeOptions, $colorOptions);
             }
             header('Location: products.php?msg=added');
             exit;
@@ -443,15 +453,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $baseSlug = seller_make_slug($name);
                 $slug = seller_unique_slug($pdo, $baseSlug, $productId);
                 $existingSku = strtoupper(trim((string) ($editingProduct['sku'] ?? '')));
-                $sku = $skuInput !== '' ? $skuInput : ($existingSku !== '' ? $existingSku : seller_generate_unique_sku($pdo, $name, $category, $productId));
+                $sku = $existingSku !== '' ? $existingSku : seller_generate_unique_sku($pdo, $name, $category, $productId);
                 $uploadedPaths = is_array($upload['paths'] ?? null) ? $upload['paths'] : [];
                 $mainImagePath = $uploadedPaths[0] ?? null;
 
                 if ($mainImagePath !== null) {
                     $upd = $pdo->prepare(
                         'UPDATE products
-                         SET name = ?, slug = ?, sku = ?, category = ?, price = ?, original_price = ?, emoji = ?, badge = ?, brand = ?, image_path = ?, size_options = ?, color_options = ?, stock_qty = ?, description = ?
-                            , offer_flash_text = ?, offer_countdown_seconds = ?, offer_bank_text = ?
+                         SET name = ?, slug = ?, sku = ?, category = ?, product_type = ?, price = ?, original_price = ?, emoji = ?, badge = ?, brand = ?, image_path = ?, size_options = ?, color_options = ?, stock_qty = ?, description = ?
+                            , offer_flash_text = ?, offer_countdown_seconds = ?, offer_bank_text = ?, shipping_class = ?
+                            , manufacturer_generic_name = ?, manufacturer_country = ?, manufacturer_name_address = ?, packer_name_address = ?
                             , approval_status = CASE WHEN approval_status = \'approved\' THEN \'approved\' ELSE \'pending\' END
                          WHERE id = ? AND seller_id = ?
                          LIMIT 1'
@@ -461,6 +472,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $slug,
                         $sku,
                         $category,
+                        $productType,
                         $price,
                         $originalPrice,
                         $emoji === '' ? '📦' : $emoji,
@@ -474,14 +486,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $offerFlashText,
                         max(0, $offerCountdownSeconds),
                         $offerBankText,
+                        $shippingClass,
+                        $manufacturerGenericName,
+                        $manufacturerCountry,
+                        $manufacturerNameAddress,
+                        $packerNameAddress,
                         $productId,
                         (int) $seller['id'],
                     ]);
                 } else {
                     $upd = $pdo->prepare(
                         'UPDATE products
-                         SET name = ?, slug = ?, sku = ?, category = ?, price = ?, original_price = ?, emoji = ?, badge = ?, brand = ?, size_options = ?, color_options = ?, stock_qty = ?, description = ?
-                            , offer_flash_text = ?, offer_countdown_seconds = ?, offer_bank_text = ?
+                         SET name = ?, slug = ?, sku = ?, category = ?, product_type = ?, price = ?, original_price = ?, emoji = ?, badge = ?, brand = ?, size_options = ?, color_options = ?, stock_qty = ?, description = ?
+                            , offer_flash_text = ?, offer_countdown_seconds = ?, offer_bank_text = ?, shipping_class = ?
+                            , manufacturer_generic_name = ?, manufacturer_country = ?, manufacturer_name_address = ?, packer_name_address = ?
                             , approval_status = CASE WHEN approval_status = \'approved\' THEN \'approved\' ELSE \'pending\' END
                          WHERE id = ? AND seller_id = ?
                          LIMIT 1'
@@ -491,6 +509,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $slug,
                         $sku,
                         $category,
+                        $productType,
                         $price,
                         $originalPrice,
                         $emoji === '' ? '📦' : $emoji,
@@ -503,6 +522,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $offerFlashText,
                         max(0, $offerCountdownSeconds),
                         $offerBankText,
+                        $shippingClass,
+                        $manufacturerGenericName,
+                        $manufacturerCountry,
+                        $manufacturerNameAddress,
+                        $packerNameAddress,
                         $productId,
                         (int) $seller['id'],
                     ]);
@@ -515,9 +539,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $imgIns->execute([$productId, $path, $i]);
                     }
                 }
+                $vCntSt = $pdo->prepare('SELECT COUNT(*) FROM product_variant_inventory WHERE product_id = ?');
+                $vCntSt->execute([$productId]);
+                if ((int) $vCntSt->fetchColumn() === 0) {
+                    seller_seed_variant_inventory($pdo, $productId, max(0, $stockQty), $sizeOptions, $colorOptions);
+                }
                 header('Location: products.php?msg=updated');
                 exit;
             }
+        }
+
+        if ($error !== '' && (string) ($_POST['return_to'] ?? '') === 'add_wizard') {
+            $_SESSION['seller_wizard_product_error'] = $error;
+            $wizPid = (int) ($_POST['product_id'] ?? 0);
+            $loc = 'add-product.php';
+            if ($action === 'edit_product' && $wizPid > 0) {
+                $loc .= '?id=' . $wizPid;
+            }
+            header('Location: ' . $loc);
+            exit;
         }
     }
 }
@@ -573,39 +613,6 @@ $productsSt = $pdo->prepare(
 $productsSt->execute([(int) $seller['id']]);
 $products = $productsSt->fetchAll();
 $productsFormAction = 'products.php?' . http_build_query(['page' => $productsPage, 'per_page' => $productsPerPage]);
-$productImagesMap = [];
-if ($products !== []) {
-    $ids = [];
-    foreach ($products as $_p) {
-        $pid = (int) ($_p['id'] ?? 0);
-        if ($pid > 0) {
-            $ids[] = $pid;
-        }
-    }
-    $ids = array_values(array_unique($ids));
-    if ($ids !== []) {
-        $placeholders = implode(',', array_fill(0, count($ids), '?'));
-        $gallerySt = $pdo->prepare(
-            "SELECT pi.product_id, pi.image_path
-             FROM product_images pi
-             INNER JOIN products p ON p.id = pi.product_id
-             WHERE p.seller_id = ? AND pi.product_id IN ($placeholders)
-             ORDER BY pi.product_id ASC, pi.sort_order ASC, pi.id ASC"
-        );
-        $gallerySt->execute(array_merge([(int) $seller['id']], $ids));
-        foreach ($gallerySt->fetchAll() as $row) {
-            $pid = (int) ($row['product_id'] ?? 0);
-            $path = trim((string) ($row['image_path'] ?? ''));
-            if ($pid <= 0 || $path === '') {
-                continue;
-            }
-            if (!isset($productImagesMap[$pid])) {
-                $productImagesMap[$pid] = [];
-            }
-            $productImagesMap[$pid][] = $path;
-        }
-    }
-}
 $openProductDrawer = $error !== '' || $drawerMode === 'edit';
 
 require __DIR__ . '/partials/shell-top.php';
@@ -618,7 +625,7 @@ require __DIR__ . '/partials/shell-top.php';
           </div>
           <div class="admin-page-head__actions seller-products-head-actions">
             <a class="admin-btn admin-btn--ghost-light" href="inventory.php">Inventory</a>
-            <button type="button" class="admin-btn admin-btn--primary" id="openProductDrawerBtn" aria-controls="productDrawer" aria-expanded="<?= $openProductDrawer ? 'true' : 'false' ?>">Add product</button>
+            <a class="admin-btn admin-btn--primary" href="add-product.php">Add product</a>
           </div>
         </div>
 
@@ -715,24 +722,6 @@ require __DIR__ . '/partials/shell-top.php';
                     <?php
                     $pid = (int) ($p['id'] ?? 0);
                     $displayStockQty = (int) ($p['display_stock_qty'] ?? $p['stock_qty'] ?? 0);
-                    $gallery = [];
-                    $mainImage = trim((string) ($p['image_path'] ?? ''));
-                    if ($mainImage !== '') {
-                        $gallery[] = $mainImage;
-                    }
-                    if (isset($productImagesMap[$pid]) && is_array($productImagesMap[$pid])) {
-                        foreach ($productImagesMap[$pid] as $imgPath) {
-                            $imgPath = trim((string) $imgPath);
-                            if ($imgPath !== '') {
-                                $gallery[] = $imgPath;
-                            }
-                        }
-                    }
-                    $gallery = array_values(array_unique($gallery));
-                    $galleryJson = json_encode($gallery, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE);
-                    if (!is_string($galleryJson)) {
-                        $galleryJson = '[]';
-                    }
                     $apRaw = strtolower(trim((string) ($p['approval_status'] ?? 'approved')));
                     $productsSearchBlob = mb_strtolower(
                         (string) $pid . ' '
@@ -823,32 +812,11 @@ require __DIR__ . '/partials/shell-top.php';
                       </td>
                       <td class="seller-products-td--actions">
                         <div class="seller-product-actions">
-                          <button
-                            type="button"
+                          <a
+                            href="product-view.php?id=<?= (int) $p['id'] ?>"
                             class="seller-view-btn seller-product-actions__btn"
-                            data-product-id="<?= (int) $p['id'] ?>"
-                            data-name="<?= h((string) $p['name']) ?>"
-                            data-slug="<?= h((string) $p['slug']) ?>"
-                            data-sku="<?= h((string) ($p['sku'] ?? '')) ?>"
-                            data-category="<?= h((string) $p['category']) ?>"
-                            data-price="<?= (int) $p['price'] ?>"
-                            data-original-price="<?= (int) $p['original_price'] ?>"
-                            data-stock="<?= $displayStockQty ?>"
-                            data-status="<?= (int) $p['active'] === 1 ? 'Active' : 'Inactive' ?>"
-                            data-badge="<?= h((string) ($p['badge'] ?? '')) ?>"
-                            data-brand="<?= h((string) ($p['brand'] ?? '')) ?>"
-                            data-emoji="<?= h((string) ($p['emoji'] ?? '')) ?>"
-                            data-sizes="<?= h((string) ($p['size_options'] ?? '')) ?>"
-                            data-colors="<?= h((string) ($p['color_options'] ?? '')) ?>"
-                            data-description="<?= h((string) ($p['description'] ?? '')) ?>"
-                            data-offer-flash="<?= h((string) ($p['offer_flash_text'] ?? '')) ?>"
-                            data-offer-countdown="<?= h(seller_format_offer_countdown((int) ($p['offer_countdown_seconds'] ?? 0))) ?>"
-                            data-offer-bank="<?= h((string) ($p['offer_bank_text'] ?? '')) ?>"
-                            data-image="<?= h((string) ($p['image_path'] ?? '')) ?>"
-                            data-images="<?= h((string) $galleryJson) ?>"
-                            data-preview-url="../product.php?id=<?= (int) $p['id'] ?>"
-                          >View</button>
-                          <a href="products.php?edit=<?= (int) $p['id'] ?>" class="seller-edit-btn seller-product-actions__btn">Edit</a>
+                          >View</a>
+                          <a href="add-product.php?id=<?= (int) $p['id'] ?>" class="seller-edit-btn seller-product-actions__btn">Edit</a>
                           <form method="post" class="seller-product-actions__form" action="<?= h($productsFormAction) ?>" onsubmit="return confirm('Kya aap is product ko delete karna chahte hain?');">
                             <input type="hidden" name="action" value="delete_product">
                             <input type="hidden" name="product_id" value="<?= (int) $p['id'] ?>">
@@ -870,7 +838,7 @@ require __DIR__ . '/partials/shell-top.php';
                           <h3 class="seller-products-empty__title">No products yet</h3>
                           <p class="seller-products-empty__text"><?= $canAddProducts ? 'Create your first listing — it will go for admin approval before appearing on LUXE.' : 'Complete KYC and get admin approval to start adding products.' ?></p>
                           <?php if ($canAddProducts): ?>
-                            <button type="button" class="admin-btn admin-btn--primary" id="openProductDrawerBtnEmpty">Add your first product</button>
+                            <a class="admin-btn admin-btn--primary" href="add-product.php">Add your first product</a>
                           <?php else: ?>
                             <a class="admin-btn admin-btn--primary" href="kyc-details.php">Complete KYC</a>
                           <?php endif; ?>
@@ -905,56 +873,6 @@ require __DIR__ . '/partials/shell-top.php';
             ?>
           </div>
         </div>
-
-        <div class="seller-drawer-backdrop" id="productViewBackdrop"></div>
-        <aside class="seller-drawer seller-drawer--view" id="productViewDrawer" role="dialog" aria-modal="true" aria-labelledby="productViewTitle" aria-hidden="true">
-          <div class="seller-drawer__head">
-            <h2 class="seller-drawer__title" id="productViewTitle">Product details</h2>
-            <button type="button" class="seller-drawer__close" id="closeProductViewBtn" aria-label="Close product details panel">✕</button>
-          </div>
-          <div class="seller-drawer__body">
-            <div class="seller-view-slider" id="productViewSlider">
-              <button type="button" class="seller-view-slider__nav seller-view-slider__nav--prev" id="productViewPrev" aria-label="Previous image">‹</button>
-              <div class="seller-view-media" id="productViewMedia">No image</div>
-              <button type="button" class="seller-view-slider__nav seller-view-slider__nav--next" id="productViewNext" aria-label="Next image">›</button>
-            </div>
-            <div class="seller-view-slider__meta" id="productViewCount">0 / 0</div>
-            <h3 class="seller-view-name" id="productViewName">-</h3>
-            <p class="seller-view-slug" id="productViewSlug">-</p>
-            <div class="seller-view-grid">
-              <div class="seller-view-item"><span class="seller-view-label">SKU</span><strong id="productViewSku">-</strong></div>
-              <div class="seller-view-item"><span class="seller-view-label">Category</span><strong id="productViewCategory">-</strong></div>
-              <div class="seller-view-item"><span class="seller-view-label">Brand</span><strong id="productViewBrand">-</strong></div>
-              <div class="seller-view-item"><span class="seller-view-label">Price</span><strong id="productViewPrice">-</strong></div>
-              <div class="seller-view-item"><span class="seller-view-label">Original</span><strong id="productViewOriginal">-</strong></div>
-              <div class="seller-view-item"><span class="seller-view-label">Stock</span><strong id="productViewStock">-</strong></div>
-              <div class="seller-view-item"><span class="seller-view-label">Status</span><strong id="productViewStatus">-</strong></div>
-              <div class="seller-view-item"><span class="seller-view-label">Badge</span><strong id="productViewBadge">-</strong></div>
-              <div class="seller-view-item"><span class="seller-view-label">Emoji</span><strong id="productViewEmoji">-</strong></div>
-            </div>
-            <div class="seller-view-item-block">
-              <span class="seller-view-label">Sizes</span>
-              <p id="productViewSizes">-</p>
-            </div>
-            <div class="seller-view-item-block">
-              <span class="seller-view-label">Colors</span>
-              <p id="productViewColors">-</p>
-            </div>
-            <div class="seller-view-item-block">
-              <span class="seller-view-label">Description</span>
-              <p id="productViewDescription">-</p>
-            </div>
-            <div class="seller-view-item-block">
-              <span class="seller-view-label">Offers</span>
-              <p id="productViewOfferFlash">Flash: -</p>
-              <p id="productViewOfferCountdown">Countdown: -</p>
-              <p id="productViewOfferBank">Card offer: -</p>
-            </div>
-            <div class="seller-actions" style="justify-content:flex-start">
-              <a class="seller-preview-btn" id="productViewPreview" href="#" target="_blank" rel="noopener">Open public preview</a>
-            </div>
-          </div>
-        </aside>
 
         <div class="seller-drawer-backdrop<?= $openProductDrawer ? ' is-visible' : '' ?>" id="productDrawerBackdrop"></div>
         <aside class="seller-drawer<?= $openProductDrawer ? ' is-open' : '' ?>" id="productDrawer" role="dialog" aria-modal="true" aria-labelledby="productDrawerTitle" aria-hidden="<?= $openProductDrawer ? 'false' : 'true' ?>">
@@ -1007,14 +925,16 @@ require __DIR__ . '/partials/shell-top.php';
                   </div>
                   <div class="seller-form__row seller-product-form__row seller-product-form__row--sku">
                     <div class="seller-product-form-field seller-product-form-field--grow">
-                      <label for="sku">SKU <span class="seller-product-form-optional">(manual ya auto)</span></label>
-                      <input id="sku" name="sku" maxlength="40" placeholder="e.g. FAS-SHIRT-001" value="<?= h((string) ($_POST['sku'] ?? ($editingProduct['sku'] ?? ''))) ?>" <?= $canAddProducts ? '' : 'disabled' ?>>
+                      <label for="sku">SKU<?= $drawerMode === 'edit' ? '' : ' <span class="seller-product-form-optional">(manual ya auto)</span>' ?></label>
+                      <input id="sku" name="sku" maxlength="40" placeholder="e.g. FAS-SHIRT-001" value="<?= h((string) ($_POST['sku'] ?? ($editingProduct['sku'] ?? ''))) ?>" <?= $drawerMode === 'edit' ? 'readonly class="seller-product-input--readonly"' : '' ?> <?= $canAddProducts ? '' : 'disabled' ?>>
                     </div>
+                    <?php if ($drawerMode !== 'edit'): ?>
                     <div class="seller-product-form-sku-action">
                       <button class="seller-view-btn seller-sku-generate-btn" id="generateSkuBtn" type="button" <?= $canAddProducts ? '' : 'disabled' ?>>Auto-generate SKU</button>
                     </div>
+                    <?php endif; ?>
                   </div>
-                  <p class="seller-help seller-product-form-hint seller-product-form-hint--sku">Khali chhodoge to save par system SKU generate karega.</p>
+                  <p class="seller-help seller-product-form-hint seller-product-form-hint--sku"><?= $drawerMode === 'edit' ? 'SKU unique hai — product create ke baad change nahi hota.' : 'Khali chhodoge to save par system SKU generate karega.' ?></p>
                 </div>
               </section>
 
@@ -1148,6 +1068,31 @@ require __DIR__ . '/partials/shell-top.php';
                 </div>
               </section>
 
+              <section class="seller-product-form-section" aria-labelledby="product-section-manufacturer">
+                <header class="seller-product-form-section__head">
+                  <h3 class="seller-product-form-section__title" id="product-section-manufacturer">Manufacturer info</h3>
+                  <p class="seller-product-form-section__sub">Generic name, country, manufacturer &amp; packer — optional lekin compliance ke liye useful.</p>
+                </header>
+                <div class="seller-product-form-section__body">
+                  <div class="seller-product-form-field">
+                    <label for="manufacturer_generic_name">Generic name</label>
+                    <input id="manufacturer_generic_name" name="manufacturer_generic_name" type="text" maxlength="255" placeholder="e.g. Paracetamol 500 mg" value="<?= h((string) ($_POST['manufacturer_generic_name'] ?? ($editingProduct['manufacturer_generic_name'] ?? ''))) ?>" <?= $canAddProducts ? '' : 'disabled' ?>>
+                  </div>
+                  <div class="seller-product-form-field">
+                    <label for="manufacturer_country">Country</label>
+                    <input id="manufacturer_country" name="manufacturer_country" type="text" maxlength="128" placeholder="e.g. India" value="<?= h((string) ($_POST['manufacturer_country'] ?? ($editingProduct['manufacturer_country'] ?? ''))) ?>" <?= $canAddProducts ? '' : 'disabled' ?>>
+                  </div>
+                  <div class="seller-product-form-field">
+                    <label for="manufacturer_name_address">Name and address of the manufacturer</label>
+                    <textarea id="manufacturer_name_address" name="manufacturer_name_address" class="seller-wizard-textarea" maxlength="2000" rows="3" placeholder="Full legal name, address…" <?= $canAddProducts ? '' : 'disabled' ?>><?= h((string) ($_POST['manufacturer_name_address'] ?? ($editingProduct['manufacturer_name_address'] ?? ''))) ?></textarea>
+                  </div>
+                  <div class="seller-product-form-field">
+                    <label for="packer_name_address">Name and address of the packer</label>
+                    <textarea id="packer_name_address" name="packer_name_address" class="seller-wizard-textarea" maxlength="2000" rows="3" placeholder="If different from manufacturer…" <?= $canAddProducts ? '' : 'disabled' ?>><?= h((string) ($_POST['packer_name_address'] ?? ($editingProduct['packer_name_address'] ?? ''))) ?></textarea>
+                  </div>
+                </div>
+              </section>
+
               <section class="seller-product-form-section" aria-labelledby="product-section-media">
                 <header class="seller-product-form-section__head">
                   <h3 class="seller-product-form-section__title" id="product-section-media">Images</h3>
@@ -1213,133 +1158,6 @@ require __DIR__ . '/partials/shell-top.php';
 
         <script>
           (function () {
-            var viewDrawer = document.getElementById('productViewDrawer');
-            var viewBackdrop = document.getElementById('productViewBackdrop');
-            var closeViewBtn = document.getElementById('closeProductViewBtn');
-            var prevBtn = document.getElementById('productViewPrev');
-            var nextBtn = document.getElementById('productViewNext');
-            var countEl = document.getElementById('productViewCount');
-            var viewButtons = document.querySelectorAll('.seller-view-btn');
-            if (!viewDrawer || !viewBackdrop || !closeViewBtn || !prevBtn || !nextBtn || !countEl || !viewButtons.length) return;
-
-            var lastFocused = null;
-            var currentImages = [];
-            var currentImageIndex = 0;
-            function text(id, value) {
-              var el = document.getElementById(id);
-              if (el) el.textContent = value && String(value).trim() !== '' ? String(value) : '-';
-            }
-
-            function renderSlider() {
-              var media = document.getElementById('productViewMedia');
-              if (!media) return;
-              if (!currentImages.length) {
-                media.innerHTML = 'No image';
-                countEl.textContent = '0 / 0';
-                prevBtn.disabled = true;
-                nextBtn.disabled = true;
-                return;
-              }
-              var safeIndex = Math.max(0, Math.min(currentImages.length - 1, currentImageIndex));
-              currentImageIndex = safeIndex;
-              var currentPath = currentImages[currentImageIndex];
-              var nameEl = document.getElementById('productViewName');
-              var altText = nameEl ? nameEl.textContent : 'Product image';
-              media.innerHTML = '<img src="../' + currentPath + '" alt="' + String(altText).replace(/"/g, '&quot;') + '">';
-              countEl.textContent = (currentImageIndex + 1) + ' / ' + currentImages.length;
-              prevBtn.disabled = currentImages.length <= 1;
-              nextBtn.disabled = currentImages.length <= 1;
-            }
-
-            function setMedia(path, altText, imagesJson) {
-              var media = document.getElementById('productViewMedia');
-              if (!media) return;
-              var parsed = [];
-              if (imagesJson) {
-                try {
-                  var raw = JSON.parse(imagesJson);
-                  if (Array.isArray(raw)) {
-                    parsed = raw.filter(function (v) { return typeof v === 'string' && v.trim() !== ''; });
-                  }
-                } catch (e) {}
-              }
-              if (!parsed.length && path) {
-                parsed = [path];
-              }
-              currentImages = parsed;
-              currentImageIndex = 0;
-              renderSlider();
-            }
-
-            function openView(btn) {
-              lastFocused = document.activeElement;
-              var d = btn.dataset;
-              text('productViewName', d.name);
-              text('productViewSlug', d.slug ? ('Slug: ' + d.slug) : '-');
-              text('productViewSku', d.sku);
-              text('productViewCategory', d.category);
-              text('productViewBrand', d.brand);
-              text('productViewPrice', d.price ? ('Rs ' + Number(d.price).toLocaleString('en-IN')) : '-');
-              text('productViewOriginal', d.originalPrice ? ('Rs ' + Number(d.originalPrice).toLocaleString('en-IN')) : '-');
-              text('productViewStock', d.stock);
-              text('productViewStatus', d.status);
-              text('productViewBadge', d.badge);
-              text('productViewEmoji', d.emoji);
-              text('productViewSizes', d.sizes);
-              text('productViewColors', d.colors);
-              text('productViewDescription', d.description);
-              text('productViewOfferFlash', 'Flash: ' + (d.offerFlash || '-'));
-              text('productViewOfferCountdown', 'Countdown: ' + (d.offerCountdown || '-'));
-              text('productViewOfferBank', 'Card offer: ' + (d.offerBank || '-'));
-              setMedia(d.image || '', d.name || 'Product image', d.images || '[]');
-              var preview = document.getElementById('productViewPreview');
-              if (preview) preview.href = d.previewUrl || '#';
-
-              viewDrawer.classList.add('is-open');
-              viewBackdrop.classList.add('is-visible');
-              document.body.classList.add('seller-drawer-open');
-              viewDrawer.setAttribute('aria-hidden', 'false');
-              closeViewBtn.focus();
-            }
-
-            function closeView() {
-              viewDrawer.classList.remove('is-open');
-              viewBackdrop.classList.remove('is-visible');
-              viewDrawer.setAttribute('aria-hidden', 'true');
-              document.body.classList.remove('seller-drawer-open');
-              if (lastFocused && typeof lastFocused.focus === 'function') {
-                lastFocused.focus();
-              }
-            }
-
-            viewButtons.forEach(function (btn) {
-              btn.addEventListener('click', function () {
-                openView(btn);
-              });
-            });
-            prevBtn.addEventListener('click', function () {
-              if (!currentImages.length) return;
-              currentImageIndex = currentImageIndex <= 0 ? currentImages.length - 1 : currentImageIndex - 1;
-              renderSlider();
-            });
-            nextBtn.addEventListener('click', function () {
-              if (!currentImages.length) return;
-              currentImageIndex = currentImageIndex >= currentImages.length - 1 ? 0 : currentImageIndex + 1;
-              renderSlider();
-            });
-            closeViewBtn.addEventListener('click', closeView);
-            viewBackdrop.addEventListener('click', closeView);
-            document.addEventListener('keydown', function (event) {
-              if (event.key === 'Escape' && viewDrawer.classList.contains('is-open')) {
-                event.preventDefault();
-                closeView();
-              }
-            });
-          })();
-        </script>
-
-        <script>
-          (function () {
             var skuInput = document.getElementById('sku');
             var skuBtn = document.getElementById('generateSkuBtn');
             var nameInput = document.getElementById('name');
@@ -1371,7 +1189,7 @@ require __DIR__ . '/partials/shell-top.php';
             var closeBtn = document.getElementById('closeProductDrawerBtn');
             var drawer = document.getElementById('productDrawer');
             var backdrop = document.getElementById('productDrawerBackdrop');
-            if (!openBtn || !closeBtn || !drawer || !backdrop) return;
+            if (!closeBtn || !drawer || !backdrop) return;
             var focusableSelector = 'a[href], area[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
             var lastFocusedElement = null;
 
@@ -1387,7 +1205,7 @@ require __DIR__ . '/partials/shell-top.php';
               backdrop.classList.toggle('is-visible', open);
               document.body.classList.toggle('seller-drawer-open', open);
               drawer.setAttribute('aria-hidden', open ? 'false' : 'true');
-              openBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+              if (openBtn) openBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
               if (open) {
                 var focusEls = getFocusableEls();
                 if (focusEls.length > 0) {
@@ -1401,10 +1219,12 @@ require __DIR__ . '/partials/shell-top.php';
               }
             }
 
-            openBtn.addEventListener('click', function () {
-              lastFocusedElement = document.activeElement;
-              setDrawerState(true);
-            });
+            if (openBtn) {
+              openBtn.addEventListener('click', function () {
+                lastFocusedElement = document.activeElement;
+                setDrawerState(true);
+              });
+            }
             closeBtn.addEventListener('click', function () { setDrawerState(false); });
             backdrop.addEventListener('click', function () { setDrawerState(false); });
             document.addEventListener('keydown', function (event) {
@@ -1433,17 +1253,9 @@ require __DIR__ . '/partials/shell-top.php';
             });
 
             if (drawer.classList.contains('is-open')) {
-              lastFocusedElement = openBtn;
+              lastFocusedElement = openBtn || closeBtn;
               document.body.classList.add('seller-drawer-open');
               setDrawerState(true);
-            }
-
-            var openEmpty = document.getElementById('openProductDrawerBtnEmpty');
-            if (openEmpty) {
-              openEmpty.addEventListener('click', function () {
-                lastFocusedElement = document.activeElement;
-                setDrawerState(true);
-              });
             }
           })();
         </script>
