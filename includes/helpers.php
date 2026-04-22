@@ -35,3 +35,14 @@ function luxe_mask_email(string $email): string
 
     return substr($local, 0, $show) . str_repeat('*', max(1, $len - $show)) . '@' . $domain;
 }
+
+/** Build storefront product URL with slug (fallback to id). */
+function luxe_product_url(int $id, string $slug = ''): string
+{
+    $slug = trim($slug);
+    if ($slug !== '') {
+        return 'product.php?slug=' . rawurlencode($slug);
+    }
+
+    return 'product.php?id=' . $id;
+}

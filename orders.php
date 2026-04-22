@@ -3,6 +3,7 @@ require_once __DIR__ . '/includes/bootstrap.php';
 $pdo = db();
 $uid = auth_user_id();
 $userLoggedIn = $uid !== null;
+$user = auth_user($pdo);
 $cartNavCount = 0;
 foreach ($_SESSION['cart'] ?? [] as $ci) {
     $cartNavCount += (int) ($ci['qty'] ?? 1);
@@ -279,46 +280,36 @@ $ordersData = $uid ? orders_fetch_for_user($pdo, $uid) : [];
     }
   </style>
 </head>
-<body>
+<body class="index-page orders-page">
   <div class="cursor-dot" id="cursorDot"></div>
   <div class="cursor-ring" id="cursorRing"></div>
   <div class="bg-scene"><div class="blob blob-1"></div><div class="blob blob-2"></div><div class="grid-lines"></div></div>
 
-  <nav class="navbar" id="navbar">
-    <div class="nav-container">
-      <div class="nav-brand-cluster">
-        <?php require __DIR__ . '/includes/nav_hamburger_btn.php'; ?>
-        <a href="index.php" class="nav-logo">LUXE</a>
-      </div>
-      <div class="nav-breadcrumb">
-        <a href="index.php">Home</a><span>/</span>
-        <span class="breadcrumb-current">My Orders</span>
-      </div>
-      <div class="nav-actions">
-        <?php if ($userLoggedIn): ?>
-        <a href="profile.php" class="nav-icon-link" aria-label="Profile" data-nav-mobile="drawer">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        </a>
-        <?php endif; ?>
-        <a href="cart.php" class="nav-icon-link" aria-label="Cart" style="position:relative">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-          <span class="nav-cart-dot" id="cartCount"><?= (int) $cartNavCount ?></span>
-        </a>
-        <?php if ($userLoggedIn): ?>
-        <a href="actions/logout.php" class="nav-login-btn" aria-label="Sign out" data-nav-mobile="drawer">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-          Sign Out
-        </a>
-        <?php else: ?>
-        <a href="login.php" class="nav-login-btn" data-nav-mobile="drawer">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          Sign In
-        </a>
-        <?php endif; ?>
-      </div>
-    </div>
-  </nav>
-  <?php require __DIR__ . '/includes/nav_drawer.php'; ?>
+  <?php
+  $header = [
+      'user' => $user,
+      'cart_count' => $cartNavCount,
+      'top_text' => 'New arrivals every week',
+      'top_highlight' => 'Free shipping above ₹999',
+      'top_links' => [
+          ['label' => "Today's Deals", 'href' => 'index.php#deals'],
+          ['label' => 'Top Brands', 'href' => 'index.php#brands'],
+      ],
+      'menu_links' => [
+          ['label' => 'Home', 'href' => 'index.php'],
+          ['label' => 'Shop', 'href' => 'product-list.php'],
+          ['label' => 'Collections', 'href' => 'index.php#collections'],
+          ['label' => 'Trending', 'href' => 'index.php#trending'],
+          ['label' => 'Deals', 'href' => 'index.php#deals'],
+          ['label' => 'Brands', 'href' => 'index.php#brands'],
+      ],
+      'wishlist_href' => $user
+          ? 'profile.php?tab=wishlist'
+          : 'login.php?redirect=' . rawurlencode('profile.php?tab=wishlist'),
+      'search_lead' => 'Search by product name, brand, or category — matches show below.',
+  ];
+  require __DIR__ . '/includes/user_header.php';
+  ?>
 
   <main class="page-main">
     <div class="container">
@@ -364,6 +355,14 @@ $ordersData = $uid ? orders_fetch_for_user($pdo, $uid) : [];
 
     </div>
   </main>
+
+  <?php
+  $footer = [
+      'deals_href' => 'index.php#deals',
+      'year' => '2026',
+  ];
+  require __DIR__ . '/includes/user_footer.php';
+  ?>
 
   <!-- Order Detail Modal -->
   <div class="modal-overlay hidden" id="detailModal">
@@ -502,6 +501,7 @@ $ordersData = $uid ? orders_fetch_for_user($pdo, $uid) : [];
     window.__API_CART__ = 'api/cart.php';
     window.__CART_COUNT__ = <?= (int) $cartNavCount ?>;
     window.__ORDERS__ = <?= json_encode($ordersData, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
+    window.__PRODUCTS__ = <?= json_encode(products_fetch_all($pdo), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
   </script>
   <script src="script/luxe.js"></script>
 </body>

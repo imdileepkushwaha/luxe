@@ -27,6 +27,12 @@ if ($cartItems !== []) {
 }
 
 $userLoggedIn = auth_user_id() !== null;
+$user = auth_user($pdo);
+$cartNavCount = 0;
+foreach ($cartItems as $ci) {
+    $cartNavCount += (int) ($ci['qty'] ?? 1);
+}
+$allProducts = products_fetch_all($pdo);
 $couponDefsJs = coupons_defs_for_frontend($pdo);
 $couponFeaturedCodes = coupons_featured_tag_codes($pdo, 10);
 $couponOfferLines = [];
@@ -51,53 +57,49 @@ foreach ($couponFeaturedCodes as $c) {
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,700;1,400&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/luxe.css" />
 </head>
-<body>
+<body class="index-page cart-page">
   <div class="cursor-dot" id="cursorDot"></div>
   <div class="cursor-ring" id="cursorRing"></div>
   <div class="bg-scene"><div class="blob blob-1"></div><div class="blob blob-2"></div><div class="grid-lines"></div></div>
 
-  <!-- Navbar -->
-  <nav class="navbar" id="navbar">
-    <div class="nav-container">
-      <div class="nav-brand-cluster">
-        <?php require __DIR__ . '/includes/nav_hamburger_btn.php'; ?>
-        <a href="index.php" class="nav-logo">LUXE</a>
-      </div>
-      <div class="nav-breadcrumb">
-        <a href="index.php">Home</a><span>/</span>
-        <span class="breadcrumb-current">Your Cart</span>
-      </div>
-      <div class="nav-actions">
-        <?php if ($userLoggedIn): ?>
-        <a href="profile.php" class="nav-icon-link" aria-label="Profile" data-nav-mobile="drawer">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        </a>
-        <?php endif; ?>
-        <a href="orders.php" class="nav-icon-link" aria-label="Orders" data-nav-mobile="drawer">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-        </a>
-        <?php if ($userLoggedIn): ?>
-        <a href="actions/logout.php" class="nav-login-btn" aria-label="Sign out" data-nav-mobile="drawer">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-          Sign Out
-        </a>
-        <?php else: ?>
-        <a href="login.php" class="nav-login-btn" data-nav-mobile="drawer">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          Sign In
-        </a>
-        <?php endif; ?>
-      </div>
-    </div>
-  </nav>
-  <?php require __DIR__ . '/includes/nav_drawer.php'; ?>
+  <?php
+  $header = [
+      'user' => $user,
+      'cart_count' => $cartNavCount,
+      'top_text' => 'New arrivals every week',
+      'top_highlight' => 'Free shipping above ₹999',
+      'top_links' => [
+          ['label' => "Today's Deals", 'href' => 'index.php#deals'],
+          ['label' => 'Top Brands', 'href' => 'index.php#brands'],
+      ],
+      'menu_links' => [
+          ['label' => 'Home', 'href' => 'index.php'],
+          ['label' => 'Shop', 'href' => 'product-list.php'],
+          ['label' => 'Collections', 'href' => 'index.php#collections'],
+          ['label' => 'Trending', 'href' => 'index.php#trending'],
+          ['label' => 'Deals', 'href' => 'index.php#deals'],
+          ['label' => 'Brands', 'href' => 'index.php#brands'],
+      ],
+      'wishlist_href' => $user
+          ? 'profile.php?tab=wishlist'
+          : 'login.php?redirect=' . rawurlencode('profile.php?tab=wishlist'),
+      'breadcrumb' => [
+          'home_href' => 'index.php',
+          'home_label' => 'Home',
+          'title' => 'Your Cart',
+          'current' => 'Your Cart',
+      ],
+      'search_lead' => 'Search by product name, brand, or category — matches show below.',
+  ];
+  require __DIR__ . '/includes/user_header.php';
+  ?>
 
   <main class="page-main">
     <div class="container">
 
       <!-- Page Header -->
       <div class="page-header">
-        <h1>Your Cart <span id="cartBadge" class="count-badge">3 items</span></h1>
+        <h1>Your Cart <span id="cartBadge" class="count-badge"><?= (int) count($cartItems) ?> item<?= count($cartItems) === 1 ? '' : 's' ?></span></h1>
         <a href="index.php" class="continue-link">← Continue Shopping</a>
       </div>
 
@@ -217,6 +219,14 @@ foreach ($couponFeaturedCodes as $c) {
     </div>
   </main>
 
+  <?php
+  $footer = [
+      'deals_href' => 'index.php#deals',
+      'year' => '2026',
+  ];
+  require __DIR__ . '/includes/user_footer.php';
+  ?>
+
   <div class="toast" id="toast"></div>
   <!-- Order Confirm Modal -->
   <div class="modal-overlay hidden" id="orderModal">
@@ -248,6 +258,7 @@ foreach ($couponFeaturedCodes as $c) {
     window.__PLATFORM_FEE_RUPEES__ = <?= (int) $platformFeeRupees ?>;
     window.__CART_SPEED_FEES__ = <?= json_encode(['express' => $expressFeeRu, 'same_day' => $sameDayFeeRu], JSON_THROW_ON_ERROR) ?>;
     window.__CART_ITEMS__ = <?= json_encode($cartItems, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
+    window.__PRODUCTS__ = <?= json_encode($allProducts, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
     window.__COUPON_DEFS__ = <?= json_encode($couponDefsJs, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
     window.__AUTH_USER_ID__ = <?= json_encode(auth_user_id()) ?>;
   </script>

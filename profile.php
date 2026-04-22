@@ -51,7 +51,8 @@ foreach ($deliveredReviewRows as $_rr) {
     }
 }
 $pendingReviewCount = $deliveredReviewCount - $reviewedPurchasesCount;
-foreach (array_slice(products_fetch_all($pdo), 0, 8) as $p) {
+$allProducts = products_fetch_all($pdo);
+foreach (array_slice($allProducts, 0, 8) as $p) {
     $wishlistArr[] = [
         'id' => $p['id'],
         'name' => $p['name'],
@@ -111,37 +112,40 @@ $profileBadgeLabel = $orderStats['order_count'] > 0 ? '⭐ LUXE Premium Member' 
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,700;1,400&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/luxe.css" />
 </head>
-<body>
+<body class="index-page profile-page">
   <div class="cursor-dot" id="cursorDot"></div>
   <div class="cursor-ring" id="cursorRing"></div>
   <div class="bg-scene"><div class="blob blob-1"></div><div class="blob blob-2"></div><div class="grid-lines"></div></div>
 
-  <nav class="navbar" id="navbar">
-    <div class="nav-container">
-      <div class="nav-brand-cluster">
-        <?php require __DIR__ . '/includes/nav_hamburger_btn.php'; ?>
-        <a href="index.php" class="nav-logo">LUXE</a>
-      </div>
-      <div class="nav-breadcrumb">
-        <a href="index.php">Home</a><span>/</span>
-        <span class="breadcrumb-current">My Profile</span>
-      </div>
-      <div class="nav-actions">
-        <a href="orders.php" class="nav-icon-link" aria-label="Orders" data-nav-mobile="drawer">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-        </a>
-        <a href="cart.php" class="nav-icon-link" style="position:relative" aria-label="Cart">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-          <span class="nav-cart-dot" id="cartCount"><?= (int) $cartNavCount ?></span>
-        </a>
-        <a href="actions/logout.php" class="nav-login-btn" aria-label="Sign out" data-nav-mobile="drawer">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-          Sign Out
-        </a>
-      </div>
-    </div>
-  </nav>
-  <?php require __DIR__ . '/includes/nav_drawer.php'; ?>
+  <?php
+  $header = [
+      'user' => $user,
+      'cart_count' => $cartNavCount,
+      'top_text' => 'New arrivals every week',
+      'top_highlight' => 'Free shipping above ₹999',
+      'top_links' => [
+          ['label' => "Today's Deals", 'href' => 'index.php#deals'],
+          ['label' => 'Top Brands', 'href' => 'index.php#brands'],
+      ],
+      'menu_links' => [
+          ['label' => 'Home', 'href' => 'index.php'],
+          ['label' => 'Shop', 'href' => 'product-list.php'],
+          ['label' => 'Collections', 'href' => 'index.php#collections'],
+          ['label' => 'Trending', 'href' => 'index.php#trending'],
+          ['label' => 'Deals', 'href' => 'index.php#deals'],
+          ['label' => 'Brands', 'href' => 'index.php#brands'],
+      ],
+      'wishlist_href' => 'profile.php?tab=wishlist',
+      'breadcrumb' => [
+          'home_href' => 'index.php',
+          'home_label' => 'Home',
+          'title' => 'My Profile',
+          'current' => 'My Profile',
+      ],
+      'search_lead' => 'Search by product name, brand, or category — matches show below.',
+  ];
+  require __DIR__ . '/includes/user_header.php';
+  ?>
 
   <main class="page-main">
     <div class="container">
@@ -508,6 +512,14 @@ $profileBadgeLabel = $orderStats['order_count'] > 0 ? '⭐ LUXE Premium Member' 
     </div>
   </main>
 
+  <?php
+  $footer = [
+      'deals_href' => 'index.php#deals',
+      'year' => '2026',
+  ];
+  require __DIR__ . '/includes/user_footer.php';
+  ?>
+
   <!-- Address Modal -->
   <div class="modal-overlay hidden" id="addressModal">
     <div class="modal-card">
@@ -578,6 +590,7 @@ $profileBadgeLabel = $orderStats['order_count'] > 0 ? '⭐ LUXE Premium Member' 
     window.__CART_COUNT__ = <?= (int) $cartNavCount ?>;
     window.__ADDRESSES__ = <?= json_encode($addresses, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
     window.__WISHLIST__ = <?= json_encode($wishlistArr, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
+    window.__PRODUCTS__ = <?= json_encode($allProducts, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
     window.__API_PROFILE_UPDATE__ = 'actions/update-profile.php';
     window.__API_ACCOUNT_DELETE__ = 'actions/request-account-deletion.php';
     window.__API_CHANGE_PASSWORD__ = 'actions/change-password.php';

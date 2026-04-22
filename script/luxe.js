@@ -8,7 +8,19 @@
 const LUXE_URLS = (typeof window.LUXE_URLS !== "undefined" && window.LUXE_URLS) ? window.LUXE_URLS : {
   home: "index.php", login: "login.php", cart: "cart.php", product: "product.php", orders: "orders.php", profile: "profile.php", productList: "product-list.php"
 };
-function luxeProductUrl(id) { return LUXE_URLS.product + "?id=" + encodeURIComponent(String(id)); }
+function luxeProductUrl(idOrProduct, slugMaybe) {
+  let id = idOrProduct;
+  let slug = slugMaybe;
+  if (idOrProduct && typeof idOrProduct === "object") {
+    id = idOrProduct.id;
+    slug = idOrProduct.slug;
+  }
+  const cleanSlug = String(slug || "").trim();
+  if (cleanSlug) {
+    return LUXE_URLS.product + "?slug=" + encodeURIComponent(cleanSlug);
+  }
+  return LUXE_URLS.product + "?id=" + encodeURIComponent(String(id));
+}
 
 function luxeEscapeHtml(str) {
   return String(str)
@@ -467,7 +479,7 @@ function luxeCreateTrendingStyleProductCard(p, index, opts) {
     ? "Add to cart — open product to choose size or colour"
     : "Add to cart";
   card.innerHTML = `
-        <a href="${luxeProductUrl(p.id)}" class="product-card-img-link" style="text-decoration:none;display:block">
+        <a href="${luxeProductUrl(p)}" class="product-card-img-link" style="text-decoration:none;display:block">
           <div class="product-card-img">
             <img class="card-emoji" src="${luxeProductImageUrl(p)}" alt="${nameEsc}" loading="lazy" decoding="async" />
             <div class="product-card-badge${badgeNew}">${luxeEscapeHtml(badge)}</div>
@@ -478,7 +490,7 @@ function luxeCreateTrendingStyleProductCard(p, index, opts) {
         </a>
         <div class="product-card-body">
           <div class="product-card-category">${luxeEscapeHtml(cat)}</div>
-          <a href="${luxeProductUrl(p.id)}" class="product-card-name" style="text-decoration:none;color:inherit;display:block">${nameEsc}</a>
+          <a href="${luxeProductUrl(p)}" class="product-card-name" style="text-decoration:none;color:inherit;display:block">${nameEsc}</a>
           <div class="product-card-meta">
             <div class="product-card-price">
               <span class="price-cur">₹${Number(p.price).toLocaleString()}</span>
@@ -487,7 +499,7 @@ function luxeCreateTrendingStyleProductCard(p, index, opts) {
             <div class="product-card-rating"><span>★</span> ${rating} (${revLabel})</div>
           </div>
           <div class="product-card-actions">
-            <a href="${luxeProductUrl(p.id)}" class="view-product-btn">View Details</a>
+            <a href="${luxeProductUrl(p)}" class="view-product-btn">View Details</a>
             <button type="button" class="${addCartBtnClass}" data-id="${Number(p.id)}" data-needs-options="${needsOpts ? "1" : "0"}" aria-label="${luxeEscapeHtml(addCartAria)}">${addCartBtnInner}</button>
           </div>
         </div>
@@ -511,7 +523,7 @@ function luxeCreateTrendingStyleProductCard(p, index, opts) {
       e.stopPropagation();
       if (luxeProductRequiresVariantPick(p)) {
         showToast("Size / colour chunne ke liye product page khul raha hai…");
-        window.location.href = luxeProductUrl(p.id);
+        window.location.href = luxeProductUrl(p);
         return;
       }
       onAddToCart(p);
@@ -681,7 +693,7 @@ function initSearchOverlay() {
     const img = luxeEscapeHtml(luxeProductImageUrl(p));
     const name = luxeEscapeHtml(p.name);
     return `<li>
-            <a class="search-live-hit" href="${luxeProductUrl(p.id)}">
+            <a class="search-live-hit" href="${luxeProductUrl(p)}">
               <span class="search-live-hit__thumb"><img src="${img}" alt="" loading="lazy" decoding="async" /></span>
               <span class="search-live-hit__body">
                 <span class="search-live-hit__name">${name}</span>
@@ -763,6 +775,70 @@ function initSearchOverlay() {
 }
 
 initSearchOverlay();
+
+function initHeaderQuickSearch() {
+  const quickForm = document.getElementById("headerQuickSearch");
+  const quickInput = document.getElementById("headerQuickSearchInput");
+  const searchBtn = document.getElementById("searchBtn");
+  const searchInput = document.getElementById("searchInput");
+  const searchOverlay = document.getElementById("searchOverlay");
+  if (!quickForm || !quickInput || !searchBtn || !searchInput || !searchOverlay) return;
+
+  quickForm.addEventListener("submit", e => {
+    e.preventDefault();
+    const q = String(quickInput.value || "").trim();
+    searchOverlay.classList.add("open");
+    searchInput.value = q;
+    setTimeout(() => {
+      searchInput.focus();
+      searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+    }, 180);
+  });
+}
+
+initHeaderQuickSearch();
+
+function initTopbarOfferRotator() {
+  const highlightEl = document.querySelector(".nav-kart-topbar__highlight[data-rotating-offers]");
+  if (!highlightEl) return;
+
+  let offers = [];
+  try {
+    const raw = String(highlightEl.getAttribute("data-rotating-offers") || "[]");
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) offers = parsed.map(v => String(v || "").trim()).filter(Boolean);
+  } catch (_e) {}
+
+  const couponDefs = (typeof window.__COUPON_DEFS__ === "object" && window.__COUPON_DEFS__) ? window.__COUPON_DEFS__ : {};
+  const couponOffers = Object.keys(couponDefs)
+    .slice(0, 8)
+    .map(code => {
+      const def = couponDefs[code];
+      const desc = def && typeof def.desc === "string" ? def.desc.trim() : "";
+      return desc ? `${code}: ${desc}` : `Use coupon ${code}`;
+    });
+
+  offers = offers.concat(couponOffers).filter(Boolean);
+  if (offers.length <= 1) return;
+
+  // Fisher-Yates shuffle so repeated reloads show mixed offer order.
+  for (let i = offers.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [offers[i], offers[j]] = [offers[j], offers[i]];
+  }
+
+  if (!offers.includes(highlightEl.textContent || "")) {
+    highlightEl.textContent = offers[0];
+  }
+
+  let idx = Math.max(0, offers.indexOf((highlightEl.textContent || "").trim()));
+  window.setInterval(() => {
+    idx = (idx + 1) % offers.length;
+    highlightEl.textContent = offers[idx];
+  }, 3200);
+}
+
+initTopbarOfferRotator();
 
 /** Index landing: offer modal after welcome loader; dismiss persists in localStorage. */
 (function initIndexOfferPopup() {
@@ -928,6 +1004,21 @@ function initThemeToggle() {
     const s = [p.name, p.category, p.badge]
       .map(v => String(v || "").toLowerCase())
       .join(" ");
+    const pid = Number(p.id) || 0;
+    const isJeans = /\b(jeans|denim)\b/.test(s);
+    const isShoes = /\b(shoe|shoes|sneaker|runner|boot|loafer)\b/.test(s);
+    if (isJeans) {
+      const bucket = Math.abs(pid) % 3;
+      if (bucket === 0) return "jeans_28_30";
+      if (bucket === 1) return "jeans_32_34";
+      return "jeans_36_plus";
+    }
+    if (isShoes) {
+      const bucket = Math.abs(pid) % 3;
+      if (bucket === 0) return "shoes_uk_6_7";
+      if (bucket === 1) return "shoes_uk_8_9";
+      return "shoes_uk_10_plus";
+    }
     const price = Number(p.price) || 0;
     if (/\b(free\s*size|one\s*size)\b/.test(s)) return "free";
     if (/\b(xs|small|slim|compact)\b/.test(s) || price <= 999) return "small";
@@ -1805,6 +1896,17 @@ function initThemeToggle() {
     const ze = document.getElementById("zoomEmoji");
     if (ze && productGalleryUrls[0]) ze.src = productGalleryUrls[0];
     const saleBadge = document.querySelector(".main-image .badge-sale"); if (saleBadge) saleBadge.textContent = pct + "% OFF";
+    const stickyNameEl = document.getElementById("stickyName");
+    if (stickyNameEl) stickyNameEl.textContent = String(Pb.name || "Product");
+    const stickyPriceEl = document.getElementById("stickyPrice");
+    if (stickyPriceEl) stickyPriceEl.textContent = "₹" + Number(Pb.price || 0).toLocaleString("en-IN");
+    const stickyOriginalEl = document.getElementById("stickyOriginal");
+    if (stickyOriginalEl) stickyOriginalEl.textContent = "₹" + Number(Pb.original || 0).toLocaleString("en-IN");
+    const stickyThumbEl = document.getElementById("stickyThumb");
+    if (stickyThumbEl && productGalleryUrls[0]) {
+      stickyThumbEl.src = productGalleryUrls[0];
+      stickyThumbEl.alt = String(Pb.name || "Product");
+    }
   }
 
   const stockBadgeEl = document.querySelector(".main-image .badge-stock");
@@ -2447,13 +2549,73 @@ function initThemeToggle() {
     cartItems = DEFAULT_CART_ITEMS;
   }
 
-  let savedItems = [
-    { id: 4, name: "Linen Co-ord Set", emoji: "👗", price: 3299 },
-    { id: 5, name: "Retinol Serum Kit", emoji: "🧴", price: 1899 },
-  ];
+  const SAVED_LATER_KEY = "luxeSavedForLater";
+  let savedItems = [];
 
   let appliedCoupon = null;
   let deliveryFetchSeq = 0;
+
+  function normalizeSavedLaterItem(raw) {
+    if (!raw || typeof raw !== "object") return null;
+    const id = Number(raw.id);
+    const name = String(raw.name ?? "").trim();
+    if (!Number.isFinite(id) || id <= 0 || !name) return null;
+    const price = Math.max(0, Number(raw.price) || 0);
+    const size = String(raw.size ?? "—");
+    const color = String(raw.color ?? "Default");
+    const key = String(raw.key || (String(id) + "\x1f" + size.trim() + "\x1f" + color.trim()));
+    return {
+      id,
+      key,
+      name,
+      brand: String(raw.brand ?? "LUXE"),
+      emoji: String(raw.emoji ?? "🛍️"),
+      price,
+      orig: Math.max(price, Number(raw.orig) || Math.round(price * 1.25)),
+      size,
+      color
+    };
+  }
+
+  function loadSavedForLater() {
+    try {
+      const raw = localStorage.getItem(SAVED_LATER_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.map(normalizeSavedLaterItem).filter(Boolean);
+    } catch (_e) {
+      return [];
+    }
+  }
+
+  function persistSavedForLater() {
+    try {
+      localStorage.setItem(SAVED_LATER_KEY, JSON.stringify(savedItems));
+    } catch (_e) {}
+  }
+
+  function upsertSavedItemFromCartLine(item) {
+    const key = luxeCartLineKey(item);
+    const next = normalizeSavedLaterItem({
+      id: item.id,
+      key,
+      name: item.name,
+      brand: item.brand,
+      emoji: item.emoji,
+      price: item.price,
+      orig: item.orig,
+      size: item.size,
+      color: item.color
+    });
+    if (!next) return;
+    const idx = savedItems.findIndex(s => s.key === key);
+    if (idx >= 0) savedItems[idx] = next;
+    else savedItems.push(next);
+    persistSavedForLater();
+  }
+
+  savedItems = loadSavedForLater();
 
   function cartPlatformFeeAmount() {
     const v = window.__PLATFORM_FEE_RUPEES__;
@@ -2612,12 +2774,37 @@ function initThemeToggle() {
 
   function renderSaved() {
     const container = document.getElementById("savedContainer");
+    const section = document.getElementById("savedSection");
     document.getElementById("savedCount").textContent = `(${savedItems.length})`;
-    if (savedItems.length === 0) { container.innerHTML = ""; return; }
+    if (savedItems.length === 0) {
+      container.innerHTML = "";
+      if (section) section.style.display = "none";
+      return;
+    }
+    if (section) section.style.display = "";
     container.innerHTML = savedItems.map(s => `
-      <div class="saved-item"><span class="saved-emoji">${s.emoji}</span><div class="saved-info"><strong>${s.name}</strong><span>₹${s.price.toLocaleString()}</span><button class="move-to-cart" onclick="moveToCart(${s.id})">+ Move to Cart</button></div></div>
+      <div class="saved-item">
+        <span class="saved-emoji">${s.emoji}</span>
+        <div class="saved-info">
+          <strong>${luxeEscapeHtml(s.name)}</strong>
+          <span>${luxeEscapeHtml(s.size)} · ${luxeEscapeHtml(s.color)} · ₹${s.price.toLocaleString("en-IN")}</span>
+          <button class="move-to-cart" onclick="moveToCart('${encodeURIComponent(s.key).replace(/'/g, "%27")}')">+ Move to Cart</button>
+          <button class="action-link remove" type="button" onclick="removeSavedItem('${encodeURIComponent(s.key).replace(/'/g, "%27")}')">Remove</button>
+        </div>
+      </div>
     `).join("");
     refreshCursorTargets();
+  }
+
+  async function persistCartState() {
+    try {
+      const normalized = await luxeSaveCart(cartItems);
+      mergeCartFromServer(normalized);
+      return true;
+    } catch (_e) {
+      showToast("Could not sync cart. Please try again.");
+      return false;
+    }
   }
 
   window.toggleItem = function(lineEnc, checked) {
@@ -2630,7 +2817,7 @@ function initThemeToggle() {
     }
   };
   window.toggleAll = function(el) { cartItems.forEach(i => i.checked = el.checked); renderCart(); };
-  window.changeQty = function(lineEnc, delta) {
+  window.changeQty = async function(lineEnc, delta) {
     const k = decodeURIComponent(lineEnc);
     const item = cartItems.find(i => luxeCartLineKey(i) === k);
     if (!item) return;
@@ -2642,6 +2829,7 @@ function initThemeToggle() {
     }
     item.qty = Math.max(1, Math.min(maxQ, next));
     renderCart();
+    await persistCartState();
     showToast(`📦 Quantity updated to ${item.qty}`);
   };
   window.removeItem = function(lineEnc) {
@@ -2649,9 +2837,10 @@ function initThemeToggle() {
     const item = cartItems.find(i => luxeCartLineKey(i) === k);
     const el = item ? document.getElementById(luxeCartLineDomId(item)) : null;
     el?.classList.add("removing");
-    setTimeout(() => {
+    setTimeout(async () => {
       cartItems = cartItems.filter(i => luxeCartLineKey(i) !== k);
       renderCart();
+      await persistCartState();
       showToast("🗑️ Item removed from cart");
     }, 300);
   };
@@ -2659,17 +2848,60 @@ function initThemeToggle() {
     const k = decodeURIComponent(lineEnc);
     const item = cartItems.find(i => luxeCartLineKey(i) === k);
     if (!item) return;
-    savedItems.push({ id: item.id, name: item.name, emoji: item.emoji, price: item.price });
+    upsertSavedItemFromCartLine(item);
     const el = document.getElementById(luxeCartLineDomId(item));
     el?.classList.add("removing");
-    setTimeout(() => {
+    setTimeout(async () => {
       cartItems = cartItems.filter(i => luxeCartLineKey(i) !== k);
       renderCart();
+      await persistCartState();
       showToast("🔖 Saved for later!");
     }, 300);
   };
-  window.moveToCart = function(id) { const s = savedItems.find(i => i.id === id); if (!s) return; cartItems.push({ id: s.id, name: s.name, brand: "LUXE", emoji: s.emoji, price: s.price, orig: Math.round(s.price * 1.3), qty: 1, max_qty: 999, size: "—", color: "Default", checked: true }); savedItems = savedItems.filter(i => i.id !== id); renderCart(); showToast("✅ Moved to cart!"); };
-  window.removeSelected = function() { const selected = cartItems.filter(i => i.checked).length; cartItems = cartItems.filter(i => !i.checked); renderCart(); showToast(`🗑️ ${selected} item(s) removed`); };
+  window.moveToCart = async function(lineEnc) {
+    const key = decodeURIComponent(lineEnc);
+    const s = savedItems.find(i => i.key === key);
+    if (!s) return;
+    cartItems.push({
+      id: s.id,
+      name: s.name,
+      brand: s.brand || "LUXE",
+      emoji: s.emoji,
+      price: s.price,
+      orig: s.orig || Math.round(s.price * 1.3),
+      qty: 1,
+      max_qty: 999,
+      size: s.size || "—",
+      color: s.color || "Default",
+      checked: true
+    });
+    savedItems = savedItems.filter(i => i.key !== key);
+    persistSavedForLater();
+    renderCart();
+    await persistCartState();
+    showToast("✅ Moved to cart!");
+  };
+  window.removeSavedItem = function(lineEnc) {
+    const key = decodeURIComponent(lineEnc);
+    const before = savedItems.length;
+    savedItems = savedItems.filter(i => i.key !== key);
+    if (savedItems.length !== before) {
+      persistSavedForLater();
+      renderSaved();
+      showToast("Removed from saved items.");
+    }
+  };
+  window.removeSelected = async function() {
+    const selected = cartItems.filter(i => i.checked).length;
+    if (selected <= 0) {
+      showToast("Select at least one item.");
+      return;
+    }
+    cartItems = cartItems.filter(i => !i.checked);
+    renderCart();
+    await persistCartState();
+    showToast(`🗑️ ${selected} item(s) removed`);
+  };
 
   window.fillCoupon = function(code) { document.getElementById("couponInput").value = code; applyCoupon(); };
   window.applyCoupon = function() {
