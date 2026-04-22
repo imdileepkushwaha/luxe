@@ -14,26 +14,61 @@ $cancelRequests = [];
 $toastMessage = '';
 $toastIsError = false;
 
+function seller_orders_status_rank(string $status): int
+{
+    return match (strtolower(trim($status))) {
+        'processing' => 1,
+        'confirmed' => 2,
+        'shipped' => 3,
+        'out' => 4,
+        'delivered' => 5,
+        default => 1,
+    };
+}
+
+function seller_orders_status_from_rank(int $rank): string
+{
+    return match ($rank) {
+        5 => 'delivered',
+        4 => 'out',
+        3 => 'shipped',
+        2 => 'confirmed',
+        default => 'processing',
+    };
+}
+
+function seller_orders_sync_parent_order_status_from_items(PDO $pdo, int $orderId): void
+{
+    $st = $pdo->prepare('SELECT status FROM order_items WHERE order_id = ?');
+    $st->execute([$orderId]);
+    $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+    if (!is_array($rows) || $rows === []) {
+        return;
+    }
+    $minRank = 5;
+    foreach ($rows as $row) {
+        $lineStatus = strtolower(trim((string) ($row['status'] ?? 'processing')));
+        $minRank = min($minRank, seller_orders_status_rank($lineStatus));
+    }
+    $upd = $pdo->prepare('UPDATE orders SET status = ? WHERE id = ? LIMIT 1');
+    $upd->execute([seller_orders_status_from_rank($minRank), $orderId]);
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') === 'confirm_order') {
     $confirmOrderId = (int) ($_POST['order_id'] ?? 0);
     if ($confirmOrderId > 0) {
         $confirmSt = $pdo->prepare(
-            "UPDATE orders o
-             SET o.status = 'confirmed',
-                 o.confirmed_at = COALESCE(o.confirmed_at, NOW())
-             WHERE o.id = ?
-               AND o.status = 'processing'
-               AND EXISTS (
-                 SELECT 1
-                 FROM order_items oi
-                 INNER JOIN products p ON p.id = oi.product_id
-                 WHERE oi.order_id = o.id
-                   AND p.seller_id = ?
-               )
-             LIMIT 1"
+            "UPDATE order_items oi
+             INNER JOIN products p ON p.id = oi.product_id
+             SET oi.status = 'confirmed',
+                 oi.confirmed_at = COALESCE(oi.confirmed_at, NOW())
+             WHERE oi.order_id = ?
+               AND oi.status = 'processing'
+               AND p.seller_id = ?"
         );
         $confirmSt->execute([$confirmOrderId, (int) $seller['id']]);
         if ($confirmSt->rowCount() > 0) {
+            seller_orders_sync_parent_order_status_from_items($pdo, $confirmOrderId);
             $toastMessage = 'Order confirmed successfully.';
         } else {
             $toastMessage = 'Order confirm nahi ho paaya. Shayad order already updated hai.';
@@ -154,6 +189,37 @@ $st = $pdo->prepare(
 );
 $st->execute([(int) $seller['id']]);
 $orders = $st->fetchAll();
+
+$sellerStatusByOrderId = [];
+if ($orders !== []) {
+    $orderIds = array_values(array_filter(array_map(static fn(array $o): int => (int) ($o['id'] ?? 0), $orders), static fn(int $id): bool => $id > 0));
+    if ($orderIds !== []) {
+        $ph = implode(',', array_fill(0, count($orderIds), '?'));
+        $lineSt = $pdo->prepare(
+            "SELECT oi.order_id, oi.status
+             FROM order_items oi
+             INNER JOIN products p ON p.id = oi.product_id
+             WHERE p.seller_id = ?
+               AND oi.order_id IN ($ph)"
+        );
+        $lineSt->execute(array_merge([(int) $seller['id']], $orderIds));
+        while ($line = $lineSt->fetch(PDO::FETCH_ASSOC)) {
+            $oid = (int) ($line['order_id'] ?? 0);
+            if ($oid <= 0) {
+                continue;
+            }
+            $rank = seller_orders_status_rank((string) ($line['status'] ?? 'processing'));
+            if (!isset($sellerStatusByOrderId[$oid])) {
+                $sellerStatusByOrderId[$oid] = seller_orders_status_from_rank($rank);
+                continue;
+            }
+            $prevRank = seller_orders_status_rank((string) $sellerStatusByOrderId[$oid]);
+            if ($rank < $prevRank) {
+                $sellerStatusByOrderId[$oid] = seller_orders_status_from_rank($rank);
+            }
+        }
+    }
+}
 
 /** Deep-link to newest return row on order-details (hash opens panel). */
 $latestReturnIdByOrder = [];
@@ -532,13 +598,14 @@ require __DIR__ . '/partials/shell-top.php';
                         . trim((string) ($o['shipping_address'] ?? '')) . ' '
                         . trim((string) ($o['created_at'] ?? ''))
                     );
-                    $stMod = seller_order_status_chip_modifier((string) $o['status']);
-                    $stLabel = seller_order_status_label_orders((string) $o['status']);
+                    $sellerStatus = (string) ($sellerStatusByOrderId[(int) ($o['id'] ?? 0)] ?? (string) ($o['status'] ?? 'processing'));
+                    $stMod = seller_order_status_chip_modifier($sellerStatus);
+                    $stLabel = seller_order_status_label_orders($sellerStatus);
                     $catPills = seller_orders_category_pills((string) ($o['categories'] ?? ''));
                     $createdRaw = (string) ($o['created_at'] ?? '');
                     $createdFmt = seller_orders_format_datetime($createdRaw);
                     $createdAgo = seller_orders_time_ago($createdRaw);
-                    $paymentStatusLabel = seller_orders_payment_status_label((string) ($o['payment_method'] ?? ''), (string) ($o['status'] ?? ''));
+                    $paymentStatusLabel = seller_orders_payment_status_label((string) ($o['payment_method'] ?? ''), $sellerStatus);
                     ?>
                     <tr class="seller-order-row" data-orders-search="<?= h($ordersSearchBlob) ?>">
                       <td class="seller-orders-td-order">
@@ -580,7 +647,7 @@ require __DIR__ . '/partials/shell-top.php';
                       </td>
                       <td class="seller-orders-td-actions">
                         <div class="seller-order-actions">
-                          <?php if (strtolower((string) ($o['status'] ?? '')) === 'processing'): ?>
+                          <?php if (strtolower($sellerStatus) === 'processing'): ?>
                             <form method="post" class="seller-order-action-form" action="<?= h($ordersFormAction) ?>">
                               <input type="hidden" name="action" value="confirm_order">
                               <input type="hidden" name="order_id" value="<?= (int) $o['id'] ?>">

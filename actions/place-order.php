@@ -70,7 +70,7 @@ try {
     $orderId = (int) $pdo->lastInsertId();
 
     $insI = $pdo->prepare(
-        'INSERT INTO order_items (order_id, product_id, name, emoji, variant_text, price, qty) VALUES (?,?,?,?,?,?,?)'
+        'INSERT INTO order_items (order_id, product_id, name, emoji, variant_text, price, qty, status) VALUES (?,?,?,?,?,?,?,?)'
     );
     $productSt = $pdo->prepare(
         'SELECT p.id, p.name, p.emoji, p.price, p.stock_qty, p.seller_id
@@ -197,7 +197,7 @@ try {
             }
         }
 
-        $insI->execute([$orderId, $pid, $name, $emoji, $variant, $price, $qty]);
+        $insI->execute([$orderId, $pid, $name, $emoji, $variant, $price, $qty, 'processing']);
         $safeTotal += ($price * $qty);
         $savedAny = true;
         $linesForShipping[] = [

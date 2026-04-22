@@ -1016,6 +1016,53 @@ function db_ensure_orders_status_time_columns(PDO $pdo): void
     }
 }
 
+function db_ensure_order_items_status_columns(PDO $pdo): void
+{
+    try {
+        $dbName = (string) $pdo->query('SELECT DATABASE()')->fetchColumn();
+        if ($dbName === '') {
+            return;
+        }
+        $chk = $pdo->prepare(
+            'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+
+        $columns = [
+            'status' => "ALTER TABLE order_items ADD COLUMN status VARCHAR(32) NOT NULL DEFAULT 'processing' AFTER qty",
+            'confirmed_at' => 'ALTER TABLE order_items ADD COLUMN confirmed_at DATETIME NULL DEFAULT NULL AFTER status',
+            'shipped_at' => 'ALTER TABLE order_items ADD COLUMN shipped_at DATETIME NULL DEFAULT NULL AFTER confirmed_at',
+            'out_for_delivery_at' => 'ALTER TABLE order_items ADD COLUMN out_for_delivery_at DATETIME NULL DEFAULT NULL AFTER shipped_at',
+            'delivered_at' => 'ALTER TABLE order_items ADD COLUMN delivered_at DATETIME NULL DEFAULT NULL AFTER out_for_delivery_at',
+        ];
+
+        foreach ($columns as $col => $sql) {
+            $chk->execute([$dbName, 'order_items', $col]);
+            if (!$chk->fetchColumn()) {
+                $pdo->exec($sql);
+            }
+        }
+
+        // Backfill old data so line-item progress works immediately.
+        $pdo->exec(
+            "UPDATE order_items oi
+             INNER JOIN orders o ON o.id = oi.order_id
+             SET
+                oi.status = CASE
+                    WHEN TRIM(COALESCE(oi.status, '')) = '' THEN LOWER(TRIM(COALESCE(o.status, 'processing')))
+                    ELSE LOWER(TRIM(oi.status))
+                END,
+                oi.confirmed_at = COALESCE(oi.confirmed_at, o.confirmed_at),
+                oi.shipped_at = COALESCE(oi.shipped_at, o.shipped_at),
+                oi.out_for_delivery_at = COALESCE(oi.out_for_delivery_at, o.out_for_delivery_at),
+                oi.delivered_at = COALESCE(oi.delivered_at, o.delivered_at)
+             WHERE oi.order_id = o.id"
+        );
+    } catch (Throwable) {
+        // Missing permissions or non-MySQL
+    }
+}
+
 function db_ensure_user_loyalty_redeemed_column(PDO $pdo): void
 {
     try {
@@ -1122,6 +1169,7 @@ function db(): PDO
     db_ensure_orders_platform_fee_column($pdo);
     db_ensure_orders_delivered_at_column($pdo);
     db_ensure_orders_status_time_columns($pdo);
+    db_ensure_order_items_status_columns($pdo);
     db_ensure_user_loyalty_redeemed_column($pdo);
     return $pdo;
 }

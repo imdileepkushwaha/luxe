@@ -149,7 +149,7 @@ function orders_fetch_for_user(PDO $pdo, int $userId): array
     $out = [];
     foreach ($orders as $o) {
         $it = $pdo->prepare(
-            'SELECT pi.id AS order_item_id, pi.product_id, pi.name, pi.emoji, pi.variant_text AS variant, pi.price, pi.qty
+            'SELECT pi.id AS order_item_id, pi.product_id, pi.name, pi.emoji, pi.variant_text AS variant, pi.price, pi.qty, pi.status AS item_status
              FROM order_items pi WHERE pi.order_id = ?'
         );
         $it->execute([(int) $o['id']]);
@@ -162,6 +162,10 @@ function orders_fetch_for_user(PDO $pdo, int $userId): array
             $computedTotal += $lineTotal;
             $orderItemId = (int) ($row['order_item_id'] ?? 0);
             $productId = (int) ($row['product_id'] ?? 0);
+            $itemStatus = strtolower(trim((string) ($row['item_status'] ?? (string) ($o['status'] ?? 'processing'))));
+            if ($itemStatus === '') {
+                $itemStatus = strtolower(trim((string) ($o['status'] ?? 'processing')));
+            }
             $items[] = [
                 'orderItemId' => $orderItemId,
                 'emoji' => $row['emoji'] ?? '📦',
@@ -170,6 +174,8 @@ function orders_fetch_for_user(PDO $pdo, int $userId): array
                 'variant' => $row['variant'] ?? '',
                 'price' => $price,
                 'qty' => $qty,
+                'status' => $itemStatus,
+                'tracking' => order_tracking_steps($itemStatus),
                 'lineTotal' => $lineTotal,
                 'returnRequest' => $returnMap[$orderItemId] ?? null,
                 'hasReview' => $productId > 0 && isset($reviewedProductIds[$productId]),

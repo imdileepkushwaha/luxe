@@ -93,8 +93,12 @@ $metaDesc = $initialCategory === 'all'
         <button type="button" class="filter-btn<?= $initialCategory === 'beauty' ? ' active' : '' ?>" data-filter="beauty" role="tab" aria-selected="<?= $initialCategory === 'beauty' ? 'true' : 'false' ?>">Beauty</button>
         <button type="button" class="filter-btn<?= $initialCategory === 'home' ? ' active' : '' ?>" data-filter="home" role="tab" aria-selected="<?= $initialCategory === 'home' ? 'true' : 'false' ?>">Home</button>
       </div>
-      <div class="product-list-layout">
-        <aside class="product-filters" aria-label="Product filters">
+      <div class="product-list-page-inner">
+        <aside class="product-filters" id="productFiltersPanel" aria-label="Product filters">
+          <div class="product-filters__mobile-head">
+            <span class="product-filters__mobile-title">Filters</span>
+            <button type="button" class="product-filters__close-btn" id="productFiltersCloseBtn" aria-label="Close filters">✕</button>
+          </div>
           <div class="product-filters__card">
             <form id="productFiltersForm" class="product-filters__form" autocomplete="off">
               <details class="product-filter-group" open>
@@ -270,8 +274,19 @@ $metaDesc = $initialCategory === 'all'
             </form>
           </div>
         </aside>
-        <div class="products-grid" id="productsGrid"></div>
+        <div class="product-list-layout">
+          <div class="product-list-toolbar">
+            <button type="button" class="product-filters-open-btn" id="productFiltersOpenBtn" aria-expanded="false" aria-controls="productFiltersPanel">
+              <svg class="product-filters-open-btn__icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+              </svg>
+              <span>Filters</span>
+            </button>
+          </div>
+          <div class="products-grid" id="productsGrid"></div>
+        </div>
       </div>
+      <div class="product-list-filters-overlay" id="productFiltersOverlay" hidden aria-hidden="true"></div>
     </div>
   </section>
 

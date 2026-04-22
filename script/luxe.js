@@ -567,7 +567,7 @@ document.addEventListener("mousemove", e => {
 })();
 
 function refreshCursorTargets() {
-  document.querySelectorAll("a, button, input, select, label, .product-card, .collection-card, .brand-logo, .tag, .strip-item, .filter-btn, .ctag, .action-btn, .smenu-item, .wishlist-item, .address-card, .order-card, .cart-item, .thumb, .swatch, .size-btn, .review-card, .perk-item, .delivery-card, .ptab, .spec-row, .f-card, .nav-menu-btn, .nav-drawer__close, .btn-share").forEach(el => {
+  document.querySelectorAll("a, button, input, select, label, .product-card, .collection-card, .brand-logo, .tag, .strip-item, .filter-btn, .ctag, .action-btn, .smenu-item, .wishlist-item, .address-card, .order-card, .cart-item, .thumb, .swatch, .size-btn, .review-card, .perk-item, .delivery-card, .ptab, .spec-row, .f-card, .nav-menu-btn, .nav-drawer__close, .btn-share, .product-filters-open-btn, .product-filters__close-btn").forEach(el => {
     el.addEventListener("mouseenter", () => ring?.classList.add("hover"));
     el.addEventListener("mouseleave", () => ring?.classList.remove("hover"));
   });
@@ -1189,13 +1189,58 @@ function initThemeToggle() {
     renderProducts();
   }
 
+  function closeProductFiltersDrawer() {
+    if (!isProductList) return;
+    const panel = document.getElementById("productFiltersPanel");
+    const overlay = document.getElementById("productFiltersOverlay");
+    const openBtn = document.getElementById("productFiltersOpenBtn");
+    panel?.classList.remove("is-open");
+    if (overlay) {
+      overlay.setAttribute("hidden", "");
+      overlay.setAttribute("aria-hidden", "true");
+    }
+    if (openBtn) openBtn.setAttribute("aria-expanded", "false");
+    document.body.style.overflow = "";
+  }
+  function openProductFiltersDrawer() {
+    if (!isProductList) return;
+    const panel = document.getElementById("productFiltersPanel");
+    const overlay = document.getElementById("productFiltersOverlay");
+    const openBtn = document.getElementById("productFiltersOpenBtn");
+    if (!panel || !openBtn) return;
+    panel.classList.add("is-open");
+    if (overlay) {
+      overlay.removeAttribute("hidden");
+      overlay.setAttribute("aria-hidden", "false");
+    }
+    openBtn.setAttribute("aria-expanded", "true");
+    document.body.style.overflow = "hidden";
+  }
+  if (isProductList) {
+    const openBtn = document.getElementById("productFiltersOpenBtn");
+    const closeBtn = document.getElementById("productFiltersCloseBtn");
+    const overlay = document.getElementById("productFiltersOverlay");
+    openBtn?.addEventListener("click", () => openProductFiltersDrawer());
+    closeBtn?.addEventListener("click", () => closeProductFiltersDrawer());
+    overlay?.addEventListener("click", () => closeProductFiltersDrawer());
+    window.addEventListener("keydown", e => {
+      if (e.key === "Escape") closeProductFiltersDrawer();
+    });
+    window.addEventListener("resize", () => {
+      if (window.innerWidth > 768) closeProductFiltersDrawer();
+    });
+  }
   if (productFiltersApply) {
-    productFiltersApply.addEventListener("click", () => applySidebarFiltersFromForm());
+    productFiltersApply.addEventListener("click", () => {
+      applySidebarFiltersFromForm();
+      if (isProductList) closeProductFiltersDrawer();
+    });
   }
   if (productFiltersForm) {
     productFiltersForm.addEventListener("submit", e => {
       e.preventDefault();
       applySidebarFiltersFromForm();
+      if (isProductList) closeProductFiltersDrawer();
     });
   }
 
@@ -3112,6 +3157,14 @@ function initThemeToggle() {
   function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
   const statusDots = { delivered: "✓", out: "📍", shipped: "🚚", confirmed: "✔", processing: "⏳", cancelled: "✕" };
   function getTrackingStep(order) { return ({ processing: 1, confirmed: 2, shipped: 3, out: 4, delivered: 5, cancelled: 2 })[order.status] || 1; }
+  function getItemStatus(item, order) {
+    const raw = String(item?.status || order?.status || "processing").toLowerCase().trim();
+    return raw || "processing";
+  }
+  function getItemTrackingStep(item, order) {
+    const st = getItemStatus(item, order);
+    return ({ processing: 1, confirmed: 2, shipped: 3, out: 4, delivered: 5, cancelled: 2 })[st] || 1;
+  }
   function getReturnExpiry(order) {
     const raw = order?.createdAt || "";
     const dt = raw ? new Date(raw.replace(" ", "T")) : null;
@@ -3247,6 +3300,14 @@ function initThemeToggle() {
             ${returnItems.length > 3 ? `<div style="font-size:0.76rem;color:var(--text-dim)">+${returnItems.length - 3} more return item(s)</div>` : ""}
           </div>`
         : "";
+      const itemProgressHtml = (order.items || []).slice(0, 3).map(item => {
+        const iStatus = getItemStatus(item, order);
+        const iStep = getItemTrackingStep(item, order);
+        return `<div style="margin-bottom:10px">
+          <div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:6px">${escHtml(item.name)} · ${escHtml(capitalize(iStatus))}</div>
+          <div class="tracking-steps">${trackingLabels.map((label, i) => `<div class="tracking-step ${i < iStep ? "done" : ""} ${i === iStep - 1 && iStatus !== "delivered" ? "active" : ""}"><div class="step-dot">${i < iStep ? "✓" : i+1}</div><span class="step-label">${label}</span></div>`).join("")}</div>
+        </div>`;
+      }).join("");
       return `<div class="order-card reveal">
         <div class="order-card-header"><div class="order-meta"><span class="order-id-label">Order ID</span><span class="order-id-val">#${order.id}</span><span class="order-date">Placed on ${order.date}</span></div><div><span class="status-badge status-${order.status}">${statusDots[order.status]} ${capitalize(order.status)}</span></div></div>
         <div class="order-items-row">${display.map(item => {
@@ -3256,7 +3317,7 @@ function initThemeToggle() {
             : "";
           return `<div class="order-product"><div class="order-product-img">${item.emoji}</div><div class="order-product-info"><strong>${item.name}</strong><span>${item.variant}</span>${statusLine}</div></div>`;
         }).join("")}${extra > 0 ? `<span class="order-more-items">+${extra} more</span>` : ""}</div>
-        ${order.status !== "cancelled" ? `<div class="tracking-section"><div class="tracking-label">📍 Order Progress</div><div class="tracking-steps">${trackingLabels.map((label, i) => `<div class="tracking-step ${i < step ? "done" : ""} ${i === step - 1 && order.status !== "delivered" ? "active" : ""}"><div class="step-dot">${i < step ? "✓" : i+1}</div><span class="step-label">${label}</span></div>`).join("")}</div></div>` : ""}
+        ${order.status !== "cancelled" ? `<div class="tracking-section"><div class="tracking-label">📍 Item-wise Order Progress</div>${itemProgressHtml}${(order.items || []).length > 3 ? `<div style="font-size:0.76rem;color:var(--text-dim)">+${order.items.length - 3} more item(s)</div>` : ""}</div>` : ""}
         ${returnProgressHtml}
         <div class="order-card-footer"><div class="order-total-info"><span class="order-total-label">Order Total</span><span class="order-total-val">₹${order.total.toLocaleString()}</span></div>
         <div class="order-card-actions">${order.status === "delivered" && reviewableItems.length > 0 ? `<button class="action-btn secondary" onclick="openOrderReviewForm('${order.id}')">Rate & Review</button>` : ""}${invoiceBtn}${cancelBtn}${returnBtn}<button class="action-btn primary" onclick="viewDetail('${order.id}')">View Details →</button></div></div>
@@ -3273,7 +3334,16 @@ function initThemeToggle() {
       const unitPrice = Number(item.price || 0);
       const lineTotal = Number(item.lineTotal || (unitPrice * qty));
       const qtyText = qty > 1 ? ` · Qty ${qty}` : "";
-      return `<div style="display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--border)"><span style="font-size:2rem">${item.emoji}</span><div style="flex:1"><strong style="color:var(--white);display:block">${item.name}</strong><span style="font-size:0.8rem;color:var(--text-muted)">${item.variant}${qtyText}</span></div><strong style="color:var(--primary-light)">₹${lineTotal.toLocaleString()}</strong></div>`;
+      const itemStatus = getItemStatus(item, order);
+      const itemStep = getItemTrackingStep(item, order);
+      return `<div style="padding:12px 0;border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:14px">
+          <span style="font-size:2rem">${item.emoji}</span>
+          <div style="flex:1"><strong style="color:var(--white);display:block">${item.name}</strong><span style="font-size:0.8rem;color:var(--text-muted)">${item.variant}${qtyText}</span><span style="display:block;font-size:0.74rem;color:var(--text-dim);margin-top:4px">Status: ${escHtml(capitalize(itemStatus))}</span></div>
+          <strong style="color:var(--primary-light)">₹${lineTotal.toLocaleString()}</strong>
+        </div>
+        <div class="tracking-steps" style="margin-top:8px">${trackingLabels.map((label, i) => `<div class="tracking-step ${i < itemStep ? "done" : ""} ${i === itemStep - 1 && itemStatus !== "delivered" ? "active" : ""}"><div class="step-dot">${i < itemStep ? "✓" : i+1}</div><span class="step-label">${label}</span></div>`).join("")}</div>
+      </div>`;
     }).join("");
     const returnItemsHtml = (order.items || [])
       .filter(item => item && item.returnRequest)

@@ -299,6 +299,11 @@ CREATE TABLE order_items (
   variant_text VARCHAR(255) NOT NULL DEFAULT '',
   price INT UNSIGNED NOT NULL,
   qty INT UNSIGNED NOT NULL DEFAULT 1,
+  status VARCHAR(32) NOT NULL DEFAULT 'processing',
+  confirmed_at DATETIME NULL DEFAULT NULL,
+  shipped_at DATETIME NULL DEFAULT NULL,
+  out_for_delivery_at DATETIME NULL DEFAULT NULL,
+  delivered_at DATETIME NULL DEFAULT NULL,
   CONSTRAINT fk_oi_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
   CONSTRAINT fk_oi_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
