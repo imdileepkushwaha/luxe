@@ -301,6 +301,25 @@
   align-self: center;
 }
 
+.seller-order-detail-status-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.seller-order-detail-return-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(220, 38, 38, 0.4);
+  background: rgba(239, 68, 68, 0.12);
+  color: #b91c1c;
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
 /* .seller-order-detail-summary-body {
   padding-top: 4px;
 } */
@@ -356,6 +375,27 @@
   font-size: 0.74rem;
   color: var(--admin-text-muted);
   margin-bottom: 4px;
+}
+
+.seller-order-delivery-chip__value {
+  color: var(--admin-text, #0f172a);
+  font-weight: 700;
+}
+
+.seller-order-delivery-chip__value--success {
+  color: #15803d;
+}
+
+.seller-order-delivery-chip__value--warning {
+  color: #b45309;
+}
+
+.seller-order-delivery-chip__value--info {
+  color: #1d4ed8;
+}
+
+.seller-order-delivery-chip__value--danger {
+  color: #b91c1c;
 }
 
 .seller-order-delivery-steps {
@@ -3294,6 +3334,32 @@ html.admin-theme-dark .seller-order-status-submit--delivered {
 html.admin-theme-dark .seller-order-delivery-chip {
   background: rgba(15, 23, 42, 0.45);
   border-color: rgba(148, 163, 184, 0.24);
+}
+
+html.admin-theme-dark .seller-order-detail-return-badge {
+  background: rgba(127, 29, 29, 0.35);
+  border-color: rgba(248, 113, 113, 0.45);
+  color: #fca5a5;
+}
+
+html.admin-theme-dark .seller-order-delivery-chip__value {
+  color: #f8fafc;
+}
+
+html.admin-theme-dark .seller-order-delivery-chip__value--success {
+  color: #86efac;
+}
+
+html.admin-theme-dark .seller-order-delivery-chip__value--warning {
+  color: #fcd34d;
+}
+
+html.admin-theme-dark .seller-order-delivery-chip__value--info {
+  color: #93c5fd;
+}
+
+html.admin-theme-dark .seller-order-delivery-chip__value--danger {
+  color: #fca5a5;
 }
 
 html.admin-theme-dark .seller-order-delivery-step {

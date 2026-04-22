@@ -260,7 +260,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $uid !== null) {
             if ($orderId <= 0) {
                 $flashMessage = 'Order not found.';
                 $flashType = 'error';
-            } elseif (!in_array($orderStatus, ['processing', 'confirmed', 'shipped', 'out'], true)) {
+            } elseif (!in_array($orderStatus, ['processing', 'confirmed', 'shipped'], true)) {
                 $flashMessage = 'Help enquiry only available for active, non-delivered orders.';
                 $flashType = 'error';
             } else {

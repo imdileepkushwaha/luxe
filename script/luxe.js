@@ -3236,7 +3236,7 @@ function initThemeToggle() {
   }
   function isHelpEligibleOrder(order) {
     const st = String(order?.status || "").toLowerCase();
-    return ["processing", "confirmed", "shipped", "out"].includes(st);
+    return ["processing", "confirmed", "shipped"].includes(st);
   }
   function escHtml(v) {
     return String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");

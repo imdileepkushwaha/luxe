@@ -173,7 +173,7 @@ function seller_return_request_terminal_label(array $rr): ?string
         return 'Rejected';
     }
     if ($reqStatus === 'refunded' || $pickupStatus === 'completed' || $resolvedRaw !== '') {
-        return 'Return completed';
+        return 'Return Completed';
     }
 
     return null;
@@ -251,6 +251,17 @@ function seller_delivery_step_index(string $status): int
         'out' => 3,
         'delivered' => 4,
         default => 0,
+    };
+}
+
+function seller_delivery_value_class(string $status): string
+{
+    return match (strtolower(trim($status))) {
+        'delivered' => 'seller-order-delivery-chip__value seller-order-delivery-chip__value--success',
+        'processing', 'confirmed' => 'seller-order-delivery-chip__value seller-order-delivery-chip__value--warning',
+        'shipped', 'out' => 'seller-order-delivery-chip__value seller-order-delivery-chip__value--info',
+        'cancelled' => 'seller-order-delivery-chip__value seller-order-delivery-chip__value--danger',
+        default => 'seller-order-delivery-chip__value',
     };
 }
 
@@ -776,7 +787,32 @@ $deliveryStepTimes = seller_delivery_step_times_from_items($items, (string) ($or
 $deliveryStepIndex = seller_delivery_step_index($sellerDeliveryStatus);
 $deliveryStatusLabel = seller_delivery_status_label($sellerDeliveryStatus);
 $deliveryEtaLabel = seller_delivery_eta($sellerDeliveryStatus, (string) ($order['created_at'] ?? ''));
+$deliveryValueClass = seller_delivery_value_class($sellerDeliveryStatus);
 $placedAtFormatted = seller_order_detail_format_dt((string) ($order['created_at'] ?? ''));
+$showOrderEnquiriesSection = $orderEnquiries !== [] && seller_status_rank($sellerDeliveryStatus) < seller_status_rank('out');
+$summaryStatusLabel = ucfirst($sellerOverallStatus);
+$summaryReturnBadgeLabel = '';
+if (strtolower($sellerOverallStatus) === 'delivered' && $orderReturnRows !== []) {
+    $hasReturnOpen = false;
+    $hasReturnCompleted = false;
+    foreach ($orderReturnRows as $rr) {
+        $rrStatus = strtolower(trim((string) ($rr['status'] ?? '')));
+        if (in_array($rrStatus, ['pending', 'approved', 'pickup_scheduled', 'picked_up', 'refund_processing'], true)) {
+            $hasReturnOpen = true;
+            break;
+        }
+        if (in_array($rrStatus, ['refunded', 'rejected'], true)) {
+            $hasReturnCompleted = true;
+        }
+    }
+    if ($hasReturnOpen) {
+        $summaryReturnBadgeLabel = 'Return in progress';
+    } elseif ($hasReturnCompleted) {
+        $summaryReturnBadgeLabel = 'Return Resolved';
+    } else {
+        $summaryReturnBadgeLabel = 'Return';
+    }
+}
 
 require __DIR__ . '/partials/shell-top.php';
 ?>
@@ -834,7 +870,7 @@ require __DIR__ . '/partials/shell-top.php';
           </div>
         <?php endif; ?>
 
-        <?php if ($orderEnquiries !== []): ?>
+        <?php if ($showOrderEnquiriesSection): ?>
         <div class="card seller-txn-card seller-order-detail-card" id="order-enquiries-card">
           <div class="card-header seller-txn-card-head">
             <div>
@@ -898,7 +934,12 @@ require __DIR__ . '/partials/shell-top.php';
               <h2 class="card-title">Summary</h2>
               <p class="card-subtitle seller-txn-card-sub">Customer, payment, amounts, aur shipping — ek nazar me.</p>
             </div>
-            <span class="<?= seller_order_status_class_detail($sellerOverallStatus) ?> seller-order-detail-status-pill"><?= h($sellerOverallStatus) ?></span>
+            <div class="seller-order-detail-status-group">
+              <span class="<?= seller_order_status_class_detail($sellerOverallStatus) ?> seller-order-detail-status-pill"><?= h($summaryStatusLabel) ?></span>
+              <?php if ($summaryReturnBadgeLabel !== ''): ?>
+                <span class="seller-order-detail-return-badge"><?= h($summaryReturnBadgeLabel) ?></span>
+              <?php endif; ?>
+            </div>
           </div>
           <div class="card-body seller-order-detail-summary-body">
             <div class="seller-order-meta-grid seller-order-meta-grid--detail">
@@ -941,11 +982,11 @@ require __DIR__ . '/partials/shell-top.php';
             <div class="seller-order-delivery-top">
               <div class="seller-order-delivery-chip">
                 <span class="seller-order-delivery-chip__label">Current stage</span>
-                <strong><?= h($deliveryStatusLabel) ?></strong>
+                <strong class="<?= h($deliveryValueClass) ?>"><?= h($deliveryStatusLabel) ?></strong>
               </div>
               <div class="seller-order-delivery-chip">
                 <span class="seller-order-delivery-chip__label">ETA</span>
-                <strong><?= h($deliveryEtaLabel) ?></strong>
+                <strong class="<?= h($deliveryValueClass) ?>"><?= h($deliveryEtaLabel) ?></strong>
               </div>
               <div class="seller-order-delivery-chip seller-order-delivery-chip--wide">
                 <span class="seller-order-delivery-chip__label">Delivery address</span>
