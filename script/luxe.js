@@ -42,18 +42,114 @@ function luxeProductRequiresVariantPick(p) {
   return !!(p && p.requires_variant_pick);
 }
 
+/** Parse a single price token: "1,299", "1299", "1.5k", "2k" → rupees (integer). */
+function luxeParsePriceToken(str) {
+  if (str == null) return null;
+  let t = String(str).trim().toLowerCase().replace(/,/g, "");
+  if (!t) return null;
+  if (/k$/i.test(t)) {
+    const base = parseFloat(t.slice(0, -1));
+    if (!Number.isFinite(base)) return null;
+    return Math.max(0, Math.round(base * 1000));
+  }
+  const n = parseFloat(t);
+  if (!Number.isFinite(n)) return null;
+  return Math.max(0, Math.round(n));
+}
+
+/**
+ * Pull min/max price phrases out of the query; remaining text is for keyword match.
+ * Supports e.g. "jeans under 1000", "below ₹2k", "above 500", "between 500 and 2000", "< 1500".
+ * @returns {{ text: string, minPrice: number|null, maxPrice: number|null }}
+ */
+function luxeParseSearchPriceBounds(raw) {
+  let s = String(raw || "").trim().replace(/\s+/g, " ");
+  let minPrice = null;
+  let maxPrice = null;
+
+  const cur = "(?:₹|rs\\.?|inr\\s*)?\\s*";
+  const num = "([\\d,]+(?:\\.[\\d]+)?k?)";
+
+  s = s.replace(new RegExp(`\\b(?:between|from)\\s+${num}\\s+(?:and|to|-)\\s+${num}\\b`, "gi"), (_full, a, b) => {
+    const pa = luxeParsePriceToken(a);
+    const pb = luxeParsePriceToken(b);
+    if (pa != null && pb != null) {
+      minPrice = Math.min(pa, pb);
+      maxPrice = Math.max(pa, pb);
+    }
+    return " ";
+  });
+
+  s = s.replace(
+    new RegExp(`\\b(?:under|below|less\\s+than|upto|up\\s+to|within|cheaper\\s+than)\\s*${cur}${num}\\b`, "gi"),
+    (_full, n) => {
+      const v = luxeParsePriceToken(n);
+      if (v != null) maxPrice = maxPrice == null ? v : Math.min(maxPrice, v);
+      return " ";
+    }
+  );
+
+  s = s.replace(
+    new RegExp(`\\b(?:above|over|more\\s+than|greater\\s+than|at\\s+least)\\s*${cur}${num}\\b`, "gi"),
+    (_full, n) => {
+      const v = luxeParsePriceToken(n);
+      if (v != null) minPrice = minPrice == null ? v : Math.max(minPrice, v);
+      return " ";
+    }
+  );
+
+  s = s.replace(new RegExp(`<\\s*${cur}${num}\\b`, "gi"), (_full, n) => {
+    const v = luxeParsePriceToken(n);
+    if (v != null) maxPrice = maxPrice == null ? v : Math.min(maxPrice, v);
+    return " ";
+  });
+
+  s = s.replace(new RegExp(`>\\s*${cur}${num}\\b`, "gi"), (_full, n) => {
+    const v = luxeParsePriceToken(n);
+    if (v != null) minPrice = minPrice == null ? v : Math.max(minPrice, v);
+    return " ";
+  });
+
+  return { text: s.replace(/\s+/g, " ").trim(), minPrice, maxPrice };
+}
+
+/**
+ * Precomputed search: strip price phrases once, then match each product by price + keywords.
+ * @returns {{ text: string, minPrice: number|null, maxPrice: number|null, matches: function }}
+ */
+function luxeSearchMatcherFromQuery(query) {
+  const { text, minPrice, maxPrice } = luxeParseSearchPriceBounds(query);
+  const words = text
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+  return {
+    text,
+    minPrice,
+    maxPrice,
+    matches(p) {
+      const price = Number(p && p.price);
+      if (!Number.isFinite(price)) return false;
+      if (maxPrice != null && price > maxPrice) return false;
+      if (minPrice != null && price < minPrice) return false;
+      if (words.length === 0) return true;
+      const hay = [p.name, p.brand, p.category, p.badge, p.emoji]
+        .map(x => String(x ?? "").toLowerCase())
+        .join(" ");
+      return words.every(w => hay.indexOf(w) !== -1);
+    }
+  };
+}
+
 function luxeProductMatchesSearchQuery(p, query) {
-  const rawQ = String(query || "").trim().toLowerCase();
+  const rawQ = String(query || "").trim();
   if (!rawQ) return true;
-  const words = rawQ.split(/\s+/).filter(Boolean);
-  const hay = [p.name, p.brand, p.category, p.badge, p.emoji]
-    .map(x => String(x ?? "").toLowerCase())
-    .join(" ");
-  return words.every(w => hay.indexOf(w) !== -1);
+  return luxeSearchMatcherFromQuery(query).matches(p);
 }
 
 function luxeSearchLiveRank(p, q) {
-  const raw = String(q || "").trim().toLowerCase();
+  const { text } = luxeParseSearchPriceBounds(q);
+  const raw = String(text || "").trim().toLowerCase();
   const token = raw.split(/\s+/).filter(Boolean)[0] || raw;
   const name = String(p.name || "").toLowerCase();
   const brand = String(p.brand || "").toLowerCase();
@@ -557,7 +653,8 @@ function initSearchOverlay() {
       return;
     }
     const catalog = luxeGetSearchCatalog();
-    const allMatches = catalog.filter(p => luxeProductMatchesSearchQuery(p, q));
+    const searchMatcher = luxeSearchMatcherFromQuery(q);
+    const allMatches = catalog.filter(p => searchMatcher.matches(p));
     const matches = allMatches
       .slice()
       .sort((a, b) => luxeSearchLiveRank(a, q) - luxeSearchLiveRank(b) || String(a.name).localeCompare(String(b.name)))
@@ -667,6 +764,78 @@ function initSearchOverlay() {
 
 initSearchOverlay();
 
+/** Index landing: offer modal after welcome loader; dismiss persists in localStorage. */
+(function initIndexOfferPopup() {
+  const root = document.getElementById("offerPopup");
+  if (!root) return;
+
+  const STORAGE_KEY = "luxe_index_offer_popup_v1";
+  const loaderEl = document.getElementById("loader");
+
+  function closeOffer() {
+    root.classList.remove("is-open");
+    root.setAttribute("aria-hidden", "true");
+    root.hidden = true;
+    document.body.classList.remove("offer-popup-open");
+    try {
+      localStorage.setItem(STORAGE_KEY, "1");
+    } catch (_e) {}
+  }
+
+  function openOffer() {
+    if (root.classList.contains("is-open")) return;
+    root.hidden = false;
+    root.setAttribute("aria-hidden", "false");
+    document.body.classList.add("offer-popup-open");
+    requestAnimationFrame(() => {
+      root.classList.add("is-open");
+      document.getElementById("offerPopupClose")?.focus();
+    });
+  }
+
+  try {
+    if (localStorage.getItem(STORAGE_KEY) === "1") return;
+  } catch (_e) {}
+
+  root.querySelectorAll("[data-offer-dismiss]").forEach(node => {
+    node.addEventListener("click", () => closeOffer());
+  });
+
+  document.addEventListener("keydown", e => {
+    if (e.key !== "Escape") return;
+    if (!root.classList.contains("is-open")) return;
+    closeOffer();
+  });
+
+  root.addEventListener("click", e => {
+    const t = e.target;
+    if (t && t.closest && t.closest("a.offer-popup__cta")) closeOffer();
+  });
+
+  function tryOpen() {
+    const searchOv = document.getElementById("searchOverlay");
+    if (searchOv && searchOv.classList.contains("open")) return;
+    openOffer();
+  }
+
+  window.addEventListener("load", () => {
+    if (loaderEl) {
+      const obs = new MutationObserver(() => {
+        if (!loaderEl.classList.contains("hidden")) return;
+        obs.disconnect();
+        window.setTimeout(tryOpen, 450);
+      });
+      obs.observe(loaderEl, { attributes: true, attributeFilter: ["class"] });
+      if (loaderEl.classList.contains("hidden")) {
+        obs.disconnect();
+        window.setTimeout(tryOpen, 180);
+      }
+      return;
+    }
+    window.setTimeout(tryOpen, 500);
+  });
+})();
+
 // ===================== SHARED: THEME TOGGLE =====================
 const THEME_KEY = "luxe-theme";
 
@@ -738,6 +907,65 @@ function initThemeToggle() {
     }
   }
   let currentSearchQuery = "";
+  const sidebarFilters = {
+    categories: [],
+    priceRange: "",
+    gender: [],
+    sizeFit: [],
+    ratingMin: null,
+  };
+
+  function luxeInferProductGender(p) {
+    const s = [p.name, p.category, p.badge, p.brand]
+      .map(v => String(v || "").toLowerCase())
+      .join(" ");
+    if (/\b(women|woman|ladies|girl|female)\b/.test(s)) return "women";
+    if (/\b(men|man|mens|boy|male)\b/.test(s)) return "men";
+    return "unisex";
+  }
+
+  function luxeInferProductSizeFit(p) {
+    const s = [p.name, p.category, p.badge]
+      .map(v => String(v || "").toLowerCase())
+      .join(" ");
+    const price = Number(p.price) || 0;
+    if (/\b(free\s*size|one\s*size)\b/.test(s)) return "free";
+    if (/\b(xs|small|slim|compact)\b/.test(s) || price <= 999) return "small";
+    if (/\b(xl|xxl|large|oversized)\b/.test(s) || price >= 5000) return "large";
+    return "medium";
+  }
+
+  function luxeProductMatchesSidebarFilters(p) {
+    if (sidebarFilters.categories.length > 0 && !sidebarFilters.categories.includes(String(p.category || "").toLowerCase())) {
+      return false;
+    }
+
+    if (sidebarFilters.priceRange) {
+      const v = sidebarFilters.priceRange;
+      const price = Number(p.price) || 0;
+      if (v === "0-999" && !(price <= 999)) return false;
+      if (v === "1000-2499" && !(price >= 1000 && price <= 2499)) return false;
+      if (v === "2500-4999" && !(price >= 2500 && price <= 4999)) return false;
+      if (v === "5000+" && !(price >= 5000)) return false;
+    }
+
+    if (sidebarFilters.gender.length > 0) {
+      const g = luxeInferProductGender(p);
+      if (!sidebarFilters.gender.includes(g)) return false;
+    }
+
+    if (sidebarFilters.sizeFit.length > 0) {
+      const sf = luxeInferProductSizeFit(p);
+      if (!sidebarFilters.sizeFit.includes(sf)) return false;
+    }
+
+    if (sidebarFilters.ratingMin != null) {
+      const rating = Number(p.rating) || 0;
+      if (rating < sidebarFilters.ratingMin) return false;
+    }
+
+    return true;
+  }
 
   function applyUrlSearchQueryParam() {
     const q = new URLSearchParams(window.location.search).get("q");
@@ -791,9 +1019,11 @@ function initThemeToggle() {
     let filtered = currentCategoryFilter === "all"
       ? products.slice()
       : products.filter(p => p.category === currentCategoryFilter);
+    filtered = filtered.filter(p => luxeProductMatchesSidebarFilters(p));
     const rawQ = currentSearchQuery.trim().toLowerCase();
     if (rawQ) {
-      filtered = filtered.filter(p => luxeProductMatchesSearchQuery(p, currentSearchQuery));
+      const searchMatcher = luxeSearchMatcherFromQuery(currentSearchQuery);
+      filtered = filtered.filter(p => searchMatcher.matches(p));
     }
     grid.innerHTML = "";
     if (filtered.length === 0) {
@@ -847,6 +1077,37 @@ function initThemeToggle() {
   });
 
   const searchInput = document.getElementById("searchInput");
+  const productFiltersForm = document.getElementById("productFiltersForm");
+  const productFiltersApply = document.getElementById("productFiltersApply");
+
+  function applySidebarFiltersFromForm() {
+    if (!productFiltersForm) return;
+    const selectedCategories = Array.from(productFiltersForm.querySelectorAll('input[name="categories"]:checked')).map(el => String(el.value || "").toLowerCase());
+    const selectedGender = Array.from(productFiltersForm.querySelectorAll('input[name="gender"]:checked')).map(el => String(el.value || "").toLowerCase());
+    const selectedSizeFit = Array.from(productFiltersForm.querySelectorAll('input[name="sizeFit"]:checked')).map(el => String(el.value || "").toLowerCase());
+    const priceRange = String(productFiltersForm.querySelector('input[name="priceRange"]:checked')?.value || "");
+    const ratingRaw = String(productFiltersForm.querySelector('input[name="rating"]:checked')?.value || "");
+    const ratingMin = ratingRaw === "" ? null : Number(ratingRaw);
+
+    sidebarFilters.categories = selectedCategories;
+    sidebarFilters.gender = selectedGender;
+    sidebarFilters.sizeFit = selectedSizeFit;
+    sidebarFilters.priceRange = priceRange;
+    sidebarFilters.ratingMin = Number.isFinite(ratingMin) ? ratingMin : null;
+
+    renderProducts();
+  }
+
+  if (productFiltersApply) {
+    productFiltersApply.addEventListener("click", () => applySidebarFiltersFromForm());
+  }
+  if (productFiltersForm) {
+    productFiltersForm.addEventListener("submit", e => {
+      e.preventDefault();
+      applySidebarFiltersFromForm();
+    });
+  }
+
   function syncProductSearchFromInput() {
     currentSearchQuery = searchInput ? String(searchInput.value || "") : "";
     renderProducts();

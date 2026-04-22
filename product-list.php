@@ -135,7 +135,161 @@ $metaDesc = $initialCategory === 'all'
         <button type="button" class="filter-btn<?= $initialCategory === 'beauty' ? ' active' : '' ?>" data-filter="beauty" role="tab" aria-selected="<?= $initialCategory === 'beauty' ? 'true' : 'false' ?>">Beauty</button>
         <button type="button" class="filter-btn<?= $initialCategory === 'home' ? ' active' : '' ?>" data-filter="home" role="tab" aria-selected="<?= $initialCategory === 'home' ? 'true' : 'false' ?>">Home</button>
       </div>
-      <div class="products-grid" id="productsGrid"></div>
+      <div class="product-list-layout">
+        <aside class="product-filters" aria-label="Product filters">
+          <div class="product-filters__card">
+            <form id="productFiltersForm" class="product-filters__form" autocomplete="off">
+              <details class="product-filter-group" open>
+                <summary class="product-filter-group__summary">
+                  <span>Categories</span>
+                  <span class="product-filter-group__chevron" aria-hidden="true">
+                    <svg viewBox="0 0 20 20" fill="none" focusable="false" aria-hidden="true">
+                      <path d="m6 8 4 4 4-4" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"></path>
+                    </svg>
+                  </span>
+                </summary>
+                <div class="product-filter-group__panel">
+                  <label class="product-filter-option">
+                    <input type="checkbox" name="categories" value="fashion">
+                    <span>Fashion</span>
+                  </label>
+                  <label class="product-filter-option">
+                    <input type="checkbox" name="categories" value="electronics">
+                    <span>Electronics</span>
+                  </label>
+                  <label class="product-filter-option">
+                    <input type="checkbox" name="categories" value="beauty">
+                    <span>Beauty</span>
+                  </label>
+                  <label class="product-filter-option">
+                    <input type="checkbox" name="categories" value="home">
+                    <span>Home &amp; living</span>
+                  </label>
+                </div>
+              </details>
+
+              <details class="product-filter-group">
+                <summary class="product-filter-group__summary">
+                  <span>Product Price</span>
+                  <span class="product-filter-group__chevron" aria-hidden="true">
+                    <svg viewBox="0 0 20 20" fill="none" focusable="false" aria-hidden="true">
+                      <path d="m6 8 4 4 4-4" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"></path>
+                    </svg>
+                  </span>
+                </summary>
+                <div class="product-filter-group__panel">
+                  <label class="product-filter-option">
+                    <input type="radio" name="priceRange" value="" checked>
+                    <span>All prices</span>
+                  </label>
+                  <label class="product-filter-option">
+                    <input type="radio" name="priceRange" value="0-999">
+                    <span>Under ₹1,000</span>
+                  </label>
+                  <label class="product-filter-option">
+                    <input type="radio" name="priceRange" value="1000-2499">
+                    <span>₹1,000 - ₹2,499</span>
+                  </label>
+                  <label class="product-filter-option">
+                    <input type="radio" name="priceRange" value="2500-4999">
+                    <span>₹2,500 - ₹4,999</span>
+                  </label>
+                  <label class="product-filter-option">
+                    <input type="radio" name="priceRange" value="5000+">
+                    <span>₹5,000 &amp; above</span>
+                  </label>
+                </div>
+              </details>
+
+              <details class="product-filter-group">
+                <summary class="product-filter-group__summary">
+                  <span>Gender</span>
+                  <span class="product-filter-group__chevron" aria-hidden="true">
+                    <svg viewBox="0 0 20 20" fill="none" focusable="false" aria-hidden="true">
+                      <path d="m6 8 4 4 4-4" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"></path>
+                    </svg>
+                  </span>
+                </summary>
+                <div class="product-filter-group__panel">
+                  <label class="product-filter-option">
+                    <input type="checkbox" name="gender" value="men">
+                    <span>Men</span>
+                  </label>
+                  <label class="product-filter-option">
+                    <input type="checkbox" name="gender" value="women">
+                    <span>Women</span>
+                  </label>
+                  <label class="product-filter-option">
+                    <input type="checkbox" name="gender" value="unisex">
+                    <span>Unisex</span>
+                  </label>
+                </div>
+              </details>
+
+              <details class="product-filter-group">
+                <summary class="product-filter-group__summary">
+                  <span>Size &amp; Fit</span>
+                  <span class="product-filter-group__chevron" aria-hidden="true">
+                    <svg viewBox="0 0 20 20" fill="none" focusable="false" aria-hidden="true">
+                      <path d="m6 8 4 4 4-4" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"></path>
+                    </svg>
+                  </span>
+                </summary>
+                <div class="product-filter-group__panel">
+                  <label class="product-filter-option">
+                    <input type="checkbox" name="sizeFit" value="small">
+                    <span>Small</span>
+                  </label>
+                  <label class="product-filter-option">
+                    <input type="checkbox" name="sizeFit" value="medium">
+                    <span>Medium</span>
+                  </label>
+                  <label class="product-filter-option">
+                    <input type="checkbox" name="sizeFit" value="large">
+                    <span>Large</span>
+                  </label>
+                  <label class="product-filter-option">
+                    <input type="checkbox" name="sizeFit" value="free">
+                    <span>Free size</span>
+                  </label>
+                </div>
+              </details>
+
+              <details class="product-filter-group">
+                <summary class="product-filter-group__summary">
+                  <span>Rating</span>
+                  <span class="product-filter-group__chevron" aria-hidden="true">
+                    <svg viewBox="0 0 20 20" fill="none" focusable="false" aria-hidden="true">
+                      <path d="m6 8 4 4 4-4" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"></path>
+                    </svg>
+                  </span>
+                </summary>
+                <div class="product-filter-group__panel">
+                  <label class="product-filter-option">
+                    <input type="radio" name="rating" value="" checked>
+                    <span>All ratings</span>
+                  </label>
+                  <label class="product-filter-option">
+                    <input type="radio" name="rating" value="4.5">
+                    <span>4.5 ★ &amp; above</span>
+                  </label>
+                  <label class="product-filter-option">
+                    <input type="radio" name="rating" value="4">
+                    <span>4 ★ &amp; above</span>
+                  </label>
+                  <label class="product-filter-option">
+                    <input type="radio" name="rating" value="3.5">
+                    <span>3.5 ★ &amp; above</span>
+                  </label>
+                </div>
+              </details>
+
+              <button type="button" class="product-filters__apply" id="productFiltersApply">Apply</button>
+            </form>
+          </div>
+        </aside>
+        <div class="products-grid" id="productsGrid"></div>
+      </div>
     </div>
   </section>
 

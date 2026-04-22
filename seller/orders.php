@@ -254,6 +254,48 @@ function seller_orders_format_datetime(?string $raw): string
     }
 }
 
+function seller_orders_time_ago(?string $raw): string
+{
+    if ($raw === null || trim($raw) === '') {
+        return '';
+    }
+    try {
+        $dt = new DateTimeImmutable($raw);
+        $now = new DateTimeImmutable('now');
+        if ($dt > $now) {
+            return 'Today';
+        }
+        $diff = $now->diff($dt);
+        if ($diff->days <= 0) {
+            if ($diff->h > 0) {
+                return $diff->h . ' hour' . ($diff->h === 1 ? '' : 's') . ' ago';
+            }
+            if ($diff->i > 0) {
+                return $diff->i . ' min' . ($diff->i === 1 ? '' : 's') . ' ago';
+            }
+            return 'Just now';
+        }
+        if ($diff->days === 1) {
+            return '1 day ago';
+        }
+        return $diff->days . ' days ago';
+    } catch (Throwable) {
+        return '';
+    }
+}
+
+function seller_orders_payment_status_label(string $paymentMethod, string $orderStatus): string
+{
+    $method = strtolower(trim($paymentMethod));
+    $status = strtolower(trim($orderStatus));
+    $isCod = in_array($method, ['cod', 'cash on delivery', 'cash_on_delivery'], true);
+    if ($isCod) {
+        return $status === 'delivered' ? 'Paid' : 'Pending';
+    }
+
+    return 'Paid';
+}
+
 /**
  * @return list<string>
  */
@@ -462,9 +504,11 @@ require __DIR__ . '/partials/shell-top.php';
                   <tr>
                     <th>Order</th>
                     <th>Customer</th>
+                    <th>Category</th>
                     <th>Status</th>
                     <th>Total</th>
-                    <th>Payment &amp; date</th>
+                    <th>Payment type</th>
+                    <th>Ordered at</th>
                     <th class="seller-orders-th-actions">Actions</th>
                   </tr>
                 </thead>
@@ -490,6 +534,10 @@ require __DIR__ . '/partials/shell-top.php';
                     $stMod = seller_order_status_chip_modifier((string) $o['status']);
                     $stLabel = seller_order_status_label_orders((string) $o['status']);
                     $catPills = seller_orders_category_pills((string) ($o['categories'] ?? ''));
+                    $createdRaw = (string) ($o['created_at'] ?? '');
+                    $createdFmt = seller_orders_format_datetime($createdRaw);
+                    $createdAgo = seller_orders_time_ago($createdRaw);
+                    $paymentStatusLabel = seller_orders_payment_status_label((string) ($o['payment_method'] ?? ''), (string) ($o['status'] ?? ''));
                     ?>
                     <tr class="seller-order-row" data-orders-search="<?= h($ordersSearchBlob) ?>">
                       <td class="seller-orders-td-order">
@@ -499,12 +547,16 @@ require __DIR__ . '/partials/shell-top.php';
                       <td class="seller-orders-td-customer">
                         <span class="seller-orders-customer-name"><?= h($cust) ?></span>
                         <span class="seller-orders-customer-email"><?= h((string) ($o['email'] ?? '—')) ?></span>
+                      </td>
+                      <td class="seller-orders-td-category">
                         <?php if ($catPills !== []): ?>
                           <div class="seller-orders-cat-pills">
                             <?php foreach ($catPills as $cp): ?>
                               <span class="seller-orders-cat-pill"><?= h(ucfirst($cp)) ?></span>
                             <?php endforeach; ?>
                           </div>
+                        <?php else: ?>
+                          <span class="seller-help">—</span>
                         <?php endif; ?>
                       </td>
                       <td>
@@ -513,9 +565,17 @@ require __DIR__ . '/partials/shell-top.php';
                       <td class="seller-orders-td-total">
                         <span class="seller-orders-amount">₹<?= number_format((int) $o['total_amount'], 0, '.', ',') ?></span>
                       </td>
-                      <td class="seller-orders-td-meta">
+                      <td class="seller-orders-td-payment">
                         <span class="seller-orders-pay-pill"><?= h((string) $o['payment_method']) ?></span>
-                        <span class="seller-orders-date"><?= h(seller_orders_format_datetime((string) ($o['created_at'] ?? ''))) ?></span>
+                        <span class="seller-orders-pay-status<?= strtolower($paymentStatusLabel) === 'paid' ? ' seller-orders-pay-status--paid' : ' seller-orders-pay-status--pending' ?>">
+                          <?= h($paymentStatusLabel) ?>
+                        </span>
+                      </td>
+                      <td class="seller-orders-td-datetime">
+                        <span class="seller-orders-date"><?= h($createdFmt) ?></span>
+                        <?php if ($createdAgo !== ''): ?>
+                          <span class="seller-orders-ago"><?= h($createdAgo) ?></span>
+                        <?php endif; ?>
                       </td>
                       <td class="seller-orders-td-actions">
                         <div class="seller-order-actions">
@@ -530,9 +590,13 @@ require __DIR__ . '/partials/shell-top.php';
                           $oid = (int) $o['id'];
                           $retRid = $latestReturnIdByOrder[$oid] ?? 0;
                           ?>
-                          <a class="seller-edit-btn seller-order-actions__link" href="order-details.php?id=<?= $oid ?>">Details</a>
+                          <a class="seller-edit-btn seller-order-actions__link" href="order-details.php?id=<?= $oid ?>" aria-label="Order details" title="Order details">
+                            <svg class="seller-details-icon" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" d="M9 4.46A9.8 9.8 0 0 1 12 4c4.182 0 7.028 2.5 8.725 4.704C21.575 9.81 22 10.361 22 12c0 1.64-.425 2.191-1.275 3.296C19.028 17.5 16.182 20 12 20s-7.028-2.5-8.725-4.704C2.425 14.192 2 13.639 2 12c0-1.64.425-2.191 1.275-3.296A14.5 14.5 0 0 1 5 6.821"></path><path d="M15 12a3 3 0 1 1-6 0a3 3 0 0 1 6 0Z"></path></g></svg>
+                          </a>
                           <?php if ($retRid > 0): ?>
-                            <a class="seller-preview-btn seller-preview-btn--return seller-order-actions__link" href="order-details.php?id=<?= $oid ?>#seller-return-req-<?= $retRid ?>">Return</a>
+                            <a class="seller-preview-btn seller-preview-btn--return seller-order-actions__link" href="order-details.php?id=<?= $oid ?>#seller-return-req-<?= $retRid ?>" aria-label="Return details" title="Return details">
+                              <svg class="seller-details-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+                            </a>
                           <?php endif; ?>
                         </div>
                       </td>
@@ -540,7 +604,7 @@ require __DIR__ . '/partials/shell-top.php';
                   <?php endforeach; ?>
                   <?php if ($orders === []): ?>
                     <tr class="seller-orders-empty-placeholder">
-                      <td colspan="6">
+                      <td colspan="8">
                         <div class="seller-orders-empty">
                           <div class="seller-orders-empty__icon" aria-hidden="true">
                             <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
@@ -552,7 +616,7 @@ require __DIR__ . '/partials/shell-top.php';
                     </tr>
                   <?php else: ?>
                     <tr id="sellerOrdersNoMatchRow" class="seller-orders-no-match-row" style="display:none">
-                      <td colspan="6" class="seller-orders-no-match-cell">
+                      <td colspan="8" class="seller-orders-no-match-cell">
                         <div class="seller-orders-no-match-inner">
                           <span class="seller-orders-no-match-icon" aria-hidden="true">
                             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>

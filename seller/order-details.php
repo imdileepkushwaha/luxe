@@ -90,6 +90,74 @@ function seller_return_format_dt(?string $v): string
     return $t !== '' ? $t : '—';
 }
 
+function seller_order_detail_format_dt(?string $raw): string
+{
+    $v = trim((string) $raw);
+    if ($v === '') {
+        return '—';
+    }
+    try {
+        $dt = new DateTimeImmutable($v);
+
+        return $dt->format('M j, Y · g:i A');
+    } catch (Throwable) {
+        return $v;
+    }
+}
+
+function seller_delivery_status_label(string $status): string
+{
+    return match (strtolower(trim($status))) {
+        'processing' => 'Preparing order',
+        'confirmed' => 'Packed and ready',
+        'shipped' => 'Shipped',
+        'out' => 'Out for delivery',
+        'delivered' => 'Delivered',
+        'cancelled' => 'Cancelled',
+        default => 'In progress',
+    };
+}
+
+function seller_delivery_eta(string $status, ?string $createdAt): string
+{
+    $s = strtolower(trim($status));
+    if ($s === 'delivered') {
+        return 'Delivered';
+    }
+    if ($s === 'cancelled') {
+        return 'Order cancelled';
+    }
+    if ($createdAt === null || trim($createdAt) === '') {
+        return 'ETA pending';
+    }
+    try {
+        $dt = new DateTimeImmutable($createdAt);
+        $eta = $dt->modify('+5 days');
+        if ($s === 'out') {
+            return 'Expected today';
+        }
+        if ($s === 'shipped') {
+            return 'Expected in 1-2 days';
+        }
+
+        return 'Expected by ' . $eta->format('M j');
+    } catch (Throwable) {
+        return 'ETA pending';
+    }
+}
+
+function seller_delivery_step_index(string $status): int
+{
+    return match (strtolower(trim($status))) {
+        'processing' => 0,
+        'confirmed' => 1,
+        'shipped' => 2,
+        'out' => 3,
+        'delivered' => 4,
+        default => 0,
+    };
+}
+
 /** @return list<string> */
 function seller_return_timeline_labels(): array
 {
@@ -433,6 +501,11 @@ if ($msg === 'status_updated') {
 }
 
 $nextStatuses = seller_next_statuses((string) $order['status']);
+$deliveryStepLabels = ['Placed', 'Confirmed', 'Shipped', 'Out for delivery', 'Delivered'];
+$deliveryStepIndex = seller_delivery_step_index((string) $order['status']);
+$deliveryStatusLabel = seller_delivery_status_label((string) $order['status']);
+$deliveryEtaLabel = seller_delivery_eta((string) $order['status'], (string) ($order['created_at'] ?? ''));
+$placedAtFormatted = seller_order_detail_format_dt((string) ($order['created_at'] ?? ''));
 
 require __DIR__ . '/partials/shell-top.php';
 ?>
@@ -486,6 +559,47 @@ require __DIR__ . '/partials/shell-top.php';
                 <span class="seller-order-meta-label">Shipping address</span>
                 <strong class="seller-order-meta-value seller-order-meta-value--break"><?= h((string) ($order['shipping_address'] ?? '-')) ?></strong>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card seller-txn-card seller-order-detail-card seller-order-detail-delivery">
+          <div class="card-header seller-txn-card-head">
+            <div>
+              <h2 class="card-title">Delivery details</h2>
+              <p class="card-subtitle seller-txn-card-sub">Delivery stage, ETA aur address ek jagah.</p>
+            </div>
+          </div>
+          <div class="card-body seller-order-delivery-body">
+            <div class="seller-order-delivery-top">
+              <div class="seller-order-delivery-chip">
+                <span class="seller-order-delivery-chip__label">Current stage</span>
+                <strong><?= h($deliveryStatusLabel) ?></strong>
+              </div>
+              <div class="seller-order-delivery-chip">
+                <span class="seller-order-delivery-chip__label">ETA</span>
+                <strong><?= h($deliveryEtaLabel) ?></strong>
+              </div>
+              <div class="seller-order-delivery-chip seller-order-delivery-chip--wide">
+                <span class="seller-order-delivery-chip__label">Delivery address</span>
+                <strong class="seller-order-meta-value--break"><?= h((string) ($order['shipping_address'] ?? '-')) ?></strong>
+              </div>
+              <div class="seller-order-delivery-chip">
+                <span class="seller-order-delivery-chip__label">Placed on</span>
+                <strong><?= h($placedAtFormatted) ?></strong>
+              </div>
+            </div>
+            <div class="seller-order-delivery-steps" aria-label="Delivery progress">
+              <?php foreach ($deliveryStepLabels as $i => $stepLabel): ?>
+                <?php
+                $isDone = strtolower((string) $order['status']) === 'delivered' || $i < $deliveryStepIndex;
+                $isActive = strtolower((string) $order['status']) !== 'delivered' && $i === $deliveryStepIndex;
+                ?>
+                <div class="seller-order-delivery-step<?= $isDone ? ' seller-order-delivery-step--done' : '' ?><?= $isActive ? ' seller-order-delivery-step--active' : '' ?>">
+                  <span class="seller-order-delivery-step__dot"><?= $isDone ? '✓' : (string) ($i + 1) ?></span>
+                  <span class="seller-order-delivery-step__label"><?= h($stepLabel) ?></span>
+                </div>
+              <?php endforeach; ?>
             </div>
           </div>
         </div>
@@ -786,7 +900,9 @@ require __DIR__ . '/partials/shell-top.php';
                       <td class="seller-order-items-td-num"><?= (int) ($it['qty'] ?? 0) ?></td>
                       <td class="seller-order-items-td-num seller-order-items-td-line">Rs <?= number_format($lineTotal) ?></td>
                       <td class="seller-order-items-td-actions">
-                        <a class="seller-preview-btn seller-preview-btn--compact" href="../product.php?id=<?= (int) ($it['product_id'] ?? 0) ?>" target="_blank" rel="noopener">View</a>
+                        <a class="seller-preview-btn seller-preview-btn--compact" href="../product.php?id=<?= (int) ($it['product_id'] ?? 0) ?>" target="_blank" rel="noopener" aria-label="View product" title="View product">
+                          <svg class="seller-details-icon" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" d="M9 4.46A9.8 9.8 0 0 1 12 4c4.182 0 7.028 2.5 8.725 4.704C21.575 9.81 22 10.361 22 12c0 1.64-.425 2.191-1.275 3.296C19.028 17.5 16.182 20 12 20s-7.028-2.5-8.725-4.704C2.425 14.192 2 13.639 2 12c0-1.64.425-2.191 1.275-3.296A14.5 14.5 0 0 1 5 6.821"></path><path d="M15 12a3 3 0 1 1-6 0a3 3 0 0 1 6 0Z"></path></g></svg>
+                        </a>
                       </td>
                     </tr>
                   <?php endforeach; ?>

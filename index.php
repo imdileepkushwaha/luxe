@@ -19,7 +19,7 @@ foreach ($_SESSION['cart'] ?? [] as $ci) {
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,700;1,400&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/luxe.css" />
 </head>
-<body>
+<body class="index-page">
 
   <!-- Cursor Dot -->
   <div class="cursor-dot" id="cursorDot"></div>
@@ -651,6 +651,34 @@ foreach ($_SESSION['cart'] ?? [] as $ci) {
     </div>
   </div>
   <div class="cart-overlay" id="cartOverlay"></div>
+
+  <!-- Index offer modal (shown once after welcome loader; dismiss persists) -->
+  <div class="offer-popup" id="offerPopup" role="dialog" aria-modal="true" aria-labelledby="offerPopupTitle" aria-describedby="offerPopupDesc" hidden>
+    <div class="offer-popup__backdrop" data-offer-dismiss tabindex="-1" aria-hidden="true"></div>
+    <div class="offer-popup__dialog">
+      <div class="offer-popup__glow" aria-hidden="true"></div>
+      <div class="offer-popup__frame">
+        <button type="button" class="offer-popup__close" id="offerPopupClose" data-offer-dismiss aria-label="Close offer">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+        <div class="offer-popup__ribbon" aria-hidden="true">
+          <span class="offer-popup__ribbon-text">Spring edit</span>
+        </div>
+        <p class="offer-popup__eyebrow">LUXE members</p>
+        <h2 id="offerPopupTitle" class="offer-popup__title">Up to 25% off your first order</h2>
+        <p id="offerPopupDesc" class="offer-popup__lead">Curated picks from verified sellers — fashion, beauty, tech &amp; home. Free shipping on orders over ₹999.</p>
+        <ul class="offer-popup__perks" role="list">
+          <li><span class="offer-popup__perk-icon" aria-hidden="true">✦</span> First-order savings at checkout</li>
+          <li><span class="offer-popup__perk-icon" aria-hidden="true">✦</span> Authentic brands &amp; easy returns</li>
+          <li><span class="offer-popup__perk-icon" aria-hidden="true">✦</span> New arrivals weekly</li>
+        </ul>
+        <div class="offer-popup__actions">
+          <a href="product-list.php" class="offer-popup__cta">Explore the shop</a>
+          <button type="button" class="offer-popup__dismiss" data-offer-dismiss>Maybe later</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Toast Notification -->
   <div class="toast" id="toast"></div>

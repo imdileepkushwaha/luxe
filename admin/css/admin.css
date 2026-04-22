@@ -3786,7 +3786,7 @@ html.admin-theme-dark .admin-pgw-step__n {
 .admin-table th,
 .admin-table td {
   text-align: left;
-  padding: 12px 18px;
+  padding: 10px 12px;
   font-size: 0.88rem;
   border-bottom: 1px solid var(--admin-border);
 }
