@@ -11,44 +11,6 @@ $activeNav = 'dashboard';
 
 $flash = '';
 $flashOk = false;
-$pendingDeletionRequest = seller_deletion_pending_for_seller($pdo, (int) $seller['id']);
-$latestDeletionRequest = seller_deletion_latest_for_seller($pdo, (int) $seller['id']);
-$latestDeletionByEmail = seller_deletion_latest_for_email($pdo, (string) $seller['email']);
-$effectiveLatestDeletionRequest = $latestDeletionByEmail ?: $latestDeletionRequest;
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $action = (string) ($_POST['action'] ?? '');
-    if ($action === 'delete_account') {
-        $confirmText = trim((string) ($_POST['confirm_text'] ?? ''));
-        if (strtoupper($confirmText) !== 'DELETE') {
-            $flash = 'Account delete karne ke liye confirmation box me DELETE likhna zaruri hai.';
-            $flashOk = false;
-        } elseif ($pendingDeletionRequest || ($effectiveLatestDeletionRequest && (string) ($effectiveLatestDeletionRequest['status'] ?? '') === 'pending')) {
-            $flash = 'Aapki deletion request already pending hai. Admin review ka wait karein.';
-            $flashOk = false;
-        } elseif ($effectiveLatestDeletionRequest && (string) ($effectiveLatestDeletionRequest['status'] ?? '') === 'approved') {
-            $flash = 'Deletion request already approved hai. Nayi request allowed nahi hai.';
-            $flashOk = false;
-        } else {
-            $result = seller_deletion_request_create(
-                $pdo,
-                (int) $seller['id'],
-                (string) $seller['email'],
-                (string) $seller['full_name']
-            );
-            if ($result === true) {
-                $flash = 'Account deletion request admin ko bhej di gayi hai.';
-                $flashOk = true;
-                $pendingDeletionRequest = seller_deletion_pending_for_seller($pdo, (int) $seller['id']);
-                $latestDeletionRequest = seller_deletion_latest_for_seller($pdo, (int) $seller['id']);
-                $latestDeletionByEmail = seller_deletion_latest_for_email($pdo, (string) $seller['email']);
-                $effectiveLatestDeletionRequest = $latestDeletionByEmail ?: $latestDeletionRequest;
-            } else {
-                $flash = (string) $result;
-                $flashOk = false;
-            }
-        }
-    }
-}
 
 $allowedCategories = is_array($seller['allowed_categories']) ? $seller['allowed_categories'] : [];
 $kycCompleted = (int) ($seller['kyc_completed'] ?? 0) === 1;
@@ -350,7 +312,9 @@ require __DIR__ . '/partials/shell-top.php';
                       <td class="seller-orders-td-total"><span class="seller-orders-amount">₹<?= number_format((int) $order['total_amount'], 0, '.', ',') ?></span></td>
                       <td class="seller-dashboard-td-date"><?= h(seller_dashboard_format_dt((string) ($order['created_at'] ?? ''))) ?></td>
                       <td class="seller-dashboard-td-link">
-                        <a class="seller-edit-btn" href="order-details.php?id=<?= $oid ?>">Details</a>
+                        <a class="seller-edit-btn" href="order-details.php?id=<?= $oid ?>" aria-label="Order details" title="Order details">
+                          <svg class="seller-details-icon" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" d="M9 4.46A9.8 9.8 0 0 1 12 4c4.182 0 7.028 2.5 8.725 4.704C21.575 9.81 22 10.361 22 12c0 1.64-.425 2.191-1.275 3.296C19.028 17.5 16.182 20 12 20s-7.028-2.5-8.725-4.704C2.425 14.192 2 13.639 2 12c0-1.64.425-2.191 1.275-3.296A14.5 14.5 0 0 1 5 6.821"></path><path d="M15 12a3 3 0 1 1-6 0a3 3 0 0 1 6 0Z"></path></g></svg>
+                        </a>
                       </td>
                     </tr>
                   <?php endforeach; ?>
@@ -369,43 +333,5 @@ require __DIR__ . '/partials/shell-top.php';
             </div>
           </div>
         </div>
-
-        <section class="card seller-danger-card seller-dashboard-danger" id="danger-zone">
-          <div class="card-header">
-            <div>
-              <h2 class="card-title">Danger zone</h2>
-              <p class="card-subtitle seller-dashboard-card-sub">Account deletion removes seller access and unlinks your products from this seller profile after admin processing.</p>
-            </div>
-          </div>
-          <div class="card-body">
-            <?php if ($pendingDeletionRequest): ?>
-              <div class="seller-alert seller-alert--warn seller-dashboard-danger-alert">
-                Deletion request pending (requested <?= h((string) ($pendingDeletionRequest['requested_at'] ?? '—')) ?>). Admin will process it; you cannot submit another request until resolved.
-              </div>
-            <?php elseif ($effectiveLatestDeletionRequest && (string) ($effectiveLatestDeletionRequest['status'] ?? '') === 'approved'): ?>
-              <div class="seller-alert seller-alert--success seller-dashboard-danger-alert">
-                Deletion was approved. Access to this seller account will be revoked shortly.
-              </div>
-            <?php endif; ?>
-            <form method="post" class="seller-danger-form seller-dashboard-danger-form" onsubmit="return confirm('Kya aap pakka seller account delete karna chahte hain?');">
-              <input type="hidden" name="action" value="delete_account">
-              <div class="seller-dashboard-danger-fields">
-                <div>
-                  <label for="confirmText">Type <strong>DELETE</strong> to confirm</label>
-                  <input id="confirmText" name="confirm_text" class="seller-stock-input" required placeholder="DELETE" autocomplete="off" <?= ($pendingDeletionRequest || ($effectiveLatestDeletionRequest && (string) ($effectiveLatestDeletionRequest['status'] ?? '') === 'approved')) ? 'disabled' : '' ?>>
-                </div>
-                <button type="submit" class="seller-btn-danger seller-dashboard-danger-submit" <?= ($pendingDeletionRequest || ($effectiveLatestDeletionRequest && (string) ($effectiveLatestDeletionRequest['status'] ?? '') === 'approved')) ? 'disabled' : '' ?>>
-                  <?php if ($pendingDeletionRequest): ?>
-                    Request pending
-                  <?php elseif ($effectiveLatestDeletionRequest && (string) ($effectiveLatestDeletionRequest['status'] ?? '') === 'approved'): ?>
-                    Request approved
-                  <?php else: ?>
-                    Request account deletion
-                  <?php endif; ?>
-                </button>
-              </div>
-            </form>
-          </div>
-        </section>
 
 <?php require __DIR__ . '/partials/shell-bottom.php'; ?>

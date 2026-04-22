@@ -126,6 +126,84 @@ function products_fetch_by_id(PDO $pdo, int $id, ?int $forSellerOwnerId = null):
 }
 
 /**
+ * @param ?int $forSellerOwnerId If set, load product for that seller even when not yet approved (own preview).
+ */
+function products_fetch_by_slug(PDO $pdo, string $slug, ?int $forSellerOwnerId = null): ?array
+{
+    $slug = trim($slug);
+    if ($slug === '') {
+        return null;
+    }
+
+    if ($forSellerOwnerId !== null && $forSellerOwnerId > 0) {
+        $st = $pdo->prepare(
+            "SELECT p.id, p.seller_id, p.name, p.slug, p.sku, p.category, COALESCE(NULLIF(TRIM(p.product_type), ''), 'general') AS product_type, p.price, p.original_price AS original, p.emoji, p.badge,
+                    p.rating, p.review_count AS reviews, p.brand, p.image_bg, p.image_path, p.stock_qty, p.size_options, p.color_options, p.description,
+                    p.offer_flash_text, p.offer_countdown_seconds, p.offer_bank_text, p.approval_status,
+                    COALESCE(NULLIF(TRIM(p.shipping_class), ''), 'standard') AS shipping_class,
+                    COALESCE(NULLIF(TRIM(s.full_name), ''), 'LUXE Store') AS seller_name
+             FROM products p
+             LEFT JOIN seller_users s ON s.id = p.seller_id
+             WHERE p.slug = ?
+               AND p.seller_id = ?
+               AND s.is_active = 1
+               AND NOT EXISTS (
+                    SELECT 1
+                    FROM seller_account_deletion_requests dr
+                    WHERE dr.status = 'approved'
+                      AND (dr.seller_id = s.id OR dr.email = s.email)
+               )
+             LIMIT 1"
+        );
+        $st->execute([$slug, $forSellerOwnerId]);
+    } else {
+        $st = $pdo->prepare(
+            "SELECT p.id, p.seller_id, p.name, p.slug, p.sku, p.category, COALESCE(NULLIF(TRIM(p.product_type), ''), 'general') AS product_type, p.price, p.original_price AS original, p.emoji, p.badge,
+                    p.rating, p.review_count AS reviews, p.brand, p.image_bg, p.image_path, p.stock_qty, p.size_options, p.color_options, p.description,
+                    p.offer_flash_text, p.offer_countdown_seconds, p.offer_bank_text, p.approval_status,
+                    COALESCE(NULLIF(TRIM(s.full_name), ''), 'LUXE Store') AS seller_name
+             FROM products p
+             LEFT JOIN seller_users s ON s.id = p.seller_id
+             WHERE p.active = 1
+               AND p.approval_status = 'approved'
+               AND p.slug = ?
+               AND p.seller_id IS NOT NULL
+               AND s.is_active = 1
+               AND NOT EXISTS (
+                    SELECT 1
+                    FROM seller_account_deletion_requests dr
+                    WHERE dr.status = 'approved'
+                      AND (dr.seller_id = s.id OR dr.email = s.email)
+               )
+             LIMIT 1"
+        );
+        $st->execute([$slug]);
+    }
+    $r = $st->fetch();
+    if (!$r) {
+        return null;
+    }
+    $id = (int) $r['id'];
+    $r['id'] = $id;
+    $r['seller_id'] = (int) ($r['seller_id'] ?? 0);
+    $r['price'] = (int) $r['price'];
+    $r['original'] = (int) $r['original'];
+    $r['reviews'] = (int) $r['reviews'];
+    $r['rating'] = (float) $r['rating'];
+    $r['stock_qty'] = (int) ($r['stock_qty'] ?? 0);
+    $imgSt = $pdo->prepare('SELECT image_path FROM product_images WHERE product_id = ? ORDER BY sort_order ASC, id ASC');
+    $imgSt->execute([$id]);
+    $images = $imgSt->fetchAll(PDO::FETCH_COLUMN);
+    $images = array_values(array_filter(array_map('strval', is_array($images) ? $images : []), static fn(string $v): bool => $v !== ''));
+    if ((string) ($r['image_path'] ?? '') !== '') {
+        array_unshift($images, (string) $r['image_path']);
+    }
+    $r['images'] = array_values(array_unique($images));
+
+    return $r;
+}
+
+/**
  * Load a seller product by ID for admin moderation (any approval_status / active flag).
  */
 function products_fetch_by_id_for_admin(PDO $pdo, int $id): ?array
@@ -169,7 +247,7 @@ function products_fetch_by_id_for_admin(PDO $pdo, int $id): ?array
 function products_fetch_related(PDO $pdo, int $excludeId, string $category, int $limit = 4): array
 {
     $st = $pdo->prepare(
-        'SELECT p.id, p.name, p.category, p.emoji, p.price, p.original_price AS original, p.badge, p.image_bg, p.image_path,
+        'SELECT p.id, p.name, p.slug, p.category, p.emoji, p.price, p.original_price AS original, p.badge, p.image_bg, p.image_path,
                 p.rating, p.review_count AS reviews,
                 p.size_options, p.color_options,
                 (SELECT COUNT(*) FROM product_variant_inventory pvi WHERE pvi.product_id = p.id AND pvi.active = 1) AS variant_row_count,

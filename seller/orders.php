@@ -14,25 +14,61 @@ $cancelRequests = [];
 $toastMessage = '';
 $toastIsError = false;
 
+function seller_orders_status_rank(string $status): int
+{
+    return match (strtolower(trim($status))) {
+        'processing' => 1,
+        'confirmed' => 2,
+        'shipped' => 3,
+        'out' => 4,
+        'delivered' => 5,
+        default => 1,
+    };
+}
+
+function seller_orders_status_from_rank(int $rank): string
+{
+    return match ($rank) {
+        5 => 'delivered',
+        4 => 'out',
+        3 => 'shipped',
+        2 => 'confirmed',
+        default => 'processing',
+    };
+}
+
+function seller_orders_sync_parent_order_status_from_items(PDO $pdo, int $orderId): void
+{
+    $st = $pdo->prepare('SELECT status FROM order_items WHERE order_id = ?');
+    $st->execute([$orderId]);
+    $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+    if (!is_array($rows) || $rows === []) {
+        return;
+    }
+    $minRank = 5;
+    foreach ($rows as $row) {
+        $lineStatus = strtolower(trim((string) ($row['status'] ?? 'processing')));
+        $minRank = min($minRank, seller_orders_status_rank($lineStatus));
+    }
+    $upd = $pdo->prepare('UPDATE orders SET status = ? WHERE id = ? LIMIT 1');
+    $upd->execute([seller_orders_status_from_rank($minRank), $orderId]);
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') === 'confirm_order') {
     $confirmOrderId = (int) ($_POST['order_id'] ?? 0);
     if ($confirmOrderId > 0) {
         $confirmSt = $pdo->prepare(
-            "UPDATE orders o
-             SET o.status = 'confirmed'
-             WHERE o.id = ?
-               AND o.status = 'processing'
-               AND EXISTS (
-                 SELECT 1
-                 FROM order_items oi
-                 INNER JOIN products p ON p.id = oi.product_id
-                 WHERE oi.order_id = o.id
-                   AND p.seller_id = ?
-               )
-             LIMIT 1"
+            "UPDATE order_items oi
+             INNER JOIN products p ON p.id = oi.product_id
+             SET oi.status = 'confirmed',
+                 oi.confirmed_at = COALESCE(oi.confirmed_at, NOW())
+             WHERE oi.order_id = ?
+               AND oi.status = 'processing'
+               AND p.seller_id = ?"
         );
         $confirmSt->execute([$confirmOrderId, (int) $seller['id']]);
         if ($confirmSt->rowCount() > 0) {
+            seller_orders_sync_parent_order_status_from_items($pdo, $confirmOrderId);
             $toastMessage = 'Order confirmed successfully.';
         } else {
             $toastMessage = 'Order confirm nahi ho paaya. Shayad order already updated hai.';
@@ -154,6 +190,37 @@ $st = $pdo->prepare(
 $st->execute([(int) $seller['id']]);
 $orders = $st->fetchAll();
 
+$sellerStatusByOrderId = [];
+if ($orders !== []) {
+    $orderIds = array_values(array_filter(array_map(static fn(array $o): int => (int) ($o['id'] ?? 0), $orders), static fn(int $id): bool => $id > 0));
+    if ($orderIds !== []) {
+        $ph = implode(',', array_fill(0, count($orderIds), '?'));
+        $lineSt = $pdo->prepare(
+            "SELECT oi.order_id, oi.status
+             FROM order_items oi
+             INNER JOIN products p ON p.id = oi.product_id
+             WHERE p.seller_id = ?
+               AND oi.order_id IN ($ph)"
+        );
+        $lineSt->execute(array_merge([(int) $seller['id']], $orderIds));
+        while ($line = $lineSt->fetch(PDO::FETCH_ASSOC)) {
+            $oid = (int) ($line['order_id'] ?? 0);
+            if ($oid <= 0) {
+                continue;
+            }
+            $rank = seller_orders_status_rank((string) ($line['status'] ?? 'processing'));
+            if (!isset($sellerStatusByOrderId[$oid])) {
+                $sellerStatusByOrderId[$oid] = seller_orders_status_from_rank($rank);
+                continue;
+            }
+            $prevRank = seller_orders_status_rank((string) $sellerStatusByOrderId[$oid]);
+            if ($rank < $prevRank) {
+                $sellerStatusByOrderId[$oid] = seller_orders_status_from_rank($rank);
+            }
+        }
+    }
+}
+
 /** Deep-link to newest return row on order-details (hash opens panel). */
 $latestReturnIdByOrder = [];
 if ($orders !== []) {
@@ -252,6 +319,48 @@ function seller_orders_format_datetime(?string $raw): string
     } catch (Throwable) {
         return $raw;
     }
+}
+
+function seller_orders_time_ago(?string $raw): string
+{
+    if ($raw === null || trim($raw) === '') {
+        return '';
+    }
+    try {
+        $dt = new DateTimeImmutable($raw);
+        $now = new DateTimeImmutable('now');
+        if ($dt > $now) {
+            return 'Today';
+        }
+        $diff = $now->diff($dt);
+        if ($diff->days <= 0) {
+            if ($diff->h > 0) {
+                return $diff->h . ' hour' . ($diff->h === 1 ? '' : 's') . ' ago';
+            }
+            if ($diff->i > 0) {
+                return $diff->i . ' min' . ($diff->i === 1 ? '' : 's') . ' ago';
+            }
+            return 'Just now';
+        }
+        if ($diff->days === 1) {
+            return '1 day ago';
+        }
+        return $diff->days . ' days ago';
+    } catch (Throwable) {
+        return '';
+    }
+}
+
+function seller_orders_payment_status_label(string $paymentMethod, string $orderStatus): string
+{
+    $method = strtolower(trim($paymentMethod));
+    $status = strtolower(trim($orderStatus));
+    $isCod = in_array($method, ['cod', 'cash on delivery', 'cash_on_delivery'], true);
+    if ($isCod) {
+        return $status === 'delivered' ? 'Paid' : 'Pending';
+    }
+
+    return 'Paid';
 }
 
 /**
@@ -462,9 +571,11 @@ require __DIR__ . '/partials/shell-top.php';
                   <tr>
                     <th>Order</th>
                     <th>Customer</th>
+                    <th>Category</th>
                     <th>Status</th>
                     <th>Total</th>
-                    <th>Payment &amp; date</th>
+                    <th>Payment type</th>
+                    <th>Ordered at</th>
                     <th class="seller-orders-th-actions">Actions</th>
                   </tr>
                 </thead>
@@ -487,9 +598,14 @@ require __DIR__ . '/partials/shell-top.php';
                         . trim((string) ($o['shipping_address'] ?? '')) . ' '
                         . trim((string) ($o['created_at'] ?? ''))
                     );
-                    $stMod = seller_order_status_chip_modifier((string) $o['status']);
-                    $stLabel = seller_order_status_label_orders((string) $o['status']);
+                    $sellerStatus = (string) ($sellerStatusByOrderId[(int) ($o['id'] ?? 0)] ?? (string) ($o['status'] ?? 'processing'));
+                    $stMod = seller_order_status_chip_modifier($sellerStatus);
+                    $stLabel = seller_order_status_label_orders($sellerStatus);
                     $catPills = seller_orders_category_pills((string) ($o['categories'] ?? ''));
+                    $createdRaw = (string) ($o['created_at'] ?? '');
+                    $createdFmt = seller_orders_format_datetime($createdRaw);
+                    $createdAgo = seller_orders_time_ago($createdRaw);
+                    $paymentStatusLabel = seller_orders_payment_status_label((string) ($o['payment_method'] ?? ''), $sellerStatus);
                     ?>
                     <tr class="seller-order-row" data-orders-search="<?= h($ordersSearchBlob) ?>">
                       <td class="seller-orders-td-order">
@@ -499,12 +615,16 @@ require __DIR__ . '/partials/shell-top.php';
                       <td class="seller-orders-td-customer">
                         <span class="seller-orders-customer-name"><?= h($cust) ?></span>
                         <span class="seller-orders-customer-email"><?= h((string) ($o['email'] ?? '—')) ?></span>
+                      </td>
+                      <td class="seller-orders-td-category">
                         <?php if ($catPills !== []): ?>
                           <div class="seller-orders-cat-pills">
                             <?php foreach ($catPills as $cp): ?>
                               <span class="seller-orders-cat-pill"><?= h(ucfirst($cp)) ?></span>
                             <?php endforeach; ?>
                           </div>
+                        <?php else: ?>
+                          <span class="seller-help">—</span>
                         <?php endif; ?>
                       </td>
                       <td>
@@ -513,26 +633,40 @@ require __DIR__ . '/partials/shell-top.php';
                       <td class="seller-orders-td-total">
                         <span class="seller-orders-amount">₹<?= number_format((int) $o['total_amount'], 0, '.', ',') ?></span>
                       </td>
-                      <td class="seller-orders-td-meta">
+                      <td class="seller-orders-td-payment">
                         <span class="seller-orders-pay-pill"><?= h((string) $o['payment_method']) ?></span>
-                        <span class="seller-orders-date"><?= h(seller_orders_format_datetime((string) ($o['created_at'] ?? ''))) ?></span>
+                        <span class="seller-orders-pay-status<?= strtolower($paymentStatusLabel) === 'paid' ? ' seller-orders-pay-status--paid' : ' seller-orders-pay-status--pending' ?>">
+                          <?= h($paymentStatusLabel) ?>
+                        </span>
+                      </td>
+                      <td class="seller-orders-td-datetime">
+                        <span class="seller-orders-date"><?= h($createdFmt) ?></span>
+                        <?php if ($createdAgo !== ''): ?>
+                          <span class="seller-orders-ago"><?= h($createdAgo) ?></span>
+                        <?php endif; ?>
                       </td>
                       <td class="seller-orders-td-actions">
                         <div class="seller-order-actions">
-                          <?php if (strtolower((string) ($o['status'] ?? '')) === 'processing'): ?>
+                          <?php if (strtolower($sellerStatus) === 'processing'): ?>
                             <form method="post" class="seller-order-action-form" action="<?= h($ordersFormAction) ?>">
                               <input type="hidden" name="action" value="confirm_order">
                               <input type="hidden" name="order_id" value="<?= (int) $o['id'] ?>">
-                              <button class="admin-btn admin-btn--primary seller-order-confirm-btn" type="submit">Confirm</button>
+                              <button class="admin-btn admin-btn--primary seller-order-confirm-btn" type="submit" aria-label="Confirm order" title="Confirm order">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path stroke-linecap="round" stroke-linejoin="round" d="m20 6-11 11-5-5"/></svg>
+                              </button>
                             </form>
                           <?php endif; ?>
                           <?php
                           $oid = (int) $o['id'];
                           $retRid = $latestReturnIdByOrder[$oid] ?? 0;
                           ?>
-                          <a class="seller-edit-btn seller-order-actions__link" href="order-details.php?id=<?= $oid ?>">Details</a>
+                          <a class="seller-edit-btn seller-order-actions__link" href="order-details.php?id=<?= $oid ?>" aria-label="Order details" title="Order details">
+                            <svg class="seller-details-icon" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" d="M9 4.46A9.8 9.8 0 0 1 12 4c4.182 0 7.028 2.5 8.725 4.704C21.575 9.81 22 10.361 22 12c0 1.64-.425 2.191-1.275 3.296C19.028 17.5 16.182 20 12 20s-7.028-2.5-8.725-4.704C2.425 14.192 2 13.639 2 12c0-1.64.425-2.191 1.275-3.296A14.5 14.5 0 0 1 5 6.821"></path><path d="M15 12a3 3 0 1 1-6 0a3 3 0 0 1 6 0Z"></path></g></svg>
+                          </a>
                           <?php if ($retRid > 0): ?>
-                            <a class="seller-preview-btn seller-preview-btn--return seller-order-actions__link" href="order-details.php?id=<?= $oid ?>#seller-return-req-<?= $retRid ?>">Return</a>
+                            <a class="seller-preview-btn seller-preview-btn--return seller-order-actions__link" href="order-details.php?id=<?= $oid ?>#seller-return-req-<?= $retRid ?>" aria-label="Return details" title="Return details">
+                              <svg class="seller-details-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+                            </a>
                           <?php endif; ?>
                         </div>
                       </td>
@@ -540,7 +674,7 @@ require __DIR__ . '/partials/shell-top.php';
                   <?php endforeach; ?>
                   <?php if ($orders === []): ?>
                     <tr class="seller-orders-empty-placeholder">
-                      <td colspan="6">
+                      <td colspan="8">
                         <div class="seller-orders-empty">
                           <div class="seller-orders-empty__icon" aria-hidden="true">
                             <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
@@ -552,7 +686,7 @@ require __DIR__ . '/partials/shell-top.php';
                     </tr>
                   <?php else: ?>
                     <tr id="sellerOrdersNoMatchRow" class="seller-orders-no-match-row" style="display:none">
-                      <td colspan="6" class="seller-orders-no-match-cell">
+                      <td colspan="8" class="seller-orders-no-match-cell">
                         <div class="seller-orders-no-match-inner">
                           <span class="seller-orders-no-match-icon" aria-hidden="true">
                             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>

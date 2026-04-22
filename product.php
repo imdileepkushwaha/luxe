@@ -5,18 +5,34 @@ if (!headers_sent()) {
     header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 }
 $pdo = db();
-$id = isset($_GET['id']) ? (int) $_GET['id'] : 1;
+$id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
+$slug = trim((string) ($_GET['slug'] ?? ''));
 $sellerSessionId = isset($_SESSION['seller_id']) ? (int) $_SESSION['seller_id'] : 0;
 $adminSessionId = isset($_SESSION['admin_id']) ? (int) $_SESSION['admin_id'] : 0;
-$product = products_fetch_by_id($pdo, $id);
-if (!$product && $sellerSessionId > 0) {
-    $product = products_fetch_by_id($pdo, $id, $sellerSessionId);
+$product = null;
+if ($slug !== '') {
+    $product = products_fetch_by_slug($pdo, $slug);
+    if (!$product && $sellerSessionId > 0) {
+        $product = products_fetch_by_slug($pdo, $slug, $sellerSessionId);
+    }
 }
-if (!$product && $adminSessionId > 0) {
+if (!$product && $id > 0) {
+    $product = products_fetch_by_id($pdo, $id);
+    if (!$product && $sellerSessionId > 0) {
+        $product = products_fetch_by_id($pdo, $id, $sellerSessionId);
+    }
+}
+if (!$product && $id > 0 && $adminSessionId > 0) {
     $product = products_fetch_by_id_for_admin($pdo, $id);
 }
 if (!$product) {
     header('Location: index.php');
+    exit;
+}
+$canonicalProductUrl = luxe_product_url((int) ($product['id'] ?? 0), (string) ($product['slug'] ?? ''));
+$currentUrlBySlug = $slug !== '' ? luxe_product_url((int) ($product['id'] ?? 0), $slug) : '';
+if ($canonicalProductUrl !== '' && ($slug === '' || $currentUrlBySlug !== $canonicalProductUrl)) {
+    header('Location: ' . $canonicalProductUrl, true, 301);
     exit;
 }
 
@@ -460,6 +476,7 @@ foreach ($variantStockMap as $vk => $vq) {
 
 $pageProduct = [
     'id' => $product['id'],
+    'slug' => (string) ($product['slug'] ?? ''),
     'name' => $product['name'],
     'brand' => $product['brand'],
     'sellerName' => $product['seller_name'] ?? 'LUXE Store',
@@ -496,7 +513,7 @@ $pageProduct = [
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,700;1,400&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/luxe.css" />
 </head>
-<body class="page-product">
+<body class="index-page page-product">
 
   <!-- Cursor -->
   <div class="cursor-dot" id="cursorDot"></div>
@@ -509,76 +526,37 @@ $pageProduct = [
     <div class="grid-lines"></div>
   </div>
 
-  <!-- Navbar -->
-  <nav class="navbar" id="navbar">
-    <div class="nav-container">
-      <div class="nav-brand-cluster">
-        <?php require __DIR__ . '/includes/nav_hamburger_btn.php'; ?>
-        <a href="index.php" class="nav-logo">LUXE</a>
-      </div>
-      <div class="nav-breadcrumb">
-        <a href="index.php">Home</a>
-        <span>/</span>
-        <a href="index.php#collections">Fashion</a>
-        <span>/</span>
-        <span class="breadcrumb-current"><?= h($product['name']) ?></span>
-      </div>
-      <div class="nav-actions">
-        <button class="icon-btn" id="searchBtn" aria-label="Search">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        </button>
-        <?php
-        $wishlistNavHref = $currentUser
-            ? 'profile.php?tab=wishlist'
-            : 'login.php?redirect=' . rawurlencode('profile.php?tab=wishlist');
-        ?>
-        <a href="<?= h($wishlistNavHref) ?>" class="icon-btn" id="wishlistNavBtn" aria-label="Wishlist" data-nav-mobile="drawer">
-          <svg id="wishNavIcon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-        </a>
-        <button class="cart-btn" id="cartNavBtn" type="button" aria-label="Cart" onclick="window.location.href='cart.php'">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-          <span class="cart-count" id="cartCount"><?= (int) $initialCartCount ?></span>
-        </button>
-      </div>
-    </div>
-  </nav>
-  <?php require __DIR__ . '/includes/nav_drawer.php'; ?>
-
-  <!-- Search Overlay -->
-  <div class="search-overlay" id="searchOverlay" role="dialog" aria-modal="true" aria-labelledby="searchOverlayTitle">
-    <div class="search-overlay__ambient" aria-hidden="true"></div>
-    <button class="search-close" id="searchClose" type="button" aria-label="Close search">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-    </button>
-    <div class="search-inner">
-      <p class="search-kicker">LUXE catalog</p>
-      <h2 id="searchOverlayTitle" class="search-title">Find your next favorite</h2>
-      <p class="search-lead">Search by product name, brand, or category — matches appear below; press Enter to open the full shop.</p>
-      <div class="search-panel">
-        <label class="search-box" for="searchInput">
-          <span class="search-box__icon" aria-hidden="true">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          </span>
-          <input type="search" id="searchInput" name="q" placeholder="Try Nike, watch, serum…" autocomplete="off" enterkeyhint="search" />
-        </label>
-        <p class="search-hint">
-          <span class="search-hint__desktop"><kbd>Enter</kbd><span class="search-hint__text">Opens shop with results</span></span>
-          <span class="search-hint__mobile">Submit to go to the catalog</span>
-        </p>
-        <div class="search-live-results" id="searchLiveResults" hidden aria-live="polite"></div>
-      </div>
-      <div class="search-tags-block">
-        <span class="search-tags-label">Popular picks</span>
-        <div class="search-tags">
-          <button type="button" class="tag">👟 Sneakers</button>
-          <button type="button" class="tag">👜 Bags</button>
-          <button type="button" class="tag">⌚ Watches</button>
-          <button type="button" class="tag">💻 Laptops</button>
-          <button type="button" class="tag">🧴 Skincare</button>
-        </div>
-      </div>
-    </div>
-  </div>
+  <?php
+  $header = [
+      'user' => $currentUser,
+      'cart_count' => (int) $initialCartCount,
+      'top_text' => 'New arrivals every week',
+      'top_highlight' => 'Free shipping above ₹999',
+      'top_links' => [
+          ['label' => "Today's Deals", 'href' => 'index.php#deals'],
+          ['label' => 'Top Brands', 'href' => 'index.php#brands'],
+      ],
+      'menu_links' => [
+          ['label' => 'Home', 'href' => 'index.php'],
+          ['label' => 'Shop', 'href' => 'product-list.php'],
+          ['label' => 'Collections', 'href' => 'index.php#collections'],
+          ['label' => 'Trending', 'href' => 'index.php#trending'],
+          ['label' => 'Deals', 'href' => 'index.php#deals'],
+          ['label' => 'Brands', 'href' => 'index.php#brands'],
+      ],
+      'wishlist_href' => $currentUser
+          ? 'profile.php?tab=wishlist'
+          : 'login.php?redirect=' . rawurlencode('profile.php?tab=wishlist'),
+      'breadcrumb' => [
+          'home_href' => 'index.php',
+          'home_label' => 'Home',
+          'title' => 'Product Details',
+          'current' => (string) ($product['name'] ?? 'Product'),
+      ],
+      'search_lead' => 'Search by product name, brand, or category — matches appear below; press Enter to open the full shop.',
+  ];
+  require __DIR__ . '/includes/user_header.php';
+  ?>
 
   <!-- Page Content -->
   <main class="main-content">
@@ -1008,16 +986,26 @@ $pageProduct = [
     <!-- ===== STICKY CTA (Mobile) ===== -->
     <div class="sticky-cta" id="stickyCta">
       <div class="sticky-info">
-        <span class="sticky-emoji">👟</span>
-        <div>
-          <strong>AirMax Pro 2026</strong>
-          <span>₹8,999 <s>₹14,500</s></span>
+        <span class="sticky-thumb-wrap">
+          <img id="stickyThumb" class="sticky-thumb" src="<?= h((string) ($product['image'] ?? 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=240&q=70')) ?>" alt="<?= h((string) ($product['name'] ?? 'Product')) ?>" loading="lazy" decoding="async" />
+        </span>
+        <div class="sticky-copy">
+          <strong id="stickyName"><?= h((string) ($product['name'] ?? 'Product')) ?></strong>
+          <span><span id="stickyPrice">₹<?= h(number_format((int) ($product['price'] ?? 0))) ?></span> <s id="stickyOriginal">₹<?= h(number_format((int) ($product['original'] ?? 0))) ?></s></span>
         </div>
       </div>
       <button class="btn-primary" id="stickyAddCartBtn" onclick="addToCart()">Add to Cart</button>
     </div>
 
   </main>
+
+  <?php
+  $footer = [
+      'deals_href' => 'index.php#deals',
+      'year' => '2026',
+  ];
+  require __DIR__ . '/includes/user_footer.php';
+  ?>
 
   <!-- Toast -->
   <div class="toast" id="toast"></div>

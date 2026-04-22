@@ -242,13 +242,13 @@ try {
                     </a>
                   </li>
                   <li>
-                    <a class="admin-user-dropdown__item" href="index.php#danger-zone">
+                    <a class="admin-user-dropdown__item" href="settings.php#seller-delete-zone">
                       <span class="admin-user-dropdown__icon" aria-hidden="true">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                       </span>
                       <span class="admin-user-dropdown__text">
                         <span class="admin-user-dropdown__label">Delete account</span>
-                        <span class="admin-user-dropdown__hint">Open danger zone</span>
+                        <span class="admin-user-dropdown__hint">Settings · confirmation flow</span>
                       </span>
                     </a>
                   </li>

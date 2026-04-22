@@ -39,6 +39,102 @@ function seller_next_statuses(string $status): array
     };
 }
 
+function seller_order_status_cta_label(string $nextStatus): string
+{
+    return match (strtolower(trim($nextStatus))) {
+        'confirmed' => 'Confirm order',
+        'shipped' => 'Mark as shipped',
+        'out' => 'Mark out for delivery',
+        'delivered' => 'Mark as delivered',
+        default => 'Update status',
+    };
+}
+
+function seller_status_rank(string $status): int
+{
+    return match (strtolower(trim($status))) {
+        'processing' => 1,
+        'confirmed' => 2,
+        'shipped' => 3,
+        'out' => 4,
+        'delivered' => 5,
+        default => 1,
+    };
+}
+
+function seller_status_from_rank(int $rank): string
+{
+    return match ($rank) {
+        5 => 'delivered',
+        4 => 'out',
+        3 => 'shipped',
+        2 => 'confirmed',
+        default => 'processing',
+    };
+}
+
+function seller_sync_parent_order_status_from_items(PDO $pdo, int $orderId): void
+{
+    $st = $pdo->prepare('SELECT status, confirmed_at, shipped_at, out_for_delivery_at, delivered_at FROM order_items WHERE order_id = ?');
+    $st->execute([$orderId]);
+    $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+    if (!is_array($rows) || $rows === []) {
+        return;
+    }
+
+    $minRank = 5;
+    $maxConfirmedAt = '';
+    $maxShippedAt = '';
+    $maxOutAt = '';
+    $maxDeliveredAt = '';
+    foreach ($rows as $row) {
+        $lineStatus = strtolower(trim((string) ($row['status'] ?? 'processing')));
+        if ($lineStatus === 'cancelled') {
+            $lineStatus = 'processing';
+        }
+        $rank = seller_status_rank($lineStatus);
+        if ($rank < $minRank) {
+            $minRank = $rank;
+        }
+        $c = trim((string) ($row['confirmed_at'] ?? ''));
+        $s = trim((string) ($row['shipped_at'] ?? ''));
+        $o = trim((string) ($row['out_for_delivery_at'] ?? ''));
+        $d = trim((string) ($row['delivered_at'] ?? ''));
+        if ($c !== '' && ($maxConfirmedAt === '' || $c > $maxConfirmedAt)) {
+            $maxConfirmedAt = $c;
+        }
+        if ($s !== '' && ($maxShippedAt === '' || $s > $maxShippedAt)) {
+            $maxShippedAt = $s;
+        }
+        if ($o !== '' && ($maxOutAt === '' || $o > $maxOutAt)) {
+            $maxOutAt = $o;
+        }
+        if ($d !== '' && ($maxDeliveredAt === '' || $d > $maxDeliveredAt)) {
+            $maxDeliveredAt = $d;
+        }
+    }
+
+    $newStatus = seller_status_from_rank($minRank);
+    $upd = $pdo->prepare(
+        'UPDATE orders
+         SET status = ?,
+             confirmed_at = CASE WHEN ? <> \'\' THEN ? ELSE confirmed_at END,
+             shipped_at = CASE WHEN ? <> \'\' THEN ? ELSE shipped_at END,
+             out_for_delivery_at = CASE WHEN ? <> \'\' THEN ? ELSE out_for_delivery_at END,
+             delivered_at = CASE WHEN ? = \'delivered\' AND ? <> \'\' THEN ? ELSE delivered_at END
+         WHERE id = ?
+         LIMIT 1'
+    );
+    $upd->execute([
+        $newStatus,
+        $maxConfirmedAt, $maxConfirmedAt,
+        $maxShippedAt, $maxShippedAt,
+        $maxOutAt, $maxOutAt,
+        $newStatus, $maxDeliveredAt, $maxDeliveredAt,
+        $orderId,
+    ]);
+}
+
 /**
  * Product name key → order line id when exactly one seller line matches (fixes dedupe when legacy rows omit order_item_id).
  *
@@ -77,7 +173,7 @@ function seller_return_request_terminal_label(array $rr): ?string
         return 'Rejected';
     }
     if ($reqStatus === 'refunded' || $pickupStatus === 'completed' || $resolvedRaw !== '') {
-        return 'Return completed';
+        return 'Return Completed';
     }
 
     return null;
@@ -88,6 +184,130 @@ function seller_return_format_dt(?string $v): string
     $t = trim((string) $v);
 
     return $t !== '' ? $t : '—';
+}
+
+function seller_order_detail_format_dt(?string $raw): string
+{
+    $v = trim((string) $raw);
+    if ($v === '') {
+        return '—';
+    }
+    try {
+        $dt = new DateTimeImmutable($v);
+
+        return $dt->format('M j, Y · g:i A');
+    } catch (Throwable) {
+        return $v;
+    }
+}
+
+function seller_delivery_status_label(string $status): string
+{
+    return match (strtolower(trim($status))) {
+        'processing' => 'Preparing order',
+        'confirmed' => 'Packed and ready',
+        'shipped' => 'Shipped',
+        'out' => 'Out for delivery',
+        'delivered' => 'Delivered',
+        'cancelled' => 'Cancelled',
+        default => 'In progress',
+    };
+}
+
+function seller_delivery_eta(string $status, ?string $createdAt): string
+{
+    $s = strtolower(trim($status));
+    if ($s === 'delivered') {
+        return 'Delivered';
+    }
+    if ($s === 'cancelled') {
+        return 'Order cancelled';
+    }
+    if ($createdAt === null || trim($createdAt) === '') {
+        return 'ETA pending';
+    }
+    try {
+        $dt = new DateTimeImmutable($createdAt);
+        $eta = $dt->modify('+5 days');
+        if ($s === 'out') {
+            return 'Expected today';
+        }
+        if ($s === 'shipped') {
+            return 'Expected in 1-2 days';
+        }
+
+        return 'Expected by ' . $eta->format('M j');
+    } catch (Throwable) {
+        return 'ETA pending';
+    }
+}
+
+function seller_delivery_step_index(string $status): int
+{
+    return match (strtolower(trim($status))) {
+        'processing' => 0,
+        'confirmed' => 1,
+        'shipped' => 2,
+        'out' => 3,
+        'delivered' => 4,
+        default => 0,
+    };
+}
+
+function seller_delivery_value_class(string $status): string
+{
+    return match (strtolower(trim($status))) {
+        'delivered' => 'seller-order-delivery-chip__value seller-order-delivery-chip__value--success',
+        'processing', 'confirmed' => 'seller-order-delivery-chip__value seller-order-delivery-chip__value--warning',
+        'shipped', 'out' => 'seller-order-delivery-chip__value seller-order-delivery-chip__value--info',
+        'cancelled' => 'seller-order-delivery-chip__value seller-order-delivery-chip__value--danger',
+        default => 'seller-order-delivery-chip__value',
+    };
+}
+
+/**
+ * @param array<string,mixed> $order
+ * @return array<string,string>
+ */
+function seller_delivery_step_times_from_items(array $items, string $fallbackPlacedAt): array
+{
+    $latest = array(
+        'confirmed' => '',
+        'shipped' => '',
+        'out' => '',
+        'delivered' => '',
+    );
+    foreach ($items as $it) {
+        $c = trim((string) ($it['confirmed_at'] ?? ''));
+        $s = trim((string) ($it['shipped_at'] ?? ''));
+        $o = trim((string) ($it['out_for_delivery_at'] ?? ''));
+        $d = trim((string) ($it['delivered_at'] ?? ''));
+        if ($c !== '' && ($latest['confirmed'] === '' || $c > $latest['confirmed'])) {
+            $latest['confirmed'] = $c;
+        }
+        if ($s !== '' && ($latest['shipped'] === '' || $s > $latest['shipped'])) {
+            $latest['shipped'] = $s;
+        }
+        if ($o !== '' && ($latest['out'] === '' || $o > $latest['out'])) {
+            $latest['out'] = $o;
+        }
+        if ($d !== '' && ($latest['delivered'] === '' || $d > $latest['delivered'])) {
+            $latest['delivered'] = $d;
+        }
+    }
+
+    $placed = trim($fallbackPlacedAt);
+    if ($placed === '') {
+        $placed = trim((string) ($latest['confirmed'] !== '' ? $latest['confirmed'] : ''));
+    }
+
+    return array(
+        'processing' => $placed,
+        'confirmed' => $latest['confirmed'],
+        'shipped' => $latest['shipped'],
+        'out' => $latest['out'],
+        'delivered' => $latest['delivered'],
+    );
 }
 
 /** @return list<string> */
@@ -108,8 +328,15 @@ function seller_return_timeline_index(string $reqStatus): int
     };
 }
 
+/** Hide refund fields for rejected returns. */
+function seller_return_refund_visible(string $reqStatus): bool
+{
+    return strtolower(trim($reqStatus)) !== 'rejected';
+}
+
 $orderSt = $pdo->prepare(
     "SELECT o.id, o.order_ref, o.status, o.total_amount, o.payment_method, o.shipping_address, o.created_at,
+            o.confirmed_at, o.shipped_at, o.out_for_delivery_at, o.delivered_at,
             COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), 'Guest') AS customer_name,
             COALESCE(u.email, '-') AS customer_email
      FROM orders o
@@ -132,14 +359,57 @@ if (!$order) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') === 'update_status') {
+    $orderItemId = (int) ($_POST['order_item_id'] ?? 0);
     $newStatus = strtolower(trim((string) ($_POST['new_status'] ?? '')));
-    $allowed = seller_next_statuses((string) $order['status']);
+    if ($orderItemId <= 0) {
+        header('Location: order-details.php?id=' . (int) $order['id'] . '&msg=status_invalid');
+        exit;
+    }
+    $lineSt = $pdo->prepare(
+        'SELECT oi.id, oi.status
+         FROM order_items oi
+         INNER JOIN products p ON p.id = oi.product_id
+         WHERE oi.id = ? AND oi.order_id = ? AND p.seller_id = ?
+         LIMIT 1'
+    );
+    $lineSt->execute([$orderItemId, (int) $order['id'], (int) $seller['id']]);
+    $line = $lineSt->fetch(PDO::FETCH_ASSOC) ?: null;
+    if (!is_array($line)) {
+        header('Location: order-details.php?id=' . (int) $order['id'] . '&msg=status_invalid');
+        exit;
+    }
+    $allowed = seller_next_statuses((string) ($line['status'] ?? ''));
     if (in_array($newStatus, $allowed, true)) {
         try {
             $pdo->beginTransaction();
 
-            $upd = $pdo->prepare('UPDATE orders SET status = ? WHERE id = ? LIMIT 1');
-            $upd->execute([$newStatus, (int) $order['id']]);
+            $timeFieldByStatus = [
+                'confirmed' => 'confirmed_at',
+                'shipped' => 'shipped_at',
+                'out' => 'out_for_delivery_at',
+                'delivered' => 'delivered_at',
+            ];
+            $timeField = $timeFieldByStatus[$newStatus] ?? '';
+            if ($timeField !== '') {
+                $upd = $pdo->prepare(
+                    "UPDATE order_items oi
+                     INNER JOIN products p ON p.id = oi.product_id
+                     SET oi.status = ?, oi.{$timeField} = COALESCE(oi.{$timeField}, NOW())
+                     WHERE oi.id = ? AND oi.order_id = ? AND p.seller_id = ?
+                     LIMIT 1"
+                );
+                $upd->execute([$newStatus, $orderItemId, (int) $order['id'], (int) $seller['id']]);
+            } else {
+                $upd = $pdo->prepare(
+                    'UPDATE order_items oi
+                     INNER JOIN products p ON p.id = oi.product_id
+                     SET oi.status = ?
+                     WHERE oi.id = ? AND oi.order_id = ? AND p.seller_id = ?
+                     LIMIT 1'
+                );
+                $upd->execute([$newStatus, $orderItemId, (int) $order['id'], (int) $seller['id']]);
+            }
+            seller_sync_parent_order_status_from_items($pdo, (int) $order['id']);
 
             $pdo->commit();
             header('Location: order-details.php?id=' . (int) $order['id'] . '&msg=status_updated');
@@ -283,10 +553,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
 
     header('Location: order-details.php?id=' . (int) $order['id'] . '&msg=return_updated#return-details-card');
     exit;
+} elseif ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') === 'reply_order_enquiry') {
+    $enquiryId = (int) ($_POST['enquiry_id'] ?? 0);
+    $sellerReply = trim((string) ($_POST['seller_reply'] ?? ''));
+    if ($enquiryId <= 0 || $sellerReply === '') {
+        header('Location: order-details.php?id=' . (int) $order['id'] . '&msg=enquiry_invalid#order-enquiries-card');
+        exit;
+    }
+    if (strlen($sellerReply) > 1000) {
+        $sellerReply = substr($sellerReply, 0, 1000);
+    }
+    $upd = $pdo->prepare(
+        'UPDATE user_order_enquiries
+         SET seller_reply = ?, replied_at = NOW()
+         WHERE id = ? AND seller_id = ? AND order_id = ?
+         LIMIT 1'
+    );
+    $upd->execute([$sellerReply, $enquiryId, (int) $seller['id'], (int) $order['id']]);
+    if ($upd->rowCount() > 0) {
+        header('Location: order-details.php?id=' . (int) $order['id'] . '&msg=enquiry_replied#order-enquiries-card');
+        exit;
+    }
+    header('Location: order-details.php?id=' . (int) $order['id'] . '&msg=enquiry_invalid#order-enquiries-card');
+    exit;
 }
 
 $itemsSt = $pdo->prepare(
-    "SELECT oi.id, oi.name, oi.emoji, oi.variant_text, oi.price, oi.qty,
+    "SELECT oi.id, oi.name, oi.emoji, oi.variant_text, oi.price, oi.qty, oi.status, oi.confirmed_at, oi.shipped_at, oi.out_for_delivery_at, oi.delivered_at,
             p.id AS product_id, p.slug AS product_slug, p.category AS product_category
      FROM order_items oi
      INNER JOIN products p ON p.id = oi.product_id
@@ -295,6 +588,38 @@ $itemsSt = $pdo->prepare(
 );
 $itemsSt->execute([(int) $order['id'], (int) $seller['id']]);
 $items = $itemsSt->fetchAll();
+
+$sellerStatusRank = 1;
+$sellerMaxStatusRank = 1;
+if ($items !== []) {
+    $sellerStatusRank = 5;
+    $sellerMaxStatusRank = 1;
+    foreach ($items as $itRow) {
+        $lineStatus = strtolower(trim((string) ($itRow['status'] ?? 'processing')));
+        if ($lineStatus === '') {
+            $lineStatus = 'processing';
+        }
+        $lineRank = seller_status_rank($lineStatus);
+        $sellerStatusRank = min($sellerStatusRank, $lineRank);
+        $sellerMaxStatusRank = max($sellerMaxStatusRank, $lineRank);
+    }
+}
+$sellerOverallStatus = seller_status_from_rank($sellerStatusRank);
+$sellerDeliveryStatus = seller_status_from_rank($sellerMaxStatusRank);
+$quickActionOrderItemId = 0;
+if ($items !== []) {
+    foreach ($items as $itRow) {
+        $lineId = (int) ($itRow['id'] ?? 0);
+        $lineStatus = strtolower(trim((string) ($itRow['status'] ?? 'processing')));
+        if ($lineId <= 0 || $lineStatus !== $sellerOverallStatus) {
+            continue;
+        }
+        if (seller_next_statuses($lineStatus) !== []) {
+            $quickActionOrderItemId = $lineId;
+            break;
+        }
+    }
+}
 
 /** @var array<int,true> $sellerOrderItemIds */
 $sellerOrderItemIds = [];
@@ -402,6 +727,15 @@ foreach ($orderReturnRows as $rr) {
 }
 $orderReturnRows = $orderReturnRowsDeduped;
 
+$enquirySt = $pdo->prepare(
+    'SELECT id, order_item_id, product_name, message, seller_reply, created_at, replied_at
+     FROM user_order_enquiries
+     WHERE seller_id = ? AND order_id = ?
+     ORDER BY id DESC'
+);
+$enquirySt->execute([(int) $seller['id'], (int) $order['id']]);
+$orderEnquiries = $enquirySt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
 $sellerSubtotal = 0;
 foreach ($items as $it) {
     $sellerSubtotal += ((int) ($it['price'] ?? 0)) * ((int) ($it['qty'] ?? 0));
@@ -421,18 +755,64 @@ if ($msg === 'status_updated') {
     $flashOk = true;
 } elseif ($msg === 'return_invalid') {
     $flash = 'Return request action invalid hai.';
+} elseif ($msg === 'enquiry_replied') {
+    $flash = 'Enquiry reply sent to customer.';
+    $flashOk = true;
+} elseif ($msg === 'enquiry_invalid') {
+    $flash = 'Enquiry reply save nahi ho paya.';
 }
 
 if ($msg === 'status_updated') {
-    $refreshSt = $pdo->prepare('SELECT status FROM orders WHERE id = ? LIMIT 1');
+    $refreshSt = $pdo->prepare('SELECT status, confirmed_at, shipped_at, out_for_delivery_at, delivered_at FROM orders WHERE id = ? LIMIT 1');
     $refreshSt->execute([(int) $order['id']]);
-    $fresh = $refreshSt->fetchColumn();
-    if (is_string($fresh) && $fresh !== '') {
-        $order['status'] = $fresh;
+    $fresh = $refreshSt->fetch(PDO::FETCH_ASSOC) ?: null;
+    if (is_array($fresh)) {
+        $freshStatus = trim((string) ($fresh['status'] ?? ''));
+        if ($freshStatus !== '') {
+            $order['status'] = $freshStatus;
+        }
+        $order['confirmed_at'] = (string) ($fresh['confirmed_at'] ?? '');
+        $order['shipped_at'] = (string) ($fresh['shipped_at'] ?? '');
+        $order['out_for_delivery_at'] = (string) ($fresh['out_for_delivery_at'] ?? '');
+        $order['delivered_at'] = (string) ($fresh['delivered_at'] ?? '');
     }
 }
 
-$nextStatuses = seller_next_statuses((string) $order['status']);
+$nextStatuses = seller_next_statuses($sellerOverallStatus);
+$nextStatus = $nextStatuses[0] ?? '';
+$nextStatusCtaLabel = seller_order_status_cta_label($nextStatus);
+$deliveryStepLabels = ['Placed', 'Confirmed', 'Shipped', 'Out for delivery', 'Delivered'];
+$deliveryStepKeys = ['processing', 'confirmed', 'shipped', 'out', 'delivered'];
+$deliveryStepTimes = seller_delivery_step_times_from_items($items, (string) ($order['created_at'] ?? ''));
+$deliveryStepIndex = seller_delivery_step_index($sellerDeliveryStatus);
+$deliveryStatusLabel = seller_delivery_status_label($sellerDeliveryStatus);
+$deliveryEtaLabel = seller_delivery_eta($sellerDeliveryStatus, (string) ($order['created_at'] ?? ''));
+$deliveryValueClass = seller_delivery_value_class($sellerDeliveryStatus);
+$placedAtFormatted = seller_order_detail_format_dt((string) ($order['created_at'] ?? ''));
+$showOrderEnquiriesSection = $orderEnquiries !== [] && seller_status_rank($sellerDeliveryStatus) < seller_status_rank('out');
+$summaryStatusLabel = ucfirst($sellerOverallStatus);
+$summaryReturnBadgeLabel = '';
+if (strtolower($sellerOverallStatus) === 'delivered' && $orderReturnRows !== []) {
+    $hasReturnOpen = false;
+    $hasReturnCompleted = false;
+    foreach ($orderReturnRows as $rr) {
+        $rrStatus = strtolower(trim((string) ($rr['status'] ?? '')));
+        if (in_array($rrStatus, ['pending', 'approved', 'pickup_scheduled', 'picked_up', 'refund_processing'], true)) {
+            $hasReturnOpen = true;
+            break;
+        }
+        if (in_array($rrStatus, ['refunded', 'rejected'], true)) {
+            $hasReturnCompleted = true;
+        }
+    }
+    if ($hasReturnOpen) {
+        $summaryReturnBadgeLabel = 'Return in progress';
+    } elseif ($hasReturnCompleted) {
+        $summaryReturnBadgeLabel = 'Return Resolved';
+    } else {
+        $summaryReturnBadgeLabel = 'Return';
+    }
+}
 
 require __DIR__ . '/partials/shell-top.php';
 ?>
@@ -452,13 +832,114 @@ require __DIR__ . '/partials/shell-top.php';
           <div class="seller-alert seller-order-detail-flash<?= $flashOk ? ' seller-alert--success' : ' seller-alert--error' ?>"><?= h($flash) ?></div>
         <?php endif; ?>
 
+        <?php if ($nextStatus !== '' && $quickActionOrderItemId > 0): ?>
+          <div class="card seller-txn-card seller-order-detail-card seller-order-detail-status-card">
+            <div class="card-header seller-txn-card-head">
+              <div>
+                <h2 class="card-title">Update order status</h2>
+                <p class="card-subtitle seller-txn-card-sub">Quick action: next allowed step par click karke order status update karein.</p>
+              </div>
+            </div>
+            <div class="card-body seller-order-status-card__body">
+              <div class="seller-order-status-callout" role="note">
+                <span class="seller-order-status-callout__icon" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                </span>
+                <div class="seller-order-status-callout__body">
+                  <p class="seller-order-status-callout__text">One-click status update available.</p>
+                  <div class="seller-order-status-track" aria-label="Order status transition">
+                    <span class="seller-order-status-track__badge seller-order-status-track__badge--current"><?= h((string) ucfirst($sellerOverallStatus)) ?></span>
+                    <span class="seller-order-status-track__arrow" aria-hidden="true">→</span>
+                    <span class="seller-order-status-track__badge seller-order-status-track__badge--next"><?= h((string) ucfirst($nextStatus)) ?></span>
+                  </div>
+                </div>
+              </div>
+              <form method="post" class="seller-order-status-form seller-order-status-form--detail seller-order-status-form--quick">
+                <input type="hidden" name="action" value="update_status">
+                <input type="hidden" name="order_item_id" value="<?= (int) $quickActionOrderItemId ?>">
+                <input type="hidden" name="new_status" value="<?= h($nextStatus) ?>">
+                <button
+                  type="submit"
+                  class="admin-btn seller-order-status-submit seller-order-status-submit--<?= h($nextStatus) ?>"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14"/><path stroke-linecap="round" stroke-linejoin="round" d="m12 5 7 7-7 7"/></svg>
+                  <?= h($nextStatusCtaLabel) ?>
+                </button>
+              </form>
+            </div>
+          </div>
+        <?php endif; ?>
+
+        <?php if ($showOrderEnquiriesSection): ?>
+        <div class="card seller-txn-card seller-order-detail-card" id="order-enquiries-card">
+          <div class="card-header seller-txn-card-head">
+            <div>
+              <h2 class="card-title">Order enquiries</h2>
+              <p class="card-subtitle seller-txn-card-sub">Customer ke help queries yahan show hoti hain. Reply bhejne par user order details me dekh lega.</p>
+            </div>
+          </div>
+          <div class="card-body card-body--flush">
+            <div class="admin-table-wrap">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    <th>Customer query</th>
+                    <th>Seller reply</th>
+                    <th>Created</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <?php foreach ($orderEnquiries as $enq): ?>
+                    <?php
+                    $enquiryId = (int) ($enq['id'] ?? 0);
+                    $sellerReply = trim((string) ($enq['seller_reply'] ?? ''));
+                    ?>
+                    <tr>
+                      <td>
+                        <strong><?= h((string) ($enq['product_name'] ?? 'Order item')) ?></strong>
+                        <div class="seller-return-table-meta">Line ID <?= (int) ($enq['order_item_id'] ?? 0) ?></div>
+                      </td>
+                      <td><?= h((string) ($enq['message'] ?? '')) ?></td>
+                      <td>
+                        <?php if ($sellerReply !== ''): ?>
+                          <div><?= h($sellerReply) ?></div>
+                          <div class="seller-return-table-meta">Replied: <?= h((string) ($enq['replied_at'] ?? '-')) ?></div>
+                        <?php else: ?>
+                          <span class="seller-help">No reply yet</span>
+                        <?php endif; ?>
+                      </td>
+                      <td><?= h((string) ($enq['created_at'] ?? '-')) ?></td>
+                      <td>
+                        <form method="post" class="seller-return-action-form">
+                          <input type="hidden" name="action" value="reply_order_enquiry">
+                          <input type="hidden" name="enquiry_id" value="<?= $enquiryId ?>">
+                          <input type="text" name="seller_reply" class="seller-return-note-input" maxlength="1000" placeholder="Type reply..." autocomplete="off" required>
+                          <button class="admin-btn admin-btn--primary" type="submit"><?= $sellerReply !== '' ? 'Update reply' : 'Send reply' ?></button>
+                        </form>
+                      </td>
+                    </tr>
+                  <?php endforeach; ?>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <?php endif; ?>
+
         <div class="card seller-txn-card seller-order-detail-card seller-order-detail-summary">
           <div class="card-header seller-txn-card-head">
             <div>
               <h2 class="card-title">Summary</h2>
               <p class="card-subtitle seller-txn-card-sub">Customer, payment, amounts, aur shipping — ek nazar me.</p>
             </div>
-            <span class="<?= seller_order_status_class_detail((string) $order['status']) ?> seller-order-detail-status-pill"><?= h((string) $order['status']) ?></span>
+            <div class="seller-order-detail-status-group">
+              <span class="<?= seller_order_status_class_detail($sellerOverallStatus) ?> seller-order-detail-status-pill"><?= h($summaryStatusLabel) ?></span>
+              <?php if ($summaryReturnBadgeLabel !== ''): ?>
+                <span class="seller-order-detail-return-badge"><?= h($summaryReturnBadgeLabel) ?></span>
+              <?php endif; ?>
+            </div>
           </div>
           <div class="card-body seller-order-detail-summary-body">
             <div class="seller-order-meta-grid seller-order-meta-grid--detail">
@@ -490,39 +971,59 @@ require __DIR__ . '/partials/shell-top.php';
           </div>
         </div>
 
-        <div class="card seller-txn-card seller-order-detail-card seller-order-detail-status-card">
+        <div class="card seller-txn-card seller-order-detail-card seller-order-detail-delivery">
           <div class="card-header seller-txn-card-head">
             <div>
-              <h2 class="card-title">Update order status</h2>
-              <p class="card-subtitle seller-txn-card-sub">Allowed next step choose karke order ko aage badhayein.</p>
+              <h2 class="card-title">Delivery details</h2>
+              <p class="card-subtitle seller-txn-card-sub">Delivery stage, ETA aur address ek jagah.</p>
             </div>
           </div>
-          <div class="card-body">
-            <div class="seller-order-status-callout" role="note">
-              <span class="seller-order-status-callout__icon" aria-hidden="true">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-              </span>
-              <p class="seller-order-status-callout__text">Stock deduction checkout / order placement ke time par ho chuki hoti hai.</p>
+          <div class="card-body seller-order-delivery-body">
+            <div class="seller-order-delivery-top">
+              <div class="seller-order-delivery-chip">
+                <span class="seller-order-delivery-chip__label">Current stage</span>
+                <strong class="<?= h($deliveryValueClass) ?>"><?= h($deliveryStatusLabel) ?></strong>
+              </div>
+              <div class="seller-order-delivery-chip">
+                <span class="seller-order-delivery-chip__label">ETA</span>
+                <strong class="<?= h($deliveryValueClass) ?>"><?= h($deliveryEtaLabel) ?></strong>
+              </div>
+              <div class="seller-order-delivery-chip seller-order-delivery-chip--wide">
+                <span class="seller-order-delivery-chip__label">Delivery address</span>
+                <strong class="seller-order-meta-value--break"><?= h((string) ($order['shipping_address'] ?? '-')) ?></strong>
+              </div>
+              <div class="seller-order-delivery-chip">
+                <span class="seller-order-delivery-chip__label">Placed on</span>
+                <strong><?= h($placedAtFormatted) ?></strong>
+              </div>
             </div>
-            <?php if ($nextStatuses === []): ?>
-              <p class="seller-help seller-order-status-done-msg">Is order ka status ab aage update nahi kiya ja sakta.</p>
-            <?php else: ?>
-              <form method="post" class="seller-order-status-form seller-order-status-form--detail">
-                <input type="hidden" name="action" value="update_status">
-                <div class="seller-order-status-form__field">
-                  <label for="newStatus">Next status</label>
-                  <select id="newStatus" name="new_status" required>
-                    <?php foreach ($nextStatuses as $status): ?>
-                      <option value="<?= h($status) ?>"><?= h(ucfirst($status)) ?></option>
-                    <?php endforeach; ?>
-                  </select>
+            <div class="seller-order-delivery-steps" aria-label="Delivery progress">
+              <?php foreach ($deliveryStepLabels as $i => $stepLabel): ?>
+                <?php
+                $isDone = $sellerOverallStatus === 'delivered' || $i < $deliveryStepIndex;
+                $isActive = $sellerOverallStatus !== 'delivered' && $i === $deliveryStepIndex;
+                $stepKey = $deliveryStepKeys[$i] ?? '';
+                $stepRawTime = $stepKey !== '' ? (string) ($deliveryStepTimes[$stepKey] ?? '') : '';
+                $stepTimeLabel = $stepRawTime !== '' ? seller_order_detail_format_dt($stepRawTime) : '—';
+                ?>
+                <div class="seller-order-delivery-step<?= $isDone ? ' seller-order-delivery-step--done' : '' ?><?= $isActive ? ' seller-order-delivery-step--active' : '' ?>">
+                  <span class="seller-order-delivery-step__bar" aria-hidden="true"><span class="seller-order-delivery-step__bar-fill"></span></span>
+                  <span class="seller-order-delivery-step__text">
+                    <span class="seller-order-delivery-step__label-row">
+                      <span class="seller-order-delivery-step__label"><?= h($stepLabel) ?></span>
+                      <?php if ($isActive): ?>
+                        <span class="seller-order-delivery-step__spinner" aria-hidden="true"></span>
+                      <?php endif; ?>
+                    </span>
+                    <span class="seller-order-delivery-step__time"><?= h($stepTimeLabel) ?></span>
+                  </span>
                 </div>
-                <button type="submit" class="admin-btn admin-btn--primary seller-order-status-submit">Update status</button>
-              </form>
-            <?php endif; ?>
+              <?php endforeach; ?>
+            </div>
           </div>
         </div>
 
+        <?php if ($orderReturnRows !== []): ?>
         <div class="card seller-txn-card seller-order-detail-card seller-order-detail-returns" id="return-details-card">
           <div class="card-header seller-txn-card-head">
             <div>
@@ -531,7 +1032,6 @@ require __DIR__ . '/partials/shell-top.php';
             </div>
           </div>
           <div class="card-body card-body--flush">
-            <?php if ($orderReturnRows !== []): ?>
               <p class="seller-help seller-return-panels-intro">Summary table se quick actions; neeche <strong>Return process — full view</strong> mein poora flow, refund aur timestamps.</p>
               <div class="admin-table-wrap">
                 <table class="admin-table">
@@ -558,6 +1058,7 @@ require __DIR__ . '/partials/shell-top.php';
                       if ($pickupStatus === '') {
                           $pickupStatus = 'not_scheduled';
                       }
+                      $showRefundMeta = seller_return_refund_visible($reqStatus);
                       $statusLabel = ucwords(str_replace('_', ' ', $reqStatus));
                       $pickupLabel = ucwords(str_replace('_', ' ', $pickupStatus));
                       $terminalLabel = seller_return_request_terminal_label($rr);
@@ -569,7 +1070,14 @@ require __DIR__ . '/partials/shell-top.php';
                           <div class="seller-return-table-meta"><?= h((string) ($rr['product_name'] ?? '-')) ?></div>
                           <div class="seller-return-table-meta"><?= h((string) ($order['customer_name'] ?? 'Guest')) ?></div>
                           <div class="seller-return-table-meta">Status: <?= h($statusLabel) ?></div>
-                          <div class="seller-return-table-meta">Refund: Rs <?= number_format(max(0, (int) ($rr['refund_amount'] ?? 0))) ?> · <?= h(trim((string) ($rr['refund_mode'] ?? '')) !== '' ? (string) $rr['refund_mode'] : '-') ?></div>
+                          <div class="seller-return-table-meta">
+                            Refund:
+                            <?php if ($showRefundMeta): ?>
+                              Rs <?= number_format(max(0, (int) ($rr['refund_amount'] ?? 0))) ?> · <?= h(trim((string) ($rr['refund_mode'] ?? '')) !== '' ? (string) $rr['refund_mode'] : '-') ?>
+                            <?php else: ?>
+                              Not applicable
+                            <?php endif; ?>
+                          </div>
                         </td>
                         <td><?= h((string) ($rr['reason'] ?? '-')) ?></td>
                         <td><?php
@@ -667,6 +1175,7 @@ require __DIR__ . '/partials/shell-top.php';
                   }
                   $isRejectedPanel = ($pStatus === 'rejected');
                   $isRefundedPanel = ($pStatus === 'refunded');
+                  $showPanelRefund = seller_return_refund_visible($pStatus);
                   $stepIndex = seller_return_timeline_index($pStatus);
                   $tlLabels = seller_return_timeline_labels();
                   $statusBadgeClass = 'seller-return-badge--neutral';
@@ -701,10 +1210,20 @@ require __DIR__ . '/partials/shell-top.php';
                             <?php
                             $done = $isRefundedPanel || ($ti < $stepIndex);
                             $active = !$isRefundedPanel && $ti === $stepIndex;
+                            $timelineRaw = match ($ti) {
+                                0 => (string) ($rrPanel['requested_at'] ?? ''),
+                                1 => (string) ($rrPanel['reviewed_at'] ?? ''),
+                                2 => (string) ($rrPanel['pickup_scheduled_at'] ?? ''),
+                                3 => (string) ($rrPanel['pickup_completed_at'] ?? ''),
+                                4 => (string) ($rrPanel['resolved_at'] ?? ''),
+                                default => '',
+                            };
+                            $timelineFmt = seller_return_format_dt($timelineRaw);
                             ?>
                             <div class="seller-return-timeline-step<?= $done ? ' seller-return-timeline-step--done' : '' ?><?= $active ? ' seller-return-timeline-step--active' : '' ?>">
                               <span class="seller-return-timeline-dot"><?= $done ? '✓' : (string) ($ti + 1) ?></span>
                               <span class="seller-return-timeline-label"><?= h($tlabel) ?></span>
+                              <span class="seller-return-timeline-time"><?= h($timelineFmt) ?></span>
                             </div>
                           <?php endforeach; ?>
                           </div>
@@ -715,21 +1234,11 @@ require __DIR__ . '/partials/shell-top.php';
                         <div class="seller-return-facts-block">
                           <h4 class="seller-return-facts-block-title">Refund &amp; order</h4>
                           <dl class="seller-return-facts">
-                            <div class="seller-return-fact"><dt>Refund amount</dt><dd class="seller-return-fact--emphasis">Rs <?= number_format(max(0, (int) ($rrPanel['refund_amount'] ?? 0))) ?></dd></div>
-                            <div class="seller-return-fact"><dt>Refund mode</dt><dd><?= h(trim((string) ($rrPanel['refund_mode'] ?? '')) !== '' ? (string) $rrPanel['refund_mode'] : '—') ?></dd></div>
+                            <div class="seller-return-fact"><dt>Refund amount</dt><dd class="seller-return-fact--emphasis"><?= $showPanelRefund ? 'Rs ' . number_format(max(0, (int) ($rrPanel['refund_amount'] ?? 0))) : '—' ?></dd></div>
+                            <div class="seller-return-fact"><dt>Refund mode</dt><dd><?= $showPanelRefund ? h(trim((string) ($rrPanel['refund_mode'] ?? '')) !== '' ? (string) $rrPanel['refund_mode'] : '—') : 'Not applicable' ?></dd></div>
                             <div class="seller-return-fact"><dt>Order ref</dt><dd><code class="seller-return-mono"><?= h((string) ($order['order_ref'] ?? '')) ?></code></dd></div>
                             <div class="seller-return-fact"><dt>Order line ID</dt><dd><code class="seller-return-mono"><?= (int) ($rrPanel['order_item_id'] ?? 0) ?: '—' ?></code></dd></div>
                             <div class="seller-return-fact seller-return-fact--wide"><dt>Pickup note</dt><dd><?= h(trim((string) ($rrPanel['pickup_note'] ?? '')) !== '' ? (string) $rrPanel['pickup_note'] : '—') ?></dd></div>
-                          </dl>
-                        </div>
-                        <div class="seller-return-facts-block">
-                          <h4 class="seller-return-facts-block-title">Timeline</h4>
-                          <dl class="seller-return-facts seller-return-facts--timeline">
-                            <div class="seller-return-fact"><dt>Requested</dt><dd><?= h(seller_return_format_dt($rrPanel['requested_at'] ?? null)) ?></dd></div>
-                            <div class="seller-return-fact"><dt>Reviewed</dt><dd><?= h(seller_return_format_dt($rrPanel['reviewed_at'] ?? null)) ?></dd></div>
-                            <div class="seller-return-fact"><dt>Pickup scheduled</dt><dd><?= h(seller_return_format_dt($rrPanel['pickup_scheduled_at'] ?? null)) ?></dd></div>
-                            <div class="seller-return-fact"><dt>Pickup completed</dt><dd><?= h(seller_return_format_dt($rrPanel['pickup_completed_at'] ?? null)) ?></dd></div>
-                            <div class="seller-return-fact"><dt>Resolved</dt><dd><?= h(seller_return_format_dt($rrPanel['resolved_at'] ?? null)) ?></dd></div>
                           </dl>
                         </div>
                       </div>
@@ -737,14 +1246,9 @@ require __DIR__ . '/partials/shell-top.php';
                   </details>
                 <?php endforeach; ?>
               </div>
-            <?php else: ?>
-              <div class="seller-return-empty-state" role="status">
-                <p class="seller-return-empty-state__title">Is order ke liye abhi koi return request nahi mili.</p>
-                <p class="seller-return-empty-state__hint">Customer jab return raise karega, yahan status, pickup aur refund steps dikhenge.</p>
-              </div>
-            <?php endif; ?>
           </div>
         </div>
+        <?php endif; ?>
 
         <div class="card seller-txn-card seller-order-detail-card seller-order-detail-items">
           <div class="card-header seller-txn-card-head">
@@ -761,10 +1265,11 @@ require __DIR__ . '/partials/shell-top.php';
                     <th>Item</th>
                     <th>Category</th>
                     <th>Variant</th>
+                    <th>Status</th>
                     <th class="seller-order-items-th-num">Price</th>
                     <th class="seller-order-items-th-num">Qty</th>
                     <th class="seller-order-items-th-num">Line total</th>
-                    <th class="seller-order-items-th-actions">Product</th>
+                    <th class="seller-order-items-th-actions">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -772,6 +1277,12 @@ require __DIR__ . '/partials/shell-top.php';
                     <?php
                     $lineTotal = ((int) ($it['price'] ?? 0)) * ((int) ($it['qty'] ?? 0));
                     $variant = trim((string) ($it['variant_text'] ?? ''));
+                    $lineStatus = strtolower(trim((string) ($it['status'] ?? 'processing')));
+                    if ($lineStatus === '') {
+                        $lineStatus = 'processing';
+                    }
+                    $lineNextStatuses = seller_next_statuses($lineStatus);
+                    $lineNextStatus = $lineNextStatuses[0] ?? '';
                     ?>
                     <tr>
                       <td class="seller-order-items-td-item">
@@ -782,16 +1293,31 @@ require __DIR__ . '/partials/shell-top.php';
                       </td>
                       <td><?= h((string) ($it['product_category'] ?? '-')) ?></td>
                       <td class="seller-order-items-td-muted"><?= h($variant !== '' ? $variant : '—') ?></td>
+                      <td><span class="seller-status-chip <?= h(seller_order_status_chip_modifier($lineStatus)) ?>"><?= h(seller_order_status_label_orders($lineStatus)) ?></span></td>
                       <td class="seller-order-items-td-num">Rs <?= number_format((int) ($it['price'] ?? 0)) ?></td>
                       <td class="seller-order-items-td-num"><?= (int) ($it['qty'] ?? 0) ?></td>
                       <td class="seller-order-items-td-num seller-order-items-td-line">Rs <?= number_format($lineTotal) ?></td>
                       <td class="seller-order-items-td-actions">
-                        <a class="seller-preview-btn seller-preview-btn--compact" href="../product.php?id=<?= (int) ($it['product_id'] ?? 0) ?>" target="_blank" rel="noopener">View</a>
+                        <div class="seller-order-actions">
+                          <?php if ($lineNextStatus !== ''): ?>
+                            <form method="post" class="seller-order-action-form">
+                              <input type="hidden" name="action" value="update_status">
+                              <input type="hidden" name="order_item_id" value="<?= (int) ($it['id'] ?? 0) ?>">
+                              <input type="hidden" name="new_status" value="<?= h($lineNextStatus) ?>">
+                              <button class="admin-btn admin-btn--primary seller-order-confirm-btn" type="submit" title="<?= h(seller_order_status_cta_label($lineNextStatus)) ?>">
+                                <?= h(seller_order_status_cta_label($lineNextStatus)) ?>
+                              </button>
+                            </form>
+                          <?php endif; ?>
+                          <a class="seller-preview-btn seller-preview-btn--compact" href="../product.php?id=<?= (int) ($it['product_id'] ?? 0) ?>" target="_blank" rel="noopener" aria-label="View product" title="View product">
+                            <svg class="seller-details-icon" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" d="M9 4.46A9.8 9.8 0 0 1 12 4c4.182 0 7.028 2.5 8.725 4.704C21.575 9.81 22 10.361 22 12c0 1.64-.425 2.191-1.275 3.296C19.028 17.5 16.182 20 12 20s-7.028-2.5-8.725-4.704C2.425 14.192 2 13.639 2 12c0-1.64.425-2.191 1.275-3.296A14.5 14.5 0 0 1 5 6.821"></path><path d="M15 12a3 3 0 1 1-6 0a3 3 0 0 1 6 0Z"></path></g></svg>
+                          </a>
+                        </div>
                       </td>
                     </tr>
                   <?php endforeach; ?>
                   <?php if ($items === []): ?>
-                    <tr class="seller-order-items-empty-row"><td colspan="7">No order items found for your catalogue.</td></tr>
+                    <tr class="seller-order-items-empty-row"><td colspan="8">No order items found for your catalogue.</td></tr>
                   <?php endif; ?>
                 </tbody>
               </table>

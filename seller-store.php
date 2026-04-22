@@ -85,7 +85,7 @@ $productCount = count($products);
   <link rel="stylesheet" href="css/luxe.css" />
   <link rel="stylesheet" href="css/seller-store.css" />
 </head>
-<body class="ss-page">
+<body class="index-page ss-page">
 
   <div class="cursor-dot" id="cursorDot"></div>
   <div class="cursor-ring" id="cursorRing"></div>
@@ -96,34 +96,31 @@ $productCount = count($products);
     <div class="grid-lines"></div>
   </div>
 
-  <nav class="navbar" id="navbar">
-    <div class="nav-container">
-      <div class="nav-brand-cluster">
-        <?php require __DIR__ . '/includes/nav_hamburger_btn.php'; ?>
-        <a href="index.php" class="nav-logo">LUXE</a>
-      </div>
-      <ul class="nav-links">
-        <li><a href="index.php#collections">Collections</a></li>
-        <li><a href="index.php#trending">Trending</a></li>
-      </ul>
-      <div class="nav-actions">
-        <?php if ($user): ?>
-        <a href="actions/logout.php" class="nav-login-btn" aria-label="Sign out" data-nav-mobile="drawer">Sign Out</a>
-        <?php else: ?>
-        <a href="login.php" class="nav-login-btn" aria-label="Login" data-nav-mobile="drawer">Sign In</a>
-        <?php endif; ?>
-        <a href="cart.php" class="cart-btn" aria-label="Cart">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-          <span class="cart-count"><?= (int) $cartNavCount ?></span>
-        </a>
-      </div>
-    </div>
-  </nav>
-  <?php require __DIR__ . '/includes/nav_drawer.php'; ?>
-
-  <div class="ss-breadcrumb">
-    <a href="index.php">Home</a> · <span aria-current="page"><?= h($displayName) ?></span>
-  </div>
+  <?php
+  $header = [
+      'user' => $user,
+      'cart_count' => $cartNavCount,
+      'top_text' => 'New arrivals every week',
+      'top_highlight' => 'Free shipping above ₹999',
+      'top_links' => [
+          ['label' => "Today's Deals", 'href' => 'index.php#deals'],
+          ['label' => 'Top Brands', 'href' => 'index.php#brands'],
+      ],
+      'menu_links' => [
+          ['label' => 'Home', 'href' => 'index.php'],
+          ['label' => 'Shop', 'href' => 'product-list.php'],
+          ['label' => 'Collections', 'href' => 'index.php#collections'],
+          ['label' => 'Trending', 'href' => 'index.php#trending'],
+          ['label' => 'Deals', 'href' => 'index.php#deals'],
+          ['label' => 'Brands', 'href' => 'index.php#brands'],
+      ],
+      'wishlist_href' => $user
+          ? 'profile.php?tab=wishlist'
+          : 'login.php?redirect=' . rawurlencode('profile.php?tab=wishlist'),
+      'search_lead' => 'Search by product name, brand, or category — matches show below.',
+  ];
+  require __DIR__ . '/includes/user_header.php';
+  ?>
 
   <header class="ss-hero" aria-labelledby="ssHeroTitle">
     <div
@@ -217,6 +214,7 @@ $productCount = count($products);
           <?php foreach ($products as $p): ?>
             <?php
             $pid = (int) $p['id'];
+            $productHref = luxe_product_url($pid, (string) ($p['slug'] ?? ''));
             $imgSrc = luxe_public_product_card_image($p);
             $badge = trim((string) ($p['badge'] ?? ''));
             $cat = (string) ($p['category'] ?? '');
@@ -225,7 +223,7 @@ $productCount = count($products);
             $revLabel = $reviews >= 1000 ? number_format($reviews / 1000, 1) . 'k' : (string) max(0, $reviews);
             ?>
             <article class="product-card reveal">
-              <a href="product.php?id=<?= $pid ?>" class="product-card-img-link" style="text-decoration:none;display:block">
+              <a href="<?= h($productHref) ?>" class="product-card-img-link" style="text-decoration:none;display:block">
                 <div class="product-card-img">
                   <img class="card-emoji" src="<?= h($imgSrc) ?>" alt="<?= h((string) $p['name']) ?>" loading="lazy" decoding="async" />
                   <?php if ($badge !== ''): ?>
@@ -235,7 +233,7 @@ $productCount = count($products);
               </a>
               <div class="product-card-body">
                 <div class="product-card-category"><?= h($cat) ?></div>
-                <a href="product.php?id=<?= $pid ?>" class="product-card-name" style="text-decoration:none;color:inherit;display:block"><?= h((string) $p['name']) ?></a>
+                <a href="<?= h($productHref) ?>" class="product-card-name" style="text-decoration:none;color:inherit;display:block"><?= h((string) $p['name']) ?></a>
                 <div class="product-card-meta">
                   <div class="product-card-price">
                     <span class="price-cur">&#8377;<?= number_format((int) $p['price']) ?></span>
@@ -251,6 +249,17 @@ $productCount = count($products);
     </div>
   </main>
 
+  <?php
+  $footer = [
+      'deals_href' => 'index.php#deals',
+      'year' => '2026',
+  ];
+  require __DIR__ . '/includes/user_footer.php';
+  ?>
+
+  <script>
+    window.__PRODUCTS__ = <?= json_encode(products_fetch_all($pdo), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
+  </script>
   <script src="script/luxe.js"></script>
 </body>
 </html>

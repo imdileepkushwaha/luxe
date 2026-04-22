@@ -32,6 +32,20 @@ CREATE TABLE site_settings (
 
 INSERT INTO site_settings (setting_key, setting_value) VALUES ('platform_fee_rupees', '3');
 
+CREATE TABLE platform_payment_gateway_config (
+  id TINYINT UNSIGNED PRIMARY KEY,
+  gateway VARCHAR(32) NOT NULL DEFAULT 'none',
+  mode VARCHAR(8) NOT NULL DEFAULT 'test',
+  public_key VARCHAR(255) NOT NULL DEFAULT '',
+  secret_key VARCHAR(255) NOT NULL DEFAULT '',
+  merchant_id VARCHAR(120) NOT NULL DEFAULT '',
+  webhook_secret VARCHAR(255) NOT NULL DEFAULT '',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO platform_payment_gateway_config (id) VALUES (1);
+
 CREATE TABLE seller_users (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   email VARCHAR(255) NOT NULL UNIQUE,
@@ -285,6 +299,11 @@ CREATE TABLE order_items (
   variant_text VARCHAR(255) NOT NULL DEFAULT '',
   price INT UNSIGNED NOT NULL,
   qty INT UNSIGNED NOT NULL DEFAULT 1,
+  status VARCHAR(32) NOT NULL DEFAULT 'processing',
+  confirmed_at DATETIME NULL DEFAULT NULL,
+  shipped_at DATETIME NULL DEFAULT NULL,
+  out_for_delivery_at DATETIME NULL DEFAULT NULL,
+  delivered_at DATETIME NULL DEFAULT NULL,
   CONSTRAINT fk_oi_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
   CONSTRAINT fk_oi_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
@@ -350,6 +369,28 @@ CREATE TABLE user_order_cancel_requests (
   CONSTRAINT fk_user_cancel_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT fk_user_cancel_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
   CONSTRAINT fk_user_cancel_seller FOREIGN KEY (seller_id) REFERENCES seller_users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE user_order_enquiries (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id INT UNSIGNED NOT NULL,
+  seller_id INT UNSIGNED NOT NULL,
+  order_id INT UNSIGNED NOT NULL,
+  order_item_id INT UNSIGNED NOT NULL,
+  order_ref VARCHAR(32) NOT NULL,
+  product_id INT UNSIGNED NULL,
+  product_name VARCHAR(255) NOT NULL DEFAULT '',
+  message VARCHAR(1000) NOT NULL DEFAULT '',
+  seller_reply VARCHAR(1000) NOT NULL DEFAULT '',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  replied_at DATETIME NULL,
+  KEY idx_user_order_enquiry_user (user_id, created_at),
+  KEY idx_user_order_enquiry_seller (seller_id, created_at),
+  KEY idx_user_order_enquiry_order (order_id, order_item_id, seller_id),
+  CONSTRAINT fk_user_order_enquiry_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_user_order_enquiry_seller FOREIGN KEY (seller_id) REFERENCES seller_users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_user_order_enquiry_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+  CONSTRAINT fk_user_order_enquiry_order_item FOREIGN KEY (order_item_id) REFERENCES order_items(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE seller_account_deletion_requests (

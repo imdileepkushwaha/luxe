@@ -19,7 +19,7 @@ foreach ($_SESSION['cart'] ?? [] as $ci) {
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,700;1,400&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/luxe.css" />
 </head>
-<body>
+<body class="index-page">
 
   <!-- Cursor Dot -->
   <div class="cursor-dot" id="cursorDot"></div>
@@ -41,92 +41,31 @@ foreach ($_SESSION['cart'] ?? [] as $ci) {
     </div>
   </div>
 
-  <!-- Navbar -->
-  <nav class="navbar" id="navbar">
-    <div class="nav-container">
-      <div class="nav-brand-cluster">
-        <?php require __DIR__ . '/includes/nav_hamburger_btn.php'; ?>
-        <a href="index.php" class="nav-logo">LUXE</a>
-      </div>
-      <ul class="nav-links">
-        <li><a href="product-list.php">Shop</a></li>
-        <li><a href="#collections">Collections</a></li>
-        <li><a href="#trending">Trending</a></li>
-        <li><a href="#deals">Deals</a></li>
-        <li><a href="#brands">Brands</a></li>
-      </ul>
-      <div class="nav-actions">
-        <button class="icon-btn" id="searchBtn" aria-label="Search">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        </button>
-        <?php
-        $wishlistNavHref = $user
-            ? 'profile.php?tab=wishlist'
-            : 'login.php?redirect=' . rawurlencode('profile.php?tab=wishlist');
-        ?>
-        <a href="<?= h($wishlistNavHref) ?>" class="icon-btn" aria-label="Wishlist" data-nav-mobile="drawer">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-        </a>
-        <?php if ($user): ?>
-        <a href="actions/logout.php" class="nav-login-btn" aria-label="Sign out" data-nav-mobile="drawer">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-          Sign Out
-        </a>
-        <?php else: ?>
-        <a href="login.php" class="nav-login-btn" aria-label="Login" data-nav-mobile="drawer">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          Sign In
-        </a>
-        <?php endif; ?>
-        <?php if ($user): ?>
-        <a href="profile.php" class="icon-btn" aria-label="Profile" data-nav-mobile="drawer">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        </a>
-        <?php endif; ?>
-        <a href="cart.php" class="cart-btn" aria-label="Cart">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-          <span class="cart-count" id="cartCount"><?= (int) $cartNavCount ?></span>
-        </a>
-      </div>
-    </div>
-  </nav>
-  <?php require __DIR__ . '/includes/nav_drawer.php'; ?>
-
-  <!-- Search Overlay -->
-  <div class="search-overlay" id="searchOverlay" role="dialog" aria-modal="true" aria-labelledby="searchOverlayTitle">
-    <div class="search-overlay__ambient" aria-hidden="true"></div>
-    <button class="search-close" id="searchClose" type="button" aria-label="Close search">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-    </button>
-    <div class="search-inner">
-      <p class="search-kicker">LUXE catalog</p>
-      <h2 id="searchOverlayTitle" class="search-title">Find your next favorite</h2>
-      <p class="search-lead">Search by product name, brand, or category — matches show below; the trending section updates too.</p>
-      <div class="search-panel">
-        <label class="search-box" for="searchInput">
-          <span class="search-box__icon" aria-hidden="true">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          </span>
-          <input type="search" id="searchInput" name="q" placeholder="Try Nike, watch, serum…" autocomplete="off" enterkeyhint="search" />
-        </label>
-        <p class="search-hint">
-          <span class="search-hint__desktop"><kbd>Enter</kbd><span class="search-hint__text">Jumps to trending results</span></span>
-          <span class="search-hint__mobile">Submit search to scroll to results</span>
-        </p>
-        <div class="search-live-results" id="searchLiveResults" hidden aria-live="polite"></div>
-      </div>
-      <div class="search-tags-block">
-        <span class="search-tags-label">Popular picks</span>
-        <div class="search-tags">
-          <button type="button" class="tag">👟 Sneakers</button>
-          <button type="button" class="tag">👜 Bags</button>
-          <button type="button" class="tag">⌚ Watches</button>
-          <button type="button" class="tag">💻 Laptops</button>
-          <button type="button" class="tag">🧴 Skincare</button>
-        </div>
-      </div>
-    </div>
-  </div>
+  <?php
+  $header = [
+      'user' => $user,
+      'cart_count' => $cartNavCount,
+      'top_text' => 'New arrivals every week',
+      'top_highlight' => 'Free shipping above ₹999',
+      'top_links' => [
+          ['label' => "Today's Deals", 'href' => '#deals'],
+          ['label' => 'Top Brands', 'href' => '#brands'],
+      ],
+      'menu_links' => [
+          ['label' => 'Home', 'href' => 'index.php'],
+          ['label' => 'Shop', 'href' => 'product-list.php'],
+          ['label' => 'Collections', 'href' => '#collections'],
+          ['label' => 'Trending', 'href' => '#trending'],
+          ['label' => 'Deals', 'href' => '#deals'],
+          ['label' => 'Brands', 'href' => '#brands'],
+      ],
+      'wishlist_href' => $user
+          ? 'profile.php?tab=wishlist'
+          : 'login.php?redirect=' . rawurlencode('profile.php?tab=wishlist'),
+      'search_lead' => 'Search by product name, brand, or category — matches show below; the trending section updates too.',
+  ];
+  require __DIR__ . '/includes/user_header.php';
+  ?>
 
   <!-- Hero Section -->
   <section class="hero" id="hero">
@@ -554,81 +493,13 @@ foreach ($_SESSION['cart'] ?? [] as $ci) {
     </div>
   </section>
 
-  <!-- Footer -->
-  <footer class="footer">
-    <div class="container">
-      <div class="footer-top">
-        <div class="footer-brand">
-          <span class="footer-logo">LUXE</span>
-          <p>Your premium destination for fashion, tech & lifestyle. Shop with confidence.</p>
-          <div class="social-links">
-            <a href="#" class="social-link" aria-label="Instagram">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8.59916 0.656738C9.43179 0.658114 9.85373 0.662524 10.2183 0.673378L10.3619 0.678068C10.5278 0.683965 10.6915 0.691364 10.8888 0.700612C11.6761 0.736991 12.2131 0.861531 12.6848 1.04465C13.1724 1.2327 13.5843 1.48671 13.9955 1.89795C14.4061 2.30919 14.6602 2.72227 14.8489 3.20873C15.0313 3.67977 15.1559 4.21741 15.1929 5.00473C15.2017 5.20203 15.2088 5.36569 15.2147 5.53159L15.2193 5.67519C15.2301 6.03975 15.2351 6.46176 15.2366 7.29442L15.2372 7.84606C15.2373 7.91346 15.2373 7.98301 15.2373 8.05477L15.2372 8.26349L15.2368 8.8152C15.2354 9.64783 15.231 10.0699 15.2201 10.4344L15.2154 10.578C15.2095 10.7439 15.2022 10.9076 15.1929 11.1048C15.1565 11.8922 15.0313 12.4292 14.8489 12.9008C14.6608 13.3886 14.4061 13.8004 13.9955 14.2116C13.5843 14.6223 13.1706 14.8763 12.6848 15.0649C12.2131 15.2474 11.6761 15.372 10.8888 15.409C10.6915 15.4178 10.5278 15.4249 10.3619 15.4307L10.2183 15.4354C9.85373 15.4462 9.43179 15.4511 8.59916 15.4528L8.04745 15.4534C7.98005 15.4534 7.9105 15.4534 7.83874 15.4534H7.63002L7.07831 15.4528C6.24568 15.4515 5.82368 15.4471 5.45912 15.4362L5.31552 15.4315C5.14961 15.4256 4.98596 15.4182 4.78867 15.409C4.00133 15.3726 3.46494 15.2474 2.99267 15.0649C2.50559 14.8769 2.09312 14.6223 1.68189 14.2116C1.27065 13.8004 1.01725 13.3867 0.828588 12.9008C0.645474 12.4292 0.521548 11.8922 0.484555 11.1048C0.475766 10.9076 0.468596 10.7439 0.462788 10.578L0.458135 10.4344C0.447311 10.0699 0.442376 9.64783 0.440778 8.8152L0.440681 7.29442C0.442058 6.46176 0.44646 6.03975 0.457313 5.67519L0.462012 5.53159C0.467908 5.36569 0.475307 5.20203 0.484555 5.00473C0.520926 4.21679 0.645474 3.68039 0.828588 3.20873C1.01663 2.72166 1.27065 2.30919 1.68189 1.89795C2.09312 1.48671 2.50621 1.23331 2.99267 1.04465C3.46432 0.861531 4.00072 0.737605 4.78867 0.700612C4.98596 0.69183 5.14961 0.684661 5.31552 0.678853L5.45912 0.674199C5.82368 0.663367 6.24568 0.658433 7.07831 0.656834L8.59916 0.656738ZM7.83874 4.35551C5.79457 4.35551 4.13944 6.01244 4.13944 8.05477C4.13944 10.0989 5.79637 11.7541 7.83874 11.7541C9.88288 11.7541 11.538 10.0972 11.538 8.05477C11.538 6.01064 9.88103 4.35551 7.83874 4.35551ZM7.83874 5.83522C9.0646 5.83522 10.0583 6.82861 10.0583 8.05477C10.0583 9.28064 9.0649 10.2743 7.83874 10.2743C6.61287 10.2743 5.61915 9.28101 5.61915 8.05477C5.61915 6.8289 6.6125 5.83522 7.83874 5.83522ZM11.723 3.24572C11.213 3.24572 10.7982 3.65998 10.7982 4.16991C10.7982 4.67986 11.2124 5.09475 11.723 5.09475C12.2329 5.09475 12.6478 4.68051 12.6478 4.16991C12.6478 3.65998 12.2322 3.24509 11.723 3.24572Z" fill="currentColor"></path></svg>
-            </a>
-            <a href="#" class="social-link" aria-label="Facebook">
-            <svg xmlns="http://www.w3.org/2000/svg" width="8" height="16" viewBox="0 0 8 16" fill="none"><path d="M5.33899 9.16479H7.21792L7.9695 6.20547H5.33899V4.72581C5.33899 3.96424 5.33899 3.24615 6.84214 3.24615H7.9695V0.760389C7.72471 0.728391 6.7993 0.656738 5.82217 0.656738C3.78203 0.656738 2.33269 1.88253 2.33269 4.13373V6.20547H0.0779705V9.16479H2.33269V15.4534H5.33899V9.16479Z" fill="currentColor"></path></svg>
-            </a>
-            <a href="#" class="social-link" aria-label="YouTube">
-            <svg xmlns="http://www.w3.org/2000/svg" width="19" height="16" viewBox="0 0 19 16" fill="none"><path d="M9.51528 0.656738C9.98947 0.659457 11.1759 0.671406 12.4364 0.724002L12.8834 0.744302C14.1525 0.806895 15.4206 0.913825 16.0496 1.0965C16.8885 1.342 17.5479 2.05833 17.7707 2.96636C18.1256 4.40827 18.17 7.22255 18.1755 7.9036L18.1763 8.04473V8.05463C18.1763 8.05463 18.1763 8.05805 18.1763 8.06462L18.1755 8.20575C18.17 8.8868 18.1256 11.7011 17.7707 13.143C17.5448 14.0543 16.8854 14.7707 16.0496 15.0128C15.4206 15.1955 14.1525 15.3024 12.8834 15.365L12.4364 15.3853C11.1759 15.4379 9.98947 15.4498 9.51528 15.4526L9.30717 15.4534H9.29793C9.29793 15.4534 9.29483 15.4534 9.2887 15.4534L9.08077 15.4526C8.07716 15.4469 3.8809 15.3996 2.5463 15.0128C1.70737 14.7673 1.04799 14.051 0.825102 13.143C0.470261 11.7011 0.425904 8.8868 0.420364 8.20575V7.9036C0.425904 7.22255 0.470261 4.40827 0.825102 2.96636C1.05108 2.05497 1.71046 1.33864 2.5463 1.0965C3.8809 0.709667 8.07716 0.662491 9.08077 0.656738H9.51528ZM7.52227 4.81772V11.2916L12.8493 8.05463L7.52227 4.81772Z" fill="currentColor"></path></svg>
-            </a>
-          </div>
-        </div>
-        <div class="footer-col">
-          <h4>Shop</h4>
-          <ul>
-            <li><a href="product.php">New Arrivals</a></li>
-            <li><a href="product.php">Best Sellers</a></li>
-            <li><a href="#deals">Sale & Offers</a></li>
-            <li><a href="#">Gift Cards</a></li>
-          </ul>
-        </div>
-        <div class="footer-col">
-          <h4>Support</h4>
-          <ul>
-            <li><a href="#">Track Order</a></li>
-            <li><a href="#">Returns</a></li>
-            <li><a href="#">FAQ</a></li>
-            <li><a href="#">Contact Us</a></li>
-          </ul>
-        </div>
-        <div class="footer-col">
-          <h4>Company</h4>
-          <ul>
-            <li><a href="#">About LUXE</a></li>
-            <li><a href="login.php">Sign In / Register</a></li>
-            <li><a href="#">Blog</a></li>
-            <li><a href="#">Press</a></li>
-          </ul>
-        </div>
-      </div>
-      <div class="footer-bottom">
-        <p>© 2026 LUXE. All rights reserved.</p>
-        <div class="payment-icons">
-          <span class="pay-icon">
-            <img src="images/payment/1.svg" alt="Payment Icon" >
-          </span>
-          <span class="pay-icon">
-            <img src="images/payment/2.svg" alt="Payment Icon" >
-          </span>
-          <span class="pay-icon">
-            <img src="images/payment/3.svg" alt="Payment Icon" >
-          </span>
-          <span class="pay-icon">
-            <img src="images/payment/4.svg" alt="Payment Icon" >
-          </span>
-          <span class="pay-icon">
-            <img src="images/payment/5.svg" alt="Payment Icon" >
-          </span>
-          <span class="pay-icon">
-            <img src="images/payment/6.svg" alt="Payment Icon" >
-          </span>
-          <span class="pay-icon">
-            <img src="images/payment/7.svg" alt="Payment Icon" >
-          </span>
-        </div>
-      </div>
-    </div>
-  </footer>
+  <?php
+  $footer = [
+      'deals_href' => '#deals',
+      'year' => '2026',
+  ];
+  require __DIR__ . '/includes/user_footer.php';
+  ?>
 
   <!-- Cart Sidebar -->
   <div class="cart-sidebar" id="cartSidebar">
@@ -651,6 +522,34 @@ foreach ($_SESSION['cart'] ?? [] as $ci) {
     </div>
   </div>
   <div class="cart-overlay" id="cartOverlay"></div>
+
+  <!-- Index offer modal (shown once after welcome loader; dismiss persists) -->
+  <div class="offer-popup" id="offerPopup" role="dialog" aria-modal="true" aria-labelledby="offerPopupTitle" aria-describedby="offerPopupDesc" hidden>
+    <div class="offer-popup__backdrop" data-offer-dismiss tabindex="-1" aria-hidden="true"></div>
+    <div class="offer-popup__dialog">
+      <div class="offer-popup__glow" aria-hidden="true"></div>
+      <div class="offer-popup__frame">
+        <button type="button" class="offer-popup__close" id="offerPopupClose" data-offer-dismiss aria-label="Close offer">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+        <div class="offer-popup__ribbon" aria-hidden="true">
+          <span class="offer-popup__ribbon-text">Spring edit</span>
+        </div>
+        <p class="offer-popup__eyebrow">LUXE members</p>
+        <h2 id="offerPopupTitle" class="offer-popup__title">Up to 25% off your first order</h2>
+        <p id="offerPopupDesc" class="offer-popup__lead">Curated picks from verified sellers — fashion, beauty, tech &amp; home. Free shipping on orders over ₹999.</p>
+        <ul class="offer-popup__perks" role="list">
+          <li><span class="offer-popup__perk-icon" aria-hidden="true">✦</span> First-order savings at checkout</li>
+          <li><span class="offer-popup__perk-icon" aria-hidden="true">✦</span> Authentic brands &amp; easy returns</li>
+          <li><span class="offer-popup__perk-icon" aria-hidden="true">✦</span> New arrivals weekly</li>
+        </ul>
+        <div class="offer-popup__actions">
+          <a href="product-list.php" class="offer-popup__cta">Explore the shop</a>
+          <button type="button" class="offer-popup__dismiss" data-offer-dismiss>Maybe later</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Toast Notification -->
   <div class="toast" id="toast"></div>

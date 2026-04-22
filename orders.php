@@ -3,6 +3,7 @@ require_once __DIR__ . '/includes/bootstrap.php';
 $pdo = db();
 $uid = auth_user_id();
 $userLoggedIn = $uid !== null;
+$user = auth_user($pdo);
 $cartNavCount = 0;
 foreach ($_SESSION['cart'] ?? [] as $ci) {
     $cartNavCount += (int) ($ci['qty'] ?? 1);
@@ -239,6 +240,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $uid !== null) {
                 }
             }
         }
+    } elseif ($action === 'submit_order_enquiry') {
+        $orderRef = trim((string) ($_POST['order_ref'] ?? ''));
+        $orderItemId = (int) ($_POST['order_item_id'] ?? 0);
+        $message = trim((string) ($_POST['enquiry_message'] ?? ''));
+
+        if ($orderRef === '' || $orderItemId <= 0 || $message === '') {
+            $flashMessage = 'Please select item and enter enquiry message.';
+            $flashType = 'error';
+        } else {
+            if (strlen($message) > 1000) {
+                $message = substr($message, 0, 1000);
+            }
+            $ownOrderSt = $pdo->prepare('SELECT id, status FROM orders WHERE user_id = ? AND order_ref = ? LIMIT 1');
+            $ownOrderSt->execute([$uid, $orderRef]);
+            $ownOrder = $ownOrderSt->fetch(PDO::FETCH_ASSOC) ?: null;
+            $orderId = (int) ($ownOrder['id'] ?? 0);
+            $orderStatus = strtolower(trim((string) ($ownOrder['status'] ?? '')));
+            if ($orderId <= 0) {
+                $flashMessage = 'Order not found.';
+                $flashType = 'error';
+            } elseif (!in_array($orderStatus, ['processing', 'confirmed', 'shipped'], true)) {
+                $flashMessage = 'Help enquiry only available for active, non-delivered orders.';
+                $flashType = 'error';
+            } else {
+                $itemSt = $pdo->prepare(
+                    'SELECT oi.id, oi.product_id, oi.name, p.seller_id
+                     FROM order_items oi
+                     INNER JOIN products p ON p.id = oi.product_id
+                     WHERE oi.id = ? AND oi.order_id = ?
+                     LIMIT 1'
+                );
+                $itemSt->execute([$orderItemId, $orderId]);
+                $item = $itemSt->fetch(PDO::FETCH_ASSOC) ?: null;
+                $sellerId = (int) ($item['seller_id'] ?? 0);
+                if (!is_array($item) || $sellerId <= 0) {
+                    $flashMessage = 'Selected item does not belong to this order.';
+                    $flashType = 'error';
+                } else {
+                    $ins = $pdo->prepare(
+                        'INSERT INTO user_order_enquiries
+                            (user_id, seller_id, order_id, order_item_id, order_ref, product_id, product_name, message)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+                    );
+                    $ins->execute([
+                        (int) $uid,
+                        $sellerId,
+                        $orderId,
+                        (int) ($item['id'] ?? 0),
+                        $orderRef,
+                        (int) ($item['product_id'] ?? 0),
+                        (string) ($item['name'] ?? ''),
+                        $message,
+                    ]);
+                    $flashMessage = 'Your enquiry sent to seller successfully.';
+                    $flashType = 'success';
+                }
+            }
+        }
     }
 }
 
@@ -279,46 +338,36 @@ $ordersData = $uid ? orders_fetch_for_user($pdo, $uid) : [];
     }
   </style>
 </head>
-<body>
+<body class="index-page orders-page">
   <div class="cursor-dot" id="cursorDot"></div>
   <div class="cursor-ring" id="cursorRing"></div>
   <div class="bg-scene"><div class="blob blob-1"></div><div class="blob blob-2"></div><div class="grid-lines"></div></div>
 
-  <nav class="navbar" id="navbar">
-    <div class="nav-container">
-      <div class="nav-brand-cluster">
-        <?php require __DIR__ . '/includes/nav_hamburger_btn.php'; ?>
-        <a href="index.php" class="nav-logo">LUXE</a>
-      </div>
-      <div class="nav-breadcrumb">
-        <a href="index.php">Home</a><span>/</span>
-        <span class="breadcrumb-current">My Orders</span>
-      </div>
-      <div class="nav-actions">
-        <?php if ($userLoggedIn): ?>
-        <a href="profile.php" class="nav-icon-link" aria-label="Profile" data-nav-mobile="drawer">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        </a>
-        <?php endif; ?>
-        <a href="cart.php" class="nav-icon-link" aria-label="Cart" style="position:relative">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-          <span class="nav-cart-dot" id="cartCount"><?= (int) $cartNavCount ?></span>
-        </a>
-        <?php if ($userLoggedIn): ?>
-        <a href="actions/logout.php" class="nav-login-btn" aria-label="Sign out" data-nav-mobile="drawer">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-          Sign Out
-        </a>
-        <?php else: ?>
-        <a href="login.php" class="nav-login-btn" data-nav-mobile="drawer">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          Sign In
-        </a>
-        <?php endif; ?>
-      </div>
-    </div>
-  </nav>
-  <?php require __DIR__ . '/includes/nav_drawer.php'; ?>
+  <?php
+  $header = [
+      'user' => $user,
+      'cart_count' => $cartNavCount,
+      'top_text' => 'New arrivals every week',
+      'top_highlight' => 'Free shipping above ₹999',
+      'top_links' => [
+          ['label' => "Today's Deals", 'href' => 'index.php#deals'],
+          ['label' => 'Top Brands', 'href' => 'index.php#brands'],
+      ],
+      'menu_links' => [
+          ['label' => 'Home', 'href' => 'index.php'],
+          ['label' => 'Shop', 'href' => 'product-list.php'],
+          ['label' => 'Collections', 'href' => 'index.php#collections'],
+          ['label' => 'Trending', 'href' => 'index.php#trending'],
+          ['label' => 'Deals', 'href' => 'index.php#deals'],
+          ['label' => 'Brands', 'href' => 'index.php#brands'],
+      ],
+      'wishlist_href' => $user
+          ? 'profile.php?tab=wishlist'
+          : 'login.php?redirect=' . rawurlencode('profile.php?tab=wishlist'),
+      'search_lead' => 'Search by product name, brand, or category — matches show below.',
+  ];
+  require __DIR__ . '/includes/user_header.php';
+  ?>
 
   <main class="page-main">
     <div class="container">
@@ -364,6 +413,14 @@ $ordersData = $uid ? orders_fetch_for_user($pdo, $uid) : [];
 
     </div>
   </main>
+
+  <?php
+  $footer = [
+      'deals_href' => 'index.php#deals',
+      'year' => '2026',
+  ];
+  require __DIR__ . '/includes/user_footer.php';
+  ?>
 
   <!-- Order Detail Modal -->
   <div class="modal-overlay hidden" id="detailModal">
@@ -489,6 +546,33 @@ $ordersData = $uid ? orders_fetch_for_user($pdo, $uid) : [];
     </div>
   </div>
 
+  <div class="modal-overlay hidden" id="orderEnquiryModal">
+    <div class="modal-card detail-modal">
+      <div class="modal-header">
+        <div>
+          <h3>Order Help</h3>
+          <span class="modal-order-id" id="enquiryOrderId"></span>
+        </div>
+        <button class="modal-close" type="button" onclick="closeOrderEnquiryModal()">✕</button>
+      </div>
+      <form method="post" class="orders-modal-form">
+        <input type="hidden" name="action" value="submit_order_enquiry">
+        <input type="hidden" name="order_ref" id="enquiryOrderRef" value="">
+        <div>
+          <label for="enquiryOrderItemId">Product</label>
+          <select id="enquiryOrderItemId" name="order_item_id" required></select>
+        </div>
+        <div>
+          <label for="enquiryMessage">Your query</label>
+          <textarea id="enquiryMessage" name="enquiry_message" maxlength="1000" placeholder="Type your issue or question..." required></textarea>
+        </div>
+        <div>
+          <button class="checkout-btn" type="submit" style="max-width:none">Send to seller</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
   <script>
     window.LUXE_URLS = <?= json_encode([
@@ -502,6 +586,7 @@ $ordersData = $uid ? orders_fetch_for_user($pdo, $uid) : [];
     window.__API_CART__ = 'api/cart.php';
     window.__CART_COUNT__ = <?= (int) $cartNavCount ?>;
     window.__ORDERS__ = <?= json_encode($ordersData, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
+    window.__PRODUCTS__ = <?= json_encode(products_fetch_all($pdo), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
   </script>
   <script src="script/luxe.js"></script>
 </body>

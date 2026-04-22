@@ -37,6 +37,9 @@
   overflow: hidden;
   border-bottom: 1px solid var(--border);
 }
+.index-page.ss-page .ss-hero {
+  margin-top: 154px;
+}
 
 .ss-hero__media {
   position: absolute;
@@ -330,18 +333,9 @@
   border-color: rgba(15, 23, 42, 0.12);
 }
 
-.ss-breadcrumb {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 16px 24px 0;
-  font-size: 0.85rem;
-  color: var(--text-muted);
+@media (max-width: 768px) {
+  .index-page.ss-page .ss-hero {
+    margin-top: 70px;
+  }
 }
 
-.ss-breadcrumb a {
-  color: var(--primary-light);
-}
-
-.ss-breadcrumb a:hover {
-  text-decoration: underline;
-}

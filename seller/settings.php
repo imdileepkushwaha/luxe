@@ -12,31 +12,79 @@ $activeNav = 'settings';
 
 $flash = '';
 $flashOk = false;
+$openDeleteModal = false;
+
+if (isset($_GET['deletion']) && (string) $_GET['deletion'] === 'requested') {
+    $flash = 'Account deletion request admin ko bhej di gayi hai.';
+    $flashOk = true;
+}
+
+if (isset($_GET['notice']) && (string) $_GET['notice'] === 'payment_gateways_admin') {
+    $flash = 'Payment gateways ab LUXE Admin panel → Settings → Payments tab se configure hote hain.';
+    $flashOk = true;
+}
+
+$pendingDeletionRequest = seller_deletion_pending_for_seller($pdo, $sellerId);
+$latestDeletionRequest = seller_deletion_latest_for_seller($pdo, $sellerId);
+$latestDeletionByEmail = seller_deletion_latest_for_email($pdo, (string) $seller['email']);
+$effectiveLatestDeletionRequest = $latestDeletionByEmail ?: $latestDeletionRequest;
 
 $hashSt = $pdo->prepare('SELECT password_hash FROM seller_users WHERE id = ? LIMIT 1');
 $hashSt->execute([$sellerId]);
 $currentHash = (string) ($hashSt->fetchColumn() ?: '');
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') === 'change_password') {
-    $cur = (string) ($_POST['current_password'] ?? '');
-    $nw = (string) ($_POST['new_password'] ?? '');
-    $nw2 = (string) ($_POST['new_password_confirm'] ?? '');
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $action = (string) ($_POST['action'] ?? '');
+    if ($action === 'change_password') {
+        $cur = (string) ($_POST['current_password'] ?? '');
+        $nw = (string) ($_POST['new_password'] ?? '');
+        $nw2 = (string) ($_POST['new_password_confirm'] ?? '');
 
-    if ($currentHash === '' || !password_verify($cur, $currentHash)) {
-        $flash = 'Current password galat hai.';
-    } elseif (strlen($nw) < 8 || !preg_match('/[A-Za-z]/', $nw) || !preg_match('/[0-9]/', $nw)) {
-        $flash = 'Naya password minimum 8 characters — letters aur numbers dono hon.';
-    } elseif ($nw !== $nw2) {
-        $flash = 'Naye password match nahi kar rahe.';
-    } elseif (password_verify($nw, $currentHash)) {
-        $flash = 'Naya password purane jaisa nahi ho sakta.';
-    } else {
-        $upd = $pdo->prepare('UPDATE seller_users SET password_hash = ? WHERE id = ? LIMIT 1');
-        $upd->execute([password_hash($nw, PASSWORD_DEFAULT), $sellerId]);
-        $flash = 'Password update ho gaya. Agli baar naye password se login karein.';
-        $flashOk = true;
-        $hashSt->execute([$sellerId]);
-        $currentHash = (string) ($hashSt->fetchColumn() ?: '');
+        if ($currentHash === '' || !password_verify($cur, $currentHash)) {
+            $flash = 'Current password galat hai.';
+        } elseif (strlen($nw) < 8 || !preg_match('/[A-Za-z]/', $nw) || !preg_match('/[0-9]/', $nw)) {
+            $flash = 'Naya password minimum 8 characters — letters aur numbers dono hon.';
+        } elseif ($nw !== $nw2) {
+            $flash = 'Naye password match nahi kar rahe.';
+        } elseif (password_verify($nw, $currentHash)) {
+            $flash = 'Naya password purane jaisa nahi ho sakta.';
+        } else {
+            $upd = $pdo->prepare('UPDATE seller_users SET password_hash = ? WHERE id = ? LIMIT 1');
+            $upd->execute([password_hash($nw, PASSWORD_DEFAULT), $sellerId]);
+            $flash = 'Password update ho gaya. Agli baar naye password se login karein.';
+            $flashOk = true;
+            $hashSt->execute([$sellerId]);
+            $currentHash = (string) ($hashSt->fetchColumn() ?: '');
+        }
+    } elseif ($action === 'delete_account') {
+        $confirmText = trim((string) ($_POST['confirm_text'] ?? ''));
+        if (strtoupper($confirmText) !== 'DELETE') {
+            $flash = 'Account delete karne ke liye confirmation box me DELETE likhna zaruri hai.';
+            $flashOk = false;
+            $openDeleteModal = true;
+        } elseif ($pendingDeletionRequest || ($effectiveLatestDeletionRequest && (string) ($effectiveLatestDeletionRequest['status'] ?? '') === 'pending')) {
+            $flash = 'Aapki deletion request already pending hai. Admin review ka wait karein.';
+            $flashOk = false;
+            $openDeleteModal = true;
+        } elseif ($effectiveLatestDeletionRequest && (string) ($effectiveLatestDeletionRequest['status'] ?? '') === 'approved') {
+            $flash = 'Deletion request already approved hai. Nayi request allowed nahi hai.';
+            $flashOk = false;
+            $openDeleteModal = true;
+        } else {
+            $result = seller_deletion_request_create(
+                $pdo,
+                $sellerId,
+                (string) $seller['email'],
+                (string) $seller['full_name']
+            );
+            if ($result === true) {
+                header('Location: settings.php?deletion=requested');
+                exit;
+            }
+            $flash = (string) $result;
+            $flashOk = false;
+            $openDeleteModal = true;
+        }
     }
 }
 
@@ -44,13 +92,17 @@ $openPasswordModal = $_SERVER['REQUEST_METHOD'] === 'POST'
     && (string) ($_POST['action'] ?? '') === 'change_password'
     && !$flashOk;
 
+$deleteFormDisabled = $pendingDeletionRequest
+    || ($effectiveLatestDeletionRequest && (string) ($effectiveLatestDeletionRequest['status'] ?? '') === 'approved');
+
 require __DIR__ . '/partials/shell-top.php';
 ?>
 
+        <div class="seller-settings-page">
         <div class="admin-page-head seller-settings-head">
-          <div>
+          <div class="seller-settings-head__intro">
             <h1>Settings</h1>
-            <p class="seller-orders-subtitle">Account security, storefront branding, aur fulfilment rules — saari important links ek jagah. <strong>Theme</strong> (dark / light) top bar ke moon icon se toggle hota hai.</p>
+            <p class="seller-settings-head__lede">Seller account, payouts, shipping aur security — sab sections neeche zones me grouped hain.</p>
           </div>
           <div class="admin-page-head__actions seller-orders-head-actions">
             <a class="admin-btn admin-btn--ghost-light" href="index.php">Dashboard</a>
@@ -61,12 +113,22 @@ require __DIR__ . '/partials/shell-top.php';
           <div class="seller-settings-flash seller-alert<?= $flashOk ? ' seller-alert--success' : ' seller-alert--error' ?>"><?= h($flash) ?></div>
         <?php endif; ?>
 
-        <div class="seller-settings-grid">
-          <section class="card seller-settings-card" aria-labelledby="settings-account-heading">
-            <div class="card-header">
-              <div>
+        <nav class="seller-settings-toc" aria-label="Settings sections">
+          <span class="seller-settings-toc__label">Jump</span>
+          <a class="seller-settings-toc__link" href="#settings-account-heading">Account</a>
+          <a class="seller-settings-toc__link" href="#settings-finance-heading">Finance</a>
+          <a class="seller-settings-toc__link" href="#settings-fulfil-heading">Fulfilment</a>
+          <a class="seller-settings-toc__link" href="#settings-security-heading">Security</a>
+          <a class="seller-settings-toc__link" href="#settings-more-heading">Shortcuts</a>
+          <a class="seller-settings-toc__link seller-settings-toc__link--danger" href="#seller-delete-zone">Delete account</a>
+        </nav>
+
+        <div class="seller-settings-grid seller-settings-grid--balanced">
+          <section class="card seller-settings-card seller-settings-card--zone seller-settings-card--account" aria-labelledby="settings-account-heading">
+            <div class="card-header seller-settings-card__head">
+              <div class="seller-settings-card__head-text">
+                <p class="seller-settings-card__kicker">Zone 1 · Identity</p>
                 <h2 class="card-title" id="settings-account-heading">Account &amp; profile</h2>
-                <p class="card-subtitle seller-orders-card-sub">Contact, logo/banner, allowed categories summary — profile page par manage karein.</p>
               </div>
             </div>
             <div class="card-body seller-settings-card-body">
@@ -111,11 +173,36 @@ require __DIR__ . '/partials/shell-top.php';
             </div>
           </section>
 
-          <section class="card seller-settings-card" aria-labelledby="settings-fulfil-heading">
-            <div class="card-header">
-              <div>
+          <section class="card seller-settings-card seller-settings-card--zone seller-settings-card--finance" aria-labelledby="settings-finance-heading">
+            <div class="card-header seller-settings-card__head">
+              <div class="seller-settings-card__head-text">
+                <p class="seller-settings-card__kicker">Zone 2 · Payouts</p>
+                <h2 class="card-title" id="settings-finance-heading">Financial</h2>
+              </div>
+            </div>
+            <div class="card-body seller-settings-card-body">
+              <ul class="seller-settings-links" role="list">
+                <li>
+                  <a class="seller-settings-link" href="financial-settings.php">
+                    <span class="seller-settings-link__icon" aria-hidden="true">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                    </span>
+                    <span class="seller-settings-link__text">
+                      <span class="seller-settings-link__label">Financial settings</span>
+                      <span class="seller-settings-link__hint">Bank accounts list &amp; add new</span>
+                    </span>
+                    <span class="seller-settings-link__arrow" aria-hidden="true">→</span>
+                  </a>
+                </li>
+              </ul>
+            </div>
+          </section>
+
+          <section class="card seller-settings-card seller-settings-card--zone seller-settings-card--fulfil" aria-labelledby="settings-fulfil-heading">
+            <div class="card-header seller-settings-card__head">
+              <div class="seller-settings-card__head-text">
+                <p class="seller-settings-card__kicker">Zone 3 · Delivery</p>
                 <h2 class="card-title" id="settings-fulfil-heading">Fulfilment</h2>
-                <p class="card-subtitle seller-orders-card-sub">Shipping, delivery fees, returns — yahan se open karein.</p>
               </div>
             </div>
             <div class="card-body seller-settings-card-body">
@@ -160,11 +247,11 @@ require __DIR__ . '/partials/shell-top.php';
             </div>
           </section>
 
-          <section class="card seller-settings-card seller-settings-card--wide" aria-labelledby="settings-security-heading">
-            <div class="card-header">
-              <div>
+          <section class="card seller-settings-card seller-settings-card--zone seller-settings-card--security" id="seller-delete-zone" aria-labelledby="settings-security-heading">
+            <div class="card-header seller-settings-card__head">
+              <div class="seller-settings-card__head-text">
+                <p class="seller-settings-card__kicker">Zone 4 · Access</p>
                 <h2 class="card-title" id="settings-security-heading">Security</h2>
-                <p class="card-subtitle seller-orders-card-sub">Login password badalne ke liye neeche <strong>Change password</strong> par click karein — form popup me khulega.</p>
               </div>
             </div>
             <div class="card-body seller-settings-card-body">
@@ -188,21 +275,43 @@ require __DIR__ . '/partials/shell-top.php';
                     <span class="seller-settings-link__arrow" aria-hidden="true">→</span>
                   </button>
                 </li>
+                <li>
+                  <button
+                    type="button"
+                    class="seller-settings-link seller-settings-link--btn seller-settings-link--danger"
+                    id="sellerDeleteOpenBtn"
+                    aria-haspopup="dialog"
+                    aria-controls="sellerDeleteModal"
+                    aria-expanded="false"
+                  >
+                    <span class="seller-settings-link__icon seller-settings-link__icon--danger" aria-hidden="true">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
+                    </span>
+                    <span class="seller-settings-link__text">
+                      <span class="seller-settings-link__label">Delete account</span>
+                      <span class="seller-settings-link__hint">Admin review ke baad access band</span>
+                    </span>
+                    <span class="seller-settings-link__arrow" aria-hidden="true">→</span>
+                  </button>
+                </li>
               </ul>
             </div>
           </section>
 
-          <section class="card seller-settings-card seller-settings-card--wide" aria-labelledby="settings-more-heading">
-            <div class="card-header">
-              <div>
-                <h2 class="card-title" id="settings-more-heading">More</h2>
-                <p class="card-subtitle seller-orders-card-sub">Orders, finance, aur account closure.</p>
+          <section class="card seller-settings-card seller-settings-card--zone seller-settings-card--more" aria-labelledby="settings-more-heading">
+            <div class="card-header seller-settings-card__head">
+              <div class="seller-settings-card__head-text">
+                <p class="seller-settings-card__kicker">Zone 5 · Shortcuts</p>
+                <h2 class="card-title" id="settings-more-heading">Orders &amp; tools</h2>
               </div>
             </div>
             <div class="card-body seller-settings-card-body">
               <ul class="seller-settings-links seller-settings-links--compact" role="list">
                 <li>
                   <a class="seller-settings-link" href="orders.php">
+                    <span class="seller-settings-link__icon seller-settings-link__icon--muted" aria-hidden="true">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+                    </span>
                     <span class="seller-settings-link__text">
                       <span class="seller-settings-link__label">Orders</span>
                       <span class="seller-settings-link__hint">Fulfilment &amp; status</span>
@@ -212,6 +321,9 @@ require __DIR__ . '/partials/shell-top.php';
                 </li>
                 <li>
                   <a class="seller-settings-link" href="shipped-products.php">
+                    <span class="seller-settings-link__icon seller-settings-link__icon--muted" aria-hidden="true">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 18H3c-.6 0-1-.4-1-1V7c0-.6.4-1 1-1h10c.6 0 1 .4 1 1v11"/><path d="M14 9h4l4 4v2c0 .6-.4 1-1 1h-2"/><circle cx="7" cy="18" r="2"/><path d="M15 18H9"/><circle cx="17" cy="18" r="2"/></svg>
+                    </span>
                     <span class="seller-settings-link__text">
                       <span class="seller-settings-link__label">Shipped products</span>
                       <span class="seller-settings-link__hint">Line-level shipped list</span>
@@ -221,6 +333,9 @@ require __DIR__ . '/partials/shell-top.php';
                 </li>
                 <li>
                   <a class="seller-settings-link" href="earnings.php">
+                    <span class="seller-settings-link__icon seller-settings-link__icon--muted" aria-hidden="true">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                    </span>
                     <span class="seller-settings-link__text">
                       <span class="seller-settings-link__label">Earnings &amp; payouts</span>
                       <span class="seller-settings-link__hint">Withdraw, transactions</span>
@@ -228,18 +343,10 @@ require __DIR__ . '/partials/shell-top.php';
                     <span class="seller-settings-link__arrow" aria-hidden="true">→</span>
                   </a>
                 </li>
-                <li>
-                  <a class="seller-settings-link" href="index.php#danger-zone">
-                    <span class="seller-settings-link__text">
-                      <span class="seller-settings-link__label">Danger zone</span>
-                      <span class="seller-settings-link__hint">Account deletion request</span>
-                    </span>
-                    <span class="seller-settings-link__arrow" aria-hidden="true">→</span>
-                  </a>
-                </li>
               </ul>
             </div>
           </section>
+        </div>
         </div>
 
         <div class="seller-pw-modal-backdrop" id="sellerPwModalBackdrop" aria-hidden="true"></div>
@@ -292,7 +399,70 @@ require __DIR__ . '/partials/shell-top.php';
           </div>
         </div>
 
+        <div class="seller-pw-modal-backdrop" id="sellerDeleteModalBackdrop" aria-hidden="true"></div>
+        <div
+          class="seller-pw-modal"
+          id="sellerDeleteModal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="sellerDeleteModalTitle"
+          aria-hidden="true"
+        >
+          <div class="seller-pw-modal__panel seller-pw-modal__panel--delete">
+            <div class="seller-pw-modal__head">
+              <h2 class="seller-pw-modal__title" id="sellerDeleteModalTitle">Delete seller account</h2>
+              <button type="button" class="seller-pw-modal__close" id="sellerDeleteModalClose" aria-label="Close dialog">✕</button>
+            </div>
+            <div class="seller-pw-modal__body">
+              <p class="seller-pw-modal__lead">Yeh action aapka seller access hata deta hai admin approval ke baad. Products is profile se unlink ho jayenge.</p>
+              <?php if ($pendingDeletionRequest): ?>
+                <div class="seller-alert seller-alert--warn seller-settings-delete-alert">
+                  Deletion request pending (requested <?= h((string) ($pendingDeletionRequest['requested_at'] ?? '—')) ?>). Admin process karega; resolve hone tak nayi request nahi.
+                </div>
+              <?php elseif ($effectiveLatestDeletionRequest && (string) ($effectiveLatestDeletionRequest['status'] ?? '') === 'approved'): ?>
+                <div class="seller-alert seller-alert--success seller-settings-delete-alert">
+                  Deletion approve ho chuka hai. Is seller account par access jald band ho jayega.
+                </div>
+              <?php endif; ?>
+              <form method="post" class="seller-settings-delete-form" id="sellerDeleteModalForm" autocomplete="off">
+                <input type="hidden" name="action" value="delete_account">
+                <div class="seller-settings-field">
+                  <label for="seller_delete_confirm">Confirm karne ke liye <strong>DELETE</strong> likhein</label>
+                  <input
+                    id="seller_delete_confirm"
+                    name="confirm_text"
+                    class="seller-stock-input"
+                    placeholder="DELETE"
+                    autocomplete="off"
+                    <?= $deleteFormDisabled ? 'disabled' : 'required' ?>
+                    value="<?= h((string) ($_POST['confirm_text'] ?? '')) ?>"
+                  >
+                </div>
+                <div class="seller-pw-modal__actions seller-pw-modal__actions--delete">
+                  <button type="button" class="admin-btn admin-btn--ghost-light" id="sellerDeleteModalCancel">Cancel</button>
+                  <button type="submit" class="seller-btn-danger" id="sellerDeleteModalSubmit" <?= $deleteFormDisabled ? 'disabled' : '' ?>>
+                    <?php if ($pendingDeletionRequest): ?>
+                      Request pending
+                    <?php elseif ($effectiveLatestDeletionRequest && (string) ($effectiveLatestDeletionRequest['status'] ?? '') === 'approved'): ?>
+                      Request approved
+                    <?php else: ?>
+                      Request account deletion
+                    <?php endif; ?>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
 <script>
+  window.sellerSettingsModalBodyLock = function () {
+    var pw = document.getElementById('sellerPwModal');
+    var del = document.getElementById('sellerDeleteModal');
+    var on = (pw && pw.classList.contains('is-open')) || (del && del.classList.contains('is-open'));
+    document.body.classList.toggle('seller-pw-modal-open', !!on);
+  };
+
   (function () {
     var open = <?= $openPasswordModal ? 'true' : 'false' ?>;
     var backdrop = document.getElementById('sellerPwModalBackdrop');
@@ -311,7 +481,7 @@ require __DIR__ . '/partials/shell-top.php';
       backdrop.setAttribute('aria-hidden', on ? 'false' : 'true');
       modal.setAttribute('aria-hidden', on ? 'false' : 'true');
       openBtn.setAttribute('aria-expanded', on ? 'true' : 'false');
-      document.body.classList.toggle('seller-pw-modal-open', on);
+      window.sellerSettingsModalBodyLock();
       if (on) {
         lastFocus = document.activeElement;
         var first = document.getElementById('seller_pw_current');
@@ -339,6 +509,68 @@ require __DIR__ . '/partials/shell-top.php';
     });
 
     if (open) setOpen(true);
+  })();
+
+  (function () {
+    var openOnLoad = <?= $openDeleteModal ? 'true' : 'false' ?>;
+    var backdrop = document.getElementById('sellerDeleteModalBackdrop');
+    var modal = document.getElementById('sellerDeleteModal');
+    var openBtn = document.getElementById('sellerDeleteOpenBtn');
+    var closeBtn = document.getElementById('sellerDeleteModalClose');
+    var cancelBtn = document.getElementById('sellerDeleteModalCancel');
+    var form = document.getElementById('sellerDeleteModalForm');
+    if (!backdrop || !modal || !openBtn || !form) return;
+
+    var lastFocus = null;
+
+    function setOpen(on) {
+      backdrop.classList.toggle('is-open', on);
+      modal.classList.toggle('is-open', on);
+      backdrop.setAttribute('aria-hidden', on ? 'false' : 'true');
+      modal.setAttribute('aria-hidden', on ? 'false' : 'true');
+      openBtn.setAttribute('aria-expanded', on ? 'true' : 'false');
+      window.sellerSettingsModalBodyLock();
+      if (on) {
+        lastFocus = document.activeElement;
+        var first = document.getElementById('seller_delete_confirm');
+        if (first && !first.disabled) {
+          setTimeout(function () { first.focus(); }, 10);
+        }
+      } else {
+        if (window.location.hash === '#seller-delete-zone') {
+          try {
+            history.replaceState(null, '', window.location.pathname + window.location.search);
+          } catch (e) {}
+        }
+        if (lastFocus && typeof lastFocus.focus === 'function') {
+          try { lastFocus.focus(); } catch (e) {}
+        }
+        openBtn.focus();
+        form.reset();
+      }
+    }
+
+    function openDeleteModalIfHash() {
+      if (window.location.hash !== '#seller-delete-zone') return;
+      setTimeout(function () { setOpen(true); }, 0);
+    }
+
+    openBtn.addEventListener('click', function () { setOpen(true); });
+    closeBtn && closeBtn.addEventListener('click', function () { setOpen(false); });
+    cancelBtn && cancelBtn.addEventListener('click', function () { setOpen(false); });
+    backdrop.addEventListener('click', function () { setOpen(false); });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && modal.classList.contains('is-open')) {
+        e.preventDefault();
+        setOpen(false);
+      }
+    });
+
+    if (openOnLoad) setOpen(true);
+
+    openDeleteModalIfHash();
+    window.addEventListener('hashchange', openDeleteModalIfHash);
   })();
 </script>
 

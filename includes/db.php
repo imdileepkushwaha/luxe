@@ -324,6 +324,15 @@ function db_ensure_products_seller_column(PDO $pdo): void
             $pdo->exec("ALTER TABLE products ADD COLUMN product_type VARCHAR(64) NOT NULL DEFAULT '' AFTER category");
         }
 
+        $genderChk = $pdo->prepare(
+            'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $genderChk->execute([$dbName, 'products', 'gender']);
+        if (!(bool) $genderChk->fetchColumn()) {
+            $pdo->exec("ALTER TABLE products ADD COLUMN gender VARCHAR(16) NOT NULL DEFAULT 'unisex' AFTER product_type");
+        }
+
         $offerFlashChk = $pdo->prepare(
             'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
              WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?'
@@ -590,6 +599,126 @@ function db_ensure_product_variant_inventory_table(PDO $pdo): void
     }
 }
 
+function db_ensure_seller_bank_accounts_table(PDO $pdo): void
+{
+    try {
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS seller_bank_accounts (
+                id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                seller_id INT UNSIGNED NOT NULL,
+                bank_name VARCHAR(120) NOT NULL,
+                account_holder_name VARCHAR(120) NOT NULL,
+                account_number VARCHAR(40) NOT NULL,
+                ifsc VARCHAR(20) NOT NULL,
+                upi_id VARCHAR(100) NOT NULL DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_seller_bank_account (seller_id, account_number),
+                KEY idx_seller_bank_accounts_seller (seller_id, created_at),
+                CONSTRAINT fk_seller_bank_accounts_seller FOREIGN KEY (seller_id) REFERENCES seller_users(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+
+        $dbName = (string) $pdo->query('SELECT DATABASE()')->fetchColumn();
+        if ($dbName !== '') {
+            $colChk = $pdo->prepare(
+                'SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                 WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+            );
+            $colChk->execute([$dbName, 'seller_bank_accounts', 'upi_id']);
+            if ((int) $colChk->fetchColumn() === 0) {
+                $pdo->exec(
+                    "ALTER TABLE seller_bank_accounts ADD COLUMN upi_id VARCHAR(100) NOT NULL DEFAULT '' AFTER ifsc"
+                );
+            }
+        }
+    } catch (Throwable) {
+        // Missing permissions or non-MySQL: rely on manual migrations
+    }
+}
+
+function db_ensure_seller_payment_gateway_configs_table(PDO $pdo): void
+{
+    try {
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS seller_payment_gateway_configs (
+                seller_id INT UNSIGNED PRIMARY KEY,
+                gateway VARCHAR(32) NOT NULL DEFAULT 'none',
+                mode VARCHAR(8) NOT NULL DEFAULT 'test',
+                public_key VARCHAR(255) NOT NULL DEFAULT '',
+                secret_key VARCHAR(255) NOT NULL DEFAULT '',
+                merchant_id VARCHAR(120) NOT NULL DEFAULT '',
+                webhook_secret VARCHAR(255) NOT NULL DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                CONSTRAINT fk_seller_pgw_seller FOREIGN KEY (seller_id) REFERENCES seller_users(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+    } catch (Throwable) {
+        // Missing permissions or non-MySQL: rely on manual migrations
+    }
+}
+
+function db_ensure_platform_payment_gateway_config_table(PDO $pdo): void
+{
+    try {
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS platform_payment_gateway_config (
+                id TINYINT UNSIGNED PRIMARY KEY,
+                gateway VARCHAR(32) NOT NULL DEFAULT 'none',
+                mode VARCHAR(8) NOT NULL DEFAULT 'test',
+                public_key VARCHAR(255) NOT NULL DEFAULT '',
+                secret_key VARCHAR(255) NOT NULL DEFAULT '',
+                merchant_id VARCHAR(120) NOT NULL DEFAULT '',
+                webhook_secret VARCHAR(255) NOT NULL DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+        $cnt = (int) $pdo->query('SELECT COUNT(*) FROM platform_payment_gateway_config')->fetchColumn();
+        if ($cnt === 0) {
+            $pdo->exec("INSERT INTO platform_payment_gateway_config (id) VALUES (1)");
+        }
+        try {
+            $plat = $pdo->query(
+                "SELECT gateway, public_key FROM platform_payment_gateway_config WHERE id = 1 LIMIT 1"
+            )->fetch(PDO::FETCH_ASSOC);
+            if (
+                $plat
+                && (string) ($plat['gateway'] ?? '') === 'none'
+                && trim((string) ($plat['public_key'] ?? '')) === ''
+            ) {
+                $leg = $pdo->query(
+                    "SELECT gateway, mode, public_key, secret_key, merchant_id, webhook_secret
+                     FROM seller_payment_gateway_configs
+                     WHERE gateway IS NOT NULL AND gateway <> '' AND gateway <> 'none'
+                     ORDER BY updated_at DESC
+                     LIMIT 1"
+                )->fetch(PDO::FETCH_ASSOC);
+                if ($leg) {
+                    $u = $pdo->prepare(
+                        'UPDATE platform_payment_gateway_config SET
+                            gateway = ?, mode = ?, public_key = ?, secret_key = ?,
+                            merchant_id = ?, webhook_secret = ?, updated_at = CURRENT_TIMESTAMP
+                         WHERE id = 1'
+                    );
+                    $u->execute([
+                        (string) $leg['gateway'],
+                        (string) $leg['mode'],
+                        (string) $leg['public_key'],
+                        (string) $leg['secret_key'],
+                        (string) $leg['merchant_id'],
+                        (string) $leg['webhook_secret'],
+                    ]);
+                }
+            }
+        } catch (Throwable) {
+            /* ignore legacy migration */
+        }
+    } catch (Throwable) {
+        // Missing permissions or non-MySQL: rely on manual migrations
+    }
+}
+
 function db_ensure_seller_withdraw_requests_table(PDO $pdo): void
 {
     try {
@@ -809,6 +938,37 @@ function db_ensure_user_order_cancel_requests_table(PDO $pdo): void
     }
 }
 
+function db_ensure_user_order_enquiries_table(PDO $pdo): void
+{
+    try {
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS user_order_enquiries (
+                id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                user_id INT UNSIGNED NOT NULL,
+                seller_id INT UNSIGNED NOT NULL,
+                order_id INT UNSIGNED NOT NULL,
+                order_item_id INT UNSIGNED NOT NULL,
+                order_ref VARCHAR(32) NOT NULL,
+                product_id INT UNSIGNED NULL,
+                product_name VARCHAR(255) NOT NULL DEFAULT '',
+                message VARCHAR(1000) NOT NULL DEFAULT '',
+                seller_reply VARCHAR(1000) NOT NULL DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                replied_at DATETIME NULL,
+                KEY idx_user_order_enquiry_user (user_id, created_at),
+                KEY idx_user_order_enquiry_seller (seller_id, created_at),
+                KEY idx_user_order_enquiry_order (order_id, order_item_id, seller_id),
+                CONSTRAINT fk_user_order_enquiry_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                CONSTRAINT fk_user_order_enquiry_seller FOREIGN KEY (seller_id) REFERENCES seller_users(id) ON DELETE CASCADE,
+                CONSTRAINT fk_user_order_enquiry_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+                CONSTRAINT fk_user_order_enquiry_order_item FOREIGN KEY (order_item_id) REFERENCES order_items(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+    } catch (Throwable) {
+        // Missing permissions or non-MySQL: rely on manual migrations
+    }
+}
+
 function db_ensure_orders_platform_fee_column(PDO $pdo): void
 {
     try {
@@ -852,6 +1012,82 @@ function db_ensure_orders_delivered_at_column(PDO $pdo): void
         $pdo->exec(
             "UPDATE orders SET delivered_at = COALESCE(delivered_at, created_at)
              WHERE status = 'delivered' AND delivered_at IS NULL"
+        );
+    } catch (Throwable) {
+        // Missing permissions or non-MySQL
+    }
+}
+
+function db_ensure_orders_status_time_columns(PDO $pdo): void
+{
+    try {
+        $dbName = (string) $pdo->query('SELECT DATABASE()')->fetchColumn();
+        if ($dbName === '') {
+            return;
+        }
+        $chk = $pdo->prepare(
+            'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+
+        $columns = [
+            'confirmed_at' => "ALTER TABLE orders ADD COLUMN confirmed_at DATETIME NULL DEFAULT NULL AFTER created_at",
+            'shipped_at' => "ALTER TABLE orders ADD COLUMN shipped_at DATETIME NULL DEFAULT NULL AFTER confirmed_at",
+            'out_for_delivery_at' => "ALTER TABLE orders ADD COLUMN out_for_delivery_at DATETIME NULL DEFAULT NULL AFTER shipped_at",
+        ];
+
+        foreach ($columns as $col => $sql) {
+            $chk->execute([$dbName, 'orders', $col]);
+            if (!$chk->fetchColumn()) {
+                $pdo->exec($sql);
+            }
+        }
+    } catch (Throwable) {
+        // Missing permissions or non-MySQL
+    }
+}
+
+function db_ensure_order_items_status_columns(PDO $pdo): void
+{
+    try {
+        $dbName = (string) $pdo->query('SELECT DATABASE()')->fetchColumn();
+        if ($dbName === '') {
+            return;
+        }
+        $chk = $pdo->prepare(
+            'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+
+        $columns = [
+            'status' => "ALTER TABLE order_items ADD COLUMN status VARCHAR(32) NOT NULL DEFAULT 'processing' AFTER qty",
+            'confirmed_at' => 'ALTER TABLE order_items ADD COLUMN confirmed_at DATETIME NULL DEFAULT NULL AFTER status',
+            'shipped_at' => 'ALTER TABLE order_items ADD COLUMN shipped_at DATETIME NULL DEFAULT NULL AFTER confirmed_at',
+            'out_for_delivery_at' => 'ALTER TABLE order_items ADD COLUMN out_for_delivery_at DATETIME NULL DEFAULT NULL AFTER shipped_at',
+            'delivered_at' => 'ALTER TABLE order_items ADD COLUMN delivered_at DATETIME NULL DEFAULT NULL AFTER out_for_delivery_at',
+        ];
+
+        foreach ($columns as $col => $sql) {
+            $chk->execute([$dbName, 'order_items', $col]);
+            if (!$chk->fetchColumn()) {
+                $pdo->exec($sql);
+            }
+        }
+
+        // Backfill old data so line-item progress works immediately.
+        $pdo->exec(
+            "UPDATE order_items oi
+             INNER JOIN orders o ON o.id = oi.order_id
+             SET
+                oi.status = CASE
+                    WHEN TRIM(COALESCE(oi.status, '')) = '' THEN LOWER(TRIM(COALESCE(o.status, 'processing')))
+                    ELSE LOWER(TRIM(oi.status))
+                END,
+                oi.confirmed_at = COALESCE(oi.confirmed_at, o.confirmed_at),
+                oi.shipped_at = COALESCE(oi.shipped_at, o.shipped_at),
+                oi.out_for_delivery_at = COALESCE(oi.out_for_delivery_at, o.out_for_delivery_at),
+                oi.delivered_at = COALESCE(oi.delivered_at, o.delivered_at)
+             WHERE oi.order_id = o.id"
         );
     } catch (Throwable) {
         // Missing permissions or non-MySQL
@@ -950,6 +1186,9 @@ function db(): PDO
     db_ensure_product_images_table($pdo);
     db_ensure_product_variant_inventory_table($pdo);
     db_ensure_seller_withdraw_requests_table($pdo);
+    db_ensure_seller_bank_accounts_table($pdo);
+    db_ensure_seller_payment_gateway_configs_table($pdo);
+    db_ensure_platform_payment_gateway_config_table($pdo);
     db_ensure_seller_shipping_settings_table($pdo);
     db_ensure_seller_delivery_options_table($pdo);
     db_ensure_seller_return_settings_table($pdo);
@@ -957,9 +1196,12 @@ function db(): PDO
     db_ensure_product_reviews_table($pdo);
     db_ensure_user_return_requests_table($pdo);
     db_ensure_user_order_cancel_requests_table($pdo);
+    db_ensure_user_order_enquiries_table($pdo);
     db_ensure_site_settings_table($pdo);
     db_ensure_orders_platform_fee_column($pdo);
     db_ensure_orders_delivered_at_column($pdo);
+    db_ensure_orders_status_time_columns($pdo);
+    db_ensure_order_items_status_columns($pdo);
     db_ensure_user_loyalty_redeemed_column($pdo);
     return $pdo;
 }
