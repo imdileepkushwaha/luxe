@@ -649,6 +649,67 @@ function db_ensure_seller_payment_gateway_configs_table(PDO $pdo): void
     }
 }
 
+function db_ensure_platform_payment_gateway_config_table(PDO $pdo): void
+{
+    try {
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS platform_payment_gateway_config (
+                id TINYINT UNSIGNED PRIMARY KEY,
+                gateway VARCHAR(32) NOT NULL DEFAULT 'none',
+                mode VARCHAR(8) NOT NULL DEFAULT 'test',
+                public_key VARCHAR(255) NOT NULL DEFAULT '',
+                secret_key VARCHAR(255) NOT NULL DEFAULT '',
+                merchant_id VARCHAR(120) NOT NULL DEFAULT '',
+                webhook_secret VARCHAR(255) NOT NULL DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+        $cnt = (int) $pdo->query('SELECT COUNT(*) FROM platform_payment_gateway_config')->fetchColumn();
+        if ($cnt === 0) {
+            $pdo->exec("INSERT INTO platform_payment_gateway_config (id) VALUES (1)");
+        }
+        try {
+            $plat = $pdo->query(
+                "SELECT gateway, public_key FROM platform_payment_gateway_config WHERE id = 1 LIMIT 1"
+            )->fetch(PDO::FETCH_ASSOC);
+            if (
+                $plat
+                && (string) ($plat['gateway'] ?? '') === 'none'
+                && trim((string) ($plat['public_key'] ?? '')) === ''
+            ) {
+                $leg = $pdo->query(
+                    "SELECT gateway, mode, public_key, secret_key, merchant_id, webhook_secret
+                     FROM seller_payment_gateway_configs
+                     WHERE gateway IS NOT NULL AND gateway <> '' AND gateway <> 'none'
+                     ORDER BY updated_at DESC
+                     LIMIT 1"
+                )->fetch(PDO::FETCH_ASSOC);
+                if ($leg) {
+                    $u = $pdo->prepare(
+                        'UPDATE platform_payment_gateway_config SET
+                            gateway = ?, mode = ?, public_key = ?, secret_key = ?,
+                            merchant_id = ?, webhook_secret = ?, updated_at = CURRENT_TIMESTAMP
+                         WHERE id = 1'
+                    );
+                    $u->execute([
+                        (string) $leg['gateway'],
+                        (string) $leg['mode'],
+                        (string) $leg['public_key'],
+                        (string) $leg['secret_key'],
+                        (string) $leg['merchant_id'],
+                        (string) $leg['webhook_secret'],
+                    ]);
+                }
+            }
+        } catch (Throwable) {
+            /* ignore legacy migration */
+        }
+    } catch (Throwable) {
+        // Missing permissions or non-MySQL: rely on manual migrations
+    }
+}
+
 function db_ensure_seller_withdraw_requests_table(PDO $pdo): void
 {
     try {
@@ -1011,6 +1072,7 @@ function db(): PDO
     db_ensure_seller_withdraw_requests_table($pdo);
     db_ensure_seller_bank_accounts_table($pdo);
     db_ensure_seller_payment_gateway_configs_table($pdo);
+    db_ensure_platform_payment_gateway_config_table($pdo);
     db_ensure_seller_shipping_settings_table($pdo);
     db_ensure_seller_delivery_options_table($pdo);
     db_ensure_seller_return_settings_table($pdo);

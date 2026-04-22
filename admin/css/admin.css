@@ -1197,6 +1197,416 @@ a.admin-user-dropdown__item:hover {
   max-width: none;
 }
 
+/* ----- Settings page — CRMS-style (profile-settings layout) ----- */
+.admin-settings-page--crms {
+  max-width: none;
+  width: 100%;
+}
+
+.admin-settings-crms-head {
+  margin-bottom: 20px;
+}
+
+.admin-settings-crms-head__label {
+  margin: 0 0 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--admin-accent);
+}
+
+.admin-settings-crms-head__title {
+  margin: 0 0 8px;
+  font-size: 1.45rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--admin-text);
+}
+
+.admin-settings-crms-head__lede {
+  margin: 0;
+  max-width: 48ch;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--admin-text-muted);
+}
+
+.admin-settings-crms-card {
+  overflow: visible;
+}
+
+.admin-settings-crms-card > .admin-settings-crms-tabs {
+  border-bottom: 1px solid var(--admin-border);
+  background: var(--admin-card-cap-bg);
+}
+
+.admin-settings-crms-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 10px 14px 0;
+}
+
+.admin-settings-crms-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 18px 12px;
+  margin-bottom: -1px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--admin-text-muted);
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  user-select: none;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.admin-settings-crms-tab:hover {
+  color: var(--admin-text);
+  background: color-mix(in srgb, var(--admin-surface) 65%, transparent);
+}
+
+#admin-tab-profile:checked ~ .admin-settings-crms-tabs label[for="admin-tab-profile"],
+#admin-tab-security:checked ~ .admin-settings-crms-tabs label[for="admin-tab-security"],
+#admin-tab-store:checked ~ .admin-settings-crms-tabs label[for="admin-tab-store"],
+#admin-tab-payments:checked ~ .admin-settings-crms-tabs label[for="admin-tab-payments"] {
+  color: var(--admin-accent);
+  background: var(--admin-surface);
+  border-color: var(--admin-border);
+  border-bottom-color: var(--admin-surface);
+  box-shadow: 0 -1px 0 var(--admin-surface);
+}
+
+.admin-settings-crms-panels {
+  padding: 22px 22px 26px;
+  background: var(--admin-surface);
+}
+
+.admin-settings-crms-panel {
+  display: none;
+  animation: admin-settings-crms-fade 0.2s ease;
+}
+
+@keyframes admin-settings-crms-fade {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-settings-crms-panel {
+    animation: none;
+  }
+}
+
+#admin-tab-profile:checked ~ .admin-settings-crms-panels .admin-settings-crms-panel--profile,
+#admin-tab-security:checked ~ .admin-settings-crms-panels .admin-settings-crms-panel--security,
+#admin-tab-store:checked ~ .admin-settings-crms-panels .admin-settings-crms-panel--store,
+#admin-tab-payments:checked ~ .admin-settings-crms-panels .admin-settings-crms-panel--payments {
+  display: block;
+}
+
+.admin-settings-crms-section__title {
+  margin: 0 0 6px;
+  font-size: 1.02rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--admin-text);
+}
+
+.admin-settings-crms-section__hint {
+  margin: 0 0 20px;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  color: var(--admin-text-muted);
+}
+
+.admin-settings-crms-avatar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 22px;
+}
+
+.admin-settings-crms-avatar {
+  flex-shrink: 0;
+  width: 72px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: linear-gradient(135deg, #312e81, #6366f1);
+  box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);
+}
+
+.admin-settings-crms-avatar-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-settings-crms-avatar-meta__title {
+  display: block;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--admin-text);
+  margin-bottom: 4px;
+}
+
+.admin-settings-crms-avatar-meta__hint {
+  display: block;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--admin-text-muted);
+}
+
+.admin-settings-summary--crms {
+  margin-bottom: 22px;
+}
+
+.admin-settings-crms-form-grid {
+  display: grid;
+  gap: 16px 18px;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 640px) {
+  .admin-settings-crms-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-settings-crms-field-span2 {
+    grid-column: 1 / -1;
+  }
+}
+
+.admin-settings-crms-req {
+  color: #ef4444;
+  font-weight: 700;
+}
+
+.admin-settings-crms-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--admin-border);
+}
+
+.admin-settings-crms-panel--security .admin-form-stack--narrow {
+  max-width: 480px;
+}
+
+html.admin-theme-dark .admin-settings-crms-card > .admin-settings-crms-tabs {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+html.admin-theme-dark #admin-tab-profile:checked ~ .admin-settings-crms-tabs label[for="admin-tab-profile"],
+html.admin-theme-dark #admin-tab-security:checked ~ .admin-settings-crms-tabs label[for="admin-tab-security"],
+html.admin-theme-dark #admin-tab-store:checked ~ .admin-settings-crms-tabs label[for="admin-tab-store"],
+html.admin-theme-dark #admin-tab-payments:checked ~ .admin-settings-crms-tabs label[for="admin-tab-payments"] {
+  background: var(--admin-surface);
+  border-bottom-color: var(--admin-surface);
+  box-shadow: 0 -1px 0 var(--admin-surface);
+}
+
+html.admin-theme-dark .admin-settings-crms-tab:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* ----- Admin payment gateways (Settings → Payments) ----- */
+.admin-pgw-steps {
+  list-style: none;
+  margin: 0 0 20px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.admin-pgw-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--admin-text-muted);
+}
+
+.admin-pgw-step--active .admin-pgw-step__n {
+  background: var(--admin-accent-soft);
+  color: var(--admin-accent);
+}
+
+.admin-pgw-step__n {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--admin-text-muted);
+}
+
+.admin-pgw-fieldset {
+  border: none;
+  margin: 0 0 26px;
+  padding: 0;
+}
+
+.admin-pgw-fieldset:last-of-type {
+  margin-bottom: 0;
+}
+
+.admin-pgw-legend {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--admin-text);
+  padding: 0;
+  margin: 0 0 10px;
+}
+
+.admin-pgw-hint {
+  margin: 0 0 14px;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  color: var(--admin-text-muted);
+}
+
+.admin-pgw-gateway-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.admin-pgw-gateway-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: var(--admin-radius, 10px);
+  border: 2px solid var(--admin-border);
+  background: rgba(15, 23, 42, 0.02);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.admin-pgw-gateway-tile:hover {
+  border-color: color-mix(in srgb, var(--admin-accent) 35%, var(--admin-border));
+}
+
+.admin-pgw-gateway-tile.is-selected {
+  border-color: color-mix(in srgb, var(--admin-accent) 55%, var(--admin-border));
+  background: var(--admin-accent-soft);
+}
+
+.admin-pgw-gateway-input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
+.admin-pgw-gateway-tile__title {
+  font-weight: 800;
+  font-size: 0.88rem;
+  color: var(--admin-text);
+}
+
+.admin-pgw-gateway-tile__hint {
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--admin-text-muted);
+}
+
+.admin-pgw-form-row {
+  margin-bottom: 14px;
+}
+
+.admin-pgw-form-row--stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.admin-pgw-form-row label,
+.admin-pgw-form-row--stack label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--admin-text);
+}
+
+.admin-pgw-label-hint {
+  font-weight: 500;
+  color: var(--admin-text-muted);
+  font-size: 0.85em;
+}
+
+.admin-pgw-webhook-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.admin-pgw-webhook-input {
+  flex: 1;
+  min-width: 200px;
+  font-size: 0.82rem;
+}
+
+.admin-pgw-summary {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 16px;
+  align-items: baseline;
+  margin-bottom: 16px;
+  font-size: 0.88rem;
+}
+
+.admin-pgw-summary__label {
+  color: var(--admin-text-muted);
+  font-weight: 600;
+}
+
+.admin-pgw-summary__val {
+  color: var(--admin-text);
+}
+
+html.admin-theme-dark .admin-pgw-gateway-tile {
+  background: rgba(30, 41, 59, 0.25);
+  border-color: rgba(243, 243, 243, 0.1);
+}
+
+html.admin-theme-dark .admin-pgw-step__n {
+  background: rgba(255, 255, 255, 0.06);
+}
+
 /* ----- Users & Orders list pages (card-header + search — seller-style) ----- */
 .admin-users-page,
 .admin-orders-page {
@@ -4101,6 +4511,83 @@ html.admin-theme-dark .seller-category-card:has(input:checked) {
 }
 
 html.admin-theme-dark .seller-password-toggle:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Password show/hide — auto-wrapped admin-app + admin-login (see admin/js/password-toggle.js) */
+.admin-password-wrap {
+  position: relative;
+  width: 100%;
+  display: block;
+}
+
+.admin-password-wrap > .admin-input,
+.admin-password-wrap > input[type="password"],
+.admin-password-wrap > input[type="text"] {
+  padding-right: 2.75rem;
+}
+
+.admin-login-card .admin-password-wrap > input {
+  padding-right: 2.75rem;
+}
+
+.admin-password-toggle {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--admin-text-muted);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.admin-password-toggle:hover {
+  color: var(--admin-text);
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.admin-password-toggle:focus-visible {
+  outline: 2px solid var(--admin-accent);
+  outline-offset: 1px;
+}
+
+.admin-password-toggle__icons {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.admin-password-toggle__eye {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+}
+
+.admin-password-toggle__eye--closed {
+  display: none;
+}
+
+.admin-password-toggle--on .admin-password-toggle__eye--open {
+  display: none;
+}
+
+.admin-password-toggle--on .admin-password-toggle__eye--closed {
+  display: block;
+}
+
+html.admin-theme-dark .admin-password-toggle:hover {
   background: rgba(255, 255, 255, 0.08);
 }
 

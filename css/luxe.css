@@ -1096,7 +1096,7 @@ body.nav-drawer-open {
 .search-live-hit:hover {
     background: rgba(139, 92, 246, 0.15);
     border-color: rgba(196, 181, 253, 0.35);
-    transform: translateX(2px);
+    /* transform: translateX(2px); */
 }
 .search-live-hit:focus-visible {
     outline: 2px solid var(--primary-light);

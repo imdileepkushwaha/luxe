@@ -32,6 +32,20 @@ CREATE TABLE site_settings (
 
 INSERT INTO site_settings (setting_key, setting_value) VALUES ('platform_fee_rupees', '3');
 
+CREATE TABLE platform_payment_gateway_config (
+  id TINYINT UNSIGNED PRIMARY KEY,
+  gateway VARCHAR(32) NOT NULL DEFAULT 'none',
+  mode VARCHAR(8) NOT NULL DEFAULT 'test',
+  public_key VARCHAR(255) NOT NULL DEFAULT '',
+  secret_key VARCHAR(255) NOT NULL DEFAULT '',
+  merchant_id VARCHAR(120) NOT NULL DEFAULT '',
+  webhook_secret VARCHAR(255) NOT NULL DEFAULT '',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO platform_payment_gateway_config (id) VALUES (1);
+
 CREATE TABLE seller_users (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   email VARCHAR(255) NOT NULL UNIQUE,

@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * Legacy webhook URL (per-seller query). Forwards to the same stub as the platform endpoint.
+ * Platform payment gateway webhook endpoint (configure in provider dashboard).
  */
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/payment_gateway_webhook_response.php';

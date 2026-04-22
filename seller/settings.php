@@ -19,6 +19,11 @@ if (isset($_GET['deletion']) && (string) $_GET['deletion'] === 'requested') {
     $flashOk = true;
 }
 
+if (isset($_GET['notice']) && (string) $_GET['notice'] === 'payment_gateways_admin') {
+    $flash = 'Payment gateways ab LUXE Admin panel → Settings → Payments tab se configure hote hain.';
+    $flashOk = true;
+}
+
 $pendingDeletionRequest = seller_deletion_pending_for_seller($pdo, $sellerId);
 $latestDeletionRequest = seller_deletion_latest_for_seller($pdo, $sellerId);
 $latestDeletionByEmail = seller_deletion_latest_for_email($pdo, (string) $seller['email']);

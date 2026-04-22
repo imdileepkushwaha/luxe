@@ -73,5 +73,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <div class="hint">Default: admin@luxe.com / admin123</div>
   </div>
+  <script src="js/password-toggle.js" defer></script>
 </body>
 </html>
