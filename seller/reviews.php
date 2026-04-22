@@ -1,91 +1,15 @@
 <?php
+
 declare(strict_types=1);
 
 require_once __DIR__ . '/_auth.php';
+require_once __DIR__ . '/_review_helpers.php';
 
 $pdo = db();
 $seller = seller_require_login($pdo);
 
 $pageTitle = 'Reviews';
 $activeNav = 'reviews';
-
-function seller_sync_product_review_metrics(PDO $pdo, int $productId): void
-{
-    $aggSt = $pdo->prepare(
-        'SELECT COUNT(*) AS total_reviews, COALESCE(AVG(rating), 0) AS avg_rating
-         FROM product_reviews
-         WHERE product_id = ? AND review_status = ?'
-    );
-    $aggSt->execute([$productId, 'approved']);
-    $agg = $aggSt->fetch() ?: ['total_reviews' => 0, 'avg_rating' => 0];
-
-    $updProduct = $pdo->prepare(
-        'UPDATE products
-         SET review_count = ?, rating = ?
-         WHERE id = ?
-         LIMIT 1'
-    );
-    $updProduct->execute([
-        (int) ($agg['total_reviews'] ?? 0),
-        (float) ($agg['avg_rating'] ?? 0),
-        $productId,
-    ]);
-}
-
-$flash = '';
-$flashOk = false;
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') === 'save_review_response') {
-    $reviewId = (int) ($_POST['review_id'] ?? 0);
-    $sellerResponse = trim((string) ($_POST['seller_response'] ?? ''));
-    $reviewStatus = strtolower(trim((string) ($_POST['review_status'] ?? 'pending')));
-    if (!in_array($reviewStatus, ['pending', 'approved', 'rejected'], true)) {
-        $reviewStatus = 'pending';
-    }
-    if (strlen($sellerResponse) > 1000) {
-        $sellerResponse = substr($sellerResponse, 0, 1000);
-    }
-
-    if ($reviewId <= 0) {
-        $flash = 'Invalid review selected.';
-    } else {
-        $ownerSt = $pdo->prepare(
-            'SELECT r.id, r.product_id
-             FROM product_reviews r
-             INNER JOIN products p ON p.id = r.product_id
-             WHERE r.id = ? AND p.seller_id = ?
-             LIMIT 1'
-        );
-        $ownerSt->execute([$reviewId, (int) $seller['id']]);
-        $ownedReview = $ownerSt->fetch();
-        $ownedReviewId = (int) ($ownedReview['id'] ?? 0);
-        $productId = (int) ($ownedReview['product_id'] ?? 0);
-        if ($ownedReviewId <= 0 || $productId <= 0) {
-            $flash = 'You are not allowed to respond to this review.';
-        } else {
-            if ($sellerResponse === '') {
-                $upd = $pdo->prepare(
-                    'UPDATE product_reviews
-                     SET seller_response = ?, seller_responded_at = NULL, review_status = ?, seller_reviewed_at = NOW()
-                     WHERE id = ?
-                     LIMIT 1'
-                );
-                $upd->execute([$sellerResponse, $reviewStatus, $reviewId]);
-            } else {
-                $upd = $pdo->prepare(
-                    'UPDATE product_reviews
-                     SET seller_response = ?, seller_responded_at = NOW(), review_status = ?, seller_reviewed_at = NOW()
-                     WHERE id = ?
-                     LIMIT 1'
-                );
-                $upd->execute([$sellerResponse, $reviewStatus, $reviewId]);
-            }
-            seller_sync_product_review_metrics($pdo, $productId);
-            $flash = 'Review moderation saved successfully.';
-            $flashOk = true;
-        }
-    }
-}
 
 require_once __DIR__ . '/../admin/_pagination.php';
 
@@ -116,8 +40,8 @@ $reviewsPerPage = $reviewsPageMeta['perPage'];
 $reviewsTotalPages = $reviewsPageMeta['totalPages'];
 
 $reviewsSt = $pdo->prepare(
-    'SELECT r.id, r.customer_name, r.rating, r.review_text, r.review_status, r.seller_response, r.created_at, r.seller_reviewed_at, r.seller_responded_at,
-            p.id AS product_id, p.name AS product_name
+    'SELECT r.id, r.customer_name, r.rating, r.review_text, r.review_status, r.created_at,
+            p.id AS product_id, p.name AS product_name, p.image_path AS product_image_path, p.emoji AS product_emoji
      FROM product_reviews r
      INNER JOIN products p ON p.id = r.product_id
      WHERE p.seller_id = ?
@@ -126,53 +50,21 @@ $reviewsSt = $pdo->prepare(
 );
 $reviewsSt->execute([(int) $seller['id']]);
 $reviews = $reviewsSt->fetchAll();
-$reviewsFormAction = 'reviews.php?' . http_build_query(['page' => $reviewsPage, 'per_page' => $reviewsPerPage]);
 
-function seller_reviews_format_dt(?string $raw): string
+function seller_reviews_preview_text(string $text, int $max = 96): string
 {
-    if ($raw === null || trim($raw) === '') {
+    $t = trim($text);
+    if ($t === '') {
         return '—';
     }
-    try {
-        return (new DateTimeImmutable($raw))->format('M j, Y · g:i A');
-    } catch (Throwable) {
-        return $raw;
+    if (function_exists('mb_strlen') && mb_strlen($t) > $max) {
+        return rtrim(mb_substr($t, 0, $max - 1)) . '…';
     }
-}
-
-function seller_reviews_status_chip_mod(string $status): string
-{
-    return match (strtolower(trim($status))) {
-        'approved' => 'seller-status-chip--delivered',
-        'rejected' => 'seller-status-chip--rejected',
-        'pending' => 'seller-status-chip--pending',
-        default => '',
-    };
-}
-
-function seller_reviews_status_label(string $status): string
-{
-    $s = strtolower(trim($status));
-
-    return match ($s) {
-        'approved' => 'Approved',
-        'rejected' => 'Rejected',
-        'pending' => 'Pending',
-        default => $s !== '' ? ucfirst($s) : '—',
-    };
-}
-
-function seller_reviews_render_stars(int $rating): void
-{
-    $rating = max(0, min(5, $rating));
-    echo '<span class="seller-reviews-stars" role="img" aria-label="' . h((string) $rating) . ' out of 5 stars">';
-    for ($i = 1; $i <= 5; $i++) {
-        $on = $i <= $rating;
-        echo '<span class="seller-reviews-star' . ($on ? ' seller-reviews-star--on' : '') . '" aria-hidden="true">';
-        echo '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>';
-        echo '</span>';
+    if (strlen($t) > $max) {
+        return rtrim(substr($t, 0, $max - 3)) . '…';
     }
-    echo '</span>';
+
+    return $t;
 }
 
 require __DIR__ . '/partials/shell-top.php';
@@ -181,16 +73,12 @@ require __DIR__ . '/partials/shell-top.php';
         <div class="admin-page-head seller-txn-head seller-reviews-page-head">
           <div>
             <h1>Reviews</h1>
-            <p class="seller-txn-subtitle"><strong>Approve</strong> karne par review product page par dikhega; <strong>reject</strong> par hide. Reply save karne ke baad edit ke liye <strong>Edit reply</strong> use karein.</p>
+            <p class="seller-txn-subtitle">Neeche saare customer reviews ki <strong>list</strong> hai — product, rating, status. <strong>Details</strong> par click karke <strong>Moderate &amp; reply</strong> page par jao (approve / reject / public reply).</p>
           </div>
           <div class="admin-page-head__actions seller-txn-card-head-actions">
             <a class="admin-btn admin-btn--ghost-light" href="products.php">Products</a>
           </div>
         </div>
-
-        <?php if ($flash !== ''): ?>
-          <div class="seller-reviews-flash seller-alert<?= $flashOk ? ' seller-alert--success' : ' seller-alert--error' ?>"><?= h($flash) ?></div>
-        <?php endif; ?>
 
         <div class="seller-kpi seller-txn-kpi seller-reviews-kpi">
           <div class="seller-kpi-card seller-kpi-card--orders">
@@ -238,8 +126,8 @@ require __DIR__ . '/partials/shell-top.php';
         <div class="card seller-txn-card seller-reviews-card">
           <div class="card-header seller-txn-card-head">
             <div>
-              <h2 class="card-title">Moderate &amp; reply</h2>
-              <p class="card-subtitle seller-txn-card-sub">Har card par status, public reply, aur timestamps. Search <strong>is page</strong> par filter karta hai — baaki pages ke liye neeche pagination use karein.</p>
+              <h2 class="card-title">Review list</h2>
+              <p class="card-subtitle seller-txn-card-sub">Har row me product + customer summary. <strong>Details</strong> se moderation page khulegi. Is page par search sirf <strong>current page</strong> ki rows filter karta hai.</p>
             </div>
             <span class="seller-txn-count-pill"><?= (int) $totalReviews ?> review<?= $totalReviews === 1 ? '' : 's' ?></span>
           </div>
@@ -256,165 +144,112 @@ require __DIR__ . '/partials/shell-top.php';
                   class="seller-inventory-search-input"
                   placeholder="Search customer, product, text, status, rating…"
                   autocomplete="off"
-                  aria-label="Search reviews"
+                  aria-label="Search reviews on this page"
                 >
               </label>
             </div>
             <?php endif; ?>
             <div class="seller-reviews-list-wrap">
-            <div class="seller-review-list">
-              <?php foreach ($reviews as $review): ?>
-                <?php
-                $rid = (int) ($review['id'] ?? 0);
-                $pid = (int) ($review['product_id'] ?? 0);
-                $rating = max(0, min(5, (int) ($review['rating'] ?? 0)));
-                $status = (string) ($review['review_status'] ?? 'pending');
-                $stMod = seller_reviews_status_chip_mod($status);
-                $stLabel = seller_reviews_status_label($status);
-                $cust = trim((string) ($review['customer_name'] ?? ''));
-                if ($cust === '') {
-                    $cust = 'Customer';
-                }
-                $pname = trim((string) ($review['product_name'] ?? ''));
-                $rtext = trim((string) ($review['review_text'] ?? ''));
-                $hasResponse = trim((string) ($review['seller_response'] ?? '')) !== '';
-                $isLockedByDefault = $status === 'approved' || $hasResponse;
-                $createdRaw = trim((string) ($review['created_at'] ?? ''));
-                $postedFmt = seller_reviews_format_dt($createdRaw);
-                $revAtRaw = trim((string) ($review['seller_reviewed_at'] ?? ''));
-                $respAtRaw = trim((string) ($review['seller_responded_at'] ?? ''));
-                $revAtFmt = seller_reviews_format_dt($revAtRaw);
-                $respAtFmt = seller_reviews_format_dt($respAtRaw);
-                $searchBlob = mb_strtolower(
-                    (string) $rid . ' '
-                    . $cust . ' '
-                    . $pname . ' '
-                    . $rtext . ' '
-                    . strtolower($status) . ' '
-                    . strtolower($stLabel) . ' '
-                    . (string) $rating . ' '
-                    . $createdRaw . ' '
-                    . $postedFmt
-                );
-                ?>
-                <article class="seller-review-card" data-reviews-search="<?= h($searchBlob) ?>">
-                  <div class="seller-review-card__grid">
-                    <div class="seller-review-card__main">
-                      <p class="seller-review-card__eyebrow">Customer review</p>
-                      <header class="seller-review-card__head">
-                        <div class="seller-review-card__head-text">
-                          <div class="seller-review-card__customer"><?= h($cust) ?></div>
-                          <div class="seller-review-card__rating-row">
-                            <?php seller_reviews_render_stars($rating); ?>
-                            <span class="seller-review-card__rating-num"><?= $rating ?><span class="seller-review-card__rating-max">/5</span></span>
+            <?php if ($reviews !== []): ?>
+            <div class="admin-table-wrap seller-txn-table-wrap seller-reviews-table-wrap">
+              <table class="admin-table seller-txn-table seller-reviews-list-table">
+                <thead>
+                  <tr>
+                    <th class="seller-reviews-th-product">Product</th>
+                    <th>Customer</th>
+                    <th class="seller-reviews-th-rating">Rating</th>
+                    <th>Status</th>
+                    <th>Posted</th>
+                    <th class="seller-reviews-th-preview">Review</th>
+                    <th class="seller-txn-th-actions"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <?php foreach ($reviews as $review): ?>
+                    <?php
+                    $rid = (int) ($review['id'] ?? 0);
+                    $pid = (int) ($review['product_id'] ?? 0);
+                    $rating = max(0, min(5, (int) ($review['rating'] ?? 0)));
+                    $status = (string) ($review['review_status'] ?? 'pending');
+                    $stMod = seller_reviews_status_chip_mod($status);
+                    $stLabel = seller_reviews_status_label($status);
+                    $cust = trim((string) ($review['customer_name'] ?? ''));
+                    if ($cust === '') {
+                        $cust = 'Customer';
+                    }
+                    $pname = trim((string) ($review['product_name'] ?? ''));
+                    $rtext = trim((string) ($review['review_text'] ?? ''));
+                    $imgPath = trim((string) ($review['product_image_path'] ?? ''));
+                    $emoji = trim((string) ($review['product_emoji'] ?? '')) ?: '📦';
+                    $createdRaw = trim((string) ($review['created_at'] ?? ''));
+                    $postedFmt = seller_reviews_format_dt($createdRaw);
+                    $previewPlain = seller_reviews_preview_text($rtext, 100);
+                    $searchBlob = mb_strtolower(
+                        (string) $rid . ' '
+                        . $cust . ' '
+                        . $pname . ' '
+                        . $rtext . ' '
+                        . strtolower($status) . ' '
+                        . strtolower($stLabel) . ' '
+                        . (string) $rating . ' '
+                        . $createdRaw . ' '
+                        . $postedFmt
+                    );
+                    ?>
+                    <tr class="seller-reviews-table-row" data-reviews-search="<?= h($searchBlob) ?>">
+                      <td>
+                        <div class="seller-reviews-list-product">
+                          <?php if ($imgPath !== ''): ?>
+                            <img class="seller-reviews-list-product__thumb" src="../<?= h($imgPath) ?>" alt="" width="44" height="44" loading="lazy">
+                          <?php else: ?>
+                            <span class="seller-reviews-list-product__emoji" aria-hidden="true"><?= h($emoji) ?></span>
+                          <?php endif; ?>
+                          <div class="seller-reviews-list-product__text">
+                            <span class="seller-reviews-list-product__name" title="<?= h($pname !== '' ? $pname : '—') ?>"><?= h($pname !== '' ? $pname : '—') ?></span>
+                            <?php if ($pid > 0): ?>
+                              <span class="seller-reviews-list-product__id">#<?= $pid ?></span>
+                            <?php endif; ?>
                           </div>
                         </div>
+                      </td>
+                      <td>
+                        <span class="seller-reviews-list-customer"><?= h($cust) ?></span>
+                      </td>
+                      <td class="seller-reviews-td-rating">
+                        <span class="seller-reviews-list-rating-num"><?= $rating ?><span class="seller-reviews-list-rating-max">/5</span></span>
+                      </td>
+                      <td>
                         <span class="seller-status-chip <?= h($stMod !== '' ? $stMod : '') ?>"><?= h($stLabel) ?></span>
-                      </header>
-                      <div class="seller-review-card__product">
-                        <div class="seller-review-card__product-head">
-                          <span class="seller-review-card__product-icon" aria-hidden="true">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-                          </span>
-                          <span class="seller-review-card__product-label">Linked product</span>
-                        </div>
-                        <div class="seller-review-card__product-body">
-                          <span class="seller-review-card__product-name" title="<?= h($pname !== '' ? $pname : '—') ?>"><?= h($pname !== '' ? $pname : '—') ?></span>
-                          <?php if ($pid > 0): ?>
-                            <div class="seller-review-card__product-actions">
-                              <a class="seller-review-pill-link seller-review-pill-link--primary" href="products.php?edit=<?= $pid ?>">Edit listing</a>
-                              <a class="seller-review-pill-link" href="../product.php?id=<?= $pid ?>" target="_blank" rel="noopener">View in store</a>
-                            </div>
-                          <?php endif; ?>
-                        </div>
-                      </div>
-                      <blockquote class="seller-review-quote">
-                        <div class="seller-review-quote__body"><?= $rtext !== '' ? nl2br(h($rtext)) : '<span class="seller-review-text--empty">(No written review)</span>' ?></div>
-                      </blockquote>
-                      <div class="seller-review-time">
-                        <span class="seller-review-time__icon" aria-hidden="true">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-                        </span>
-                        <span class="seller-review-time__text">Posted <strong><?= h($postedFmt) ?></strong></span>
-                      </div>
-                    </div>
-                    <div class="seller-review-card__aside<?= $isLockedByDefault ? ' seller-review-card__aside--locked' : ' seller-review-card__aside--editable' ?>">
-                      <form method="post" class="seller-review-form" action="<?= h($reviewsFormAction) ?>" data-locked="<?= $isLockedByDefault ? '1' : '0' ?>">
-                        <input type="hidden" name="action" value="save_review_response">
-                        <input type="hidden" name="review_id" value="<?= $rid ?>">
-                        <div class="seller-review-form__head">
-                          <div class="seller-review-form__head-titles">
-                            <p class="seller-review-form__eyebrow">Your response</p>
-                            <h3 class="seller-review-form__title">Reply &amp; moderation</h3>
-                          </div>
-                          <?php if ($isLockedByDefault): ?>
-                            <span class="seller-review-form__state-badge">Locked</span>
-                          <?php endif; ?>
-                        </div>
-                        <div class="seller-review-form__fields">
-                          <div class="seller-review-form__field">
-                            <label for="review_status_<?= $rid ?>">Review status</label>
-                            <select id="review_status_<?= $rid ?>" class="seller-status-select seller-review-status-select" name="review_status" title="Pending = moderation; Approved = product page par; Rejected = hide"<?= $isLockedByDefault ? ' disabled' : '' ?>>
-                              <option value="pending"<?= $status === 'pending' ? ' selected' : '' ?>>Pending (moderation)</option>
-                              <option value="approved"<?= $status === 'approved' ? ' selected' : '' ?>>Approved (live on product)</option>
-                              <option value="rejected"<?= $status === 'rejected' ? ' selected' : '' ?>>Rejected (hidden)</option>
-                            </select>
-                            <p class="seller-review-form__hint">Approved reviews buyers ko product page par dikhte hain.</p>
-                          </div>
-                          <div class="seller-review-form__field">
-                            <label for="seller_response_<?= $rid ?>">Public reply</label>
-                            <textarea id="seller_response_<?= $rid ?>" class="seller-badge-input seller-review-reply-input" name="seller_response" rows="4" maxlength="1000" placeholder="Short, professional reply jo customer ko dikhega…"<?= $isLockedByDefault ? ' disabled' : '' ?>><?= h((string) ($review['seller_response'] ?? '')) ?></textarea>
-                          </div>
-                        </div>
-                        <div class="seller-review-meta-times">
-                          <div class="seller-review-meta-times__item">
-                            <span class="seller-review-meta-times__label">Moderation</span>
-                            <strong class="seller-review-meta-times__value"><?= h($revAtFmt) ?></strong>
-                          </div>
-                          <div class="seller-review-meta-times__item">
-                            <span class="seller-review-meta-times__label">Reply sent</span>
-                            <strong class="seller-review-meta-times__value"><?= h($respAtFmt) ?></strong>
-                          </div>
-                        </div>
-                        <?php if ($isLockedByDefault): ?>
-                          <div class="seller-review-lock-callout" role="status">
-                            <span class="seller-review-lock-callout__icon" aria-hidden="true">
-                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                            </span>
-                            <p class="seller-review-lock-callout__text"><strong>Pehle “Edit reply”</strong> dabayen — tabhi status aur reply change ho sakte hain. Phir <strong>Save</strong> se submit.</p>
-                          </div>
+                      </td>
+                      <td class="seller-txn-td-muted seller-reviews-td-date"><?= h($postedFmt) ?></td>
+                      <td class="seller-reviews-td-preview"><?= $previewPlain !== '—' ? h($previewPlain) : '<span class="seller-review-text--empty">(No text)</span>' ?></td>
+                      <td class="seller-txn-td-actions">
+                        <?php if ($rid > 0): ?>
+                          <a class="seller-edit-btn" href="review-moderate.php?id=<?= $rid ?>">Details</a>
                         <?php endif; ?>
-                        <div class="seller-review-form__actions">
-                          <?php if ($isLockedByDefault): ?>
-                            <button class="admin-btn admin-btn--outline seller-review-edit-btn" type="button">Edit reply</button>
-                          <?php endif; ?>
-                          <button class="admin-btn admin-btn--primary seller-review-save-btn" type="submit"<?= $isLockedByDefault ? ' hidden' : '' ?>>Save changes</button>
-                        </div>
-                      </form>
-                    </div>
-                  </div>
-                </article>
-              <?php endforeach; ?>
-              <?php if ($reviews !== []): ?>
-                <div id="sellerReviewsNoMatch" class="seller-reviews-no-match" style="display:none" role="status">
-                  <div class="seller-reviews-no-match__inner">
-                    <span class="seller-reviews-no-match__icon" aria-hidden="true">
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-                    </span>
-                    <div>
-                      <strong class="seller-reviews-no-match__title">Koi match nahi</strong>
-                      <p class="seller-reviews-no-match__text">Aur keywords try karein — naam, product, ya “pending”.</p>
-                    </div>
-                  </div>
+                      </td>
+                    </tr>
+                  <?php endforeach; ?>
+                </tbody>
+              </table>
+            </div>
+            <div id="sellerReviewsNoMatch" class="seller-reviews-no-match" style="display:none" role="status">
+              <div class="seller-reviews-no-match__inner">
+                <span class="seller-reviews-no-match__icon" aria-hidden="true">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                </span>
+                <div>
+                  <strong class="seller-reviews-no-match__title">Koi match nahi</strong>
+                  <p class="seller-reviews-no-match__text">Aur keywords try karein — naam, product, ya “pending”.</p>
                 </div>
-              <?php endif; ?>
-              <?php if ($reviews === []): ?>
-                <div class="seller-txn-empty seller-reviews-empty">
+              </div>
+            </div>
+            <?php else: ?>
+                <div class="seller-txn-empty seller-reviews-empty seller-reviews-list-empty">
                   <p class="seller-txn-empty__title">Abhi reviews nahi</p>
                   <p class="seller-txn-empty__text">Customers deliver ke baad rate kar sakte hain. <a href="products.php">Products</a> par listing theek rakho.</p>
                 </div>
-              <?php endif; ?>
-            </div>
+            <?php endif; ?>
             <?php
             $paginationScript = 'reviews.php';
             $paginationTotal = $totalReviews;
@@ -432,13 +267,14 @@ require __DIR__ . '/partials/shell-top.php';
             function wireReviewsSearch() {
               var input = document.getElementById('sellerReviewsSearch');
               if (!input) return;
-              var cards = document.querySelectorAll('article.seller-review-card');
+              var rows = document.querySelectorAll('tr.seller-reviews-table-row');
               var noMatch = document.getElementById('sellerReviewsNoMatch');
+              var tableWrap = document.querySelector('.seller-reviews-table-wrap');
               function apply() {
                 var q = (input.value || '').trim().toLowerCase();
                 var words = q.split(/\s+/).filter(Boolean);
                 var anyShown = false;
-                cards.forEach(function (el) {
+                rows.forEach(function (el) {
                   var hay = (el.getAttribute('data-reviews-search') || '').toLowerCase();
                   var show = words.length === 0 || words.every(function (w) {
                     return hay.indexOf(w) !== -1;
@@ -449,42 +285,14 @@ require __DIR__ . '/partials/shell-top.php';
                 if (noMatch) {
                   noMatch.style.display = (words.length > 0 && !anyShown) ? '' : 'none';
                 }
+                if (tableWrap) {
+                  tableWrap.style.display = (words.length > 0 && !anyShown) ? 'none' : '';
+                }
               }
               input.addEventListener('input', apply);
               input.addEventListener('search', apply);
             }
             wireReviewsSearch();
-
-            var forms = document.querySelectorAll('.seller-review-form[data-locked="1"]');
-            forms.forEach(function (form) {
-              var editBtn = form.querySelector('.seller-review-edit-btn');
-              var saveBtn = form.querySelector('.seller-review-save-btn');
-              if (!editBtn || !saveBtn) return;
-
-              editBtn.addEventListener('click', function () {
-                var controls = form.querySelectorAll('select[name="review_status"], [name="seller_response"]');
-                controls.forEach(function (control) {
-                  control.disabled = false;
-                });
-                saveBtn.hidden = false;
-                editBtn.hidden = true;
-                form.classList.add('seller-review-form--editing');
-                var aside = form.closest('.seller-review-card__aside');
-                if (aside) {
-                  aside.classList.remove('seller-review-card__aside--locked');
-                  aside.classList.add('seller-review-card__aside--editable');
-                }
-                var callout = form.querySelector('.seller-review-lock-callout');
-                if (callout) callout.setAttribute('hidden', '');
-                var badge = form.querySelector('.seller-review-form__state-badge');
-                if (badge) {
-                  badge.textContent = 'Editing';
-                  badge.classList.add('seller-review-form__state-badge--editing');
-                }
-                var replyInput = form.querySelector('[name="seller_response"]');
-                if (replyInput) replyInput.focus();
-              });
-            });
           })();
         </script>
 
