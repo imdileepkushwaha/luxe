@@ -240,6 +240,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $uid !== null) {
                 }
             }
         }
+    } elseif ($action === 'submit_order_enquiry') {
+        $orderRef = trim((string) ($_POST['order_ref'] ?? ''));
+        $orderItemId = (int) ($_POST['order_item_id'] ?? 0);
+        $message = trim((string) ($_POST['enquiry_message'] ?? ''));
+
+        if ($orderRef === '' || $orderItemId <= 0 || $message === '') {
+            $flashMessage = 'Please select item and enter enquiry message.';
+            $flashType = 'error';
+        } else {
+            if (strlen($message) > 1000) {
+                $message = substr($message, 0, 1000);
+            }
+            $ownOrderSt = $pdo->prepare('SELECT id, status FROM orders WHERE user_id = ? AND order_ref = ? LIMIT 1');
+            $ownOrderSt->execute([$uid, $orderRef]);
+            $ownOrder = $ownOrderSt->fetch(PDO::FETCH_ASSOC) ?: null;
+            $orderId = (int) ($ownOrder['id'] ?? 0);
+            $orderStatus = strtolower(trim((string) ($ownOrder['status'] ?? '')));
+            if ($orderId <= 0) {
+                $flashMessage = 'Order not found.';
+                $flashType = 'error';
+            } elseif (!in_array($orderStatus, ['processing', 'confirmed', 'shipped', 'out'], true)) {
+                $flashMessage = 'Help enquiry only available for active, non-delivered orders.';
+                $flashType = 'error';
+            } else {
+                $itemSt = $pdo->prepare(
+                    'SELECT oi.id, oi.product_id, oi.name, p.seller_id
+                     FROM order_items oi
+                     INNER JOIN products p ON p.id = oi.product_id
+                     WHERE oi.id = ? AND oi.order_id = ?
+                     LIMIT 1'
+                );
+                $itemSt->execute([$orderItemId, $orderId]);
+                $item = $itemSt->fetch(PDO::FETCH_ASSOC) ?: null;
+                $sellerId = (int) ($item['seller_id'] ?? 0);
+                if (!is_array($item) || $sellerId <= 0) {
+                    $flashMessage = 'Selected item does not belong to this order.';
+                    $flashType = 'error';
+                } else {
+                    $ins = $pdo->prepare(
+                        'INSERT INTO user_order_enquiries
+                            (user_id, seller_id, order_id, order_item_id, order_ref, product_id, product_name, message)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+                    );
+                    $ins->execute([
+                        (int) $uid,
+                        $sellerId,
+                        $orderId,
+                        (int) ($item['id'] ?? 0),
+                        $orderRef,
+                        (int) ($item['product_id'] ?? 0),
+                        (string) ($item['name'] ?? ''),
+                        $message,
+                    ]);
+                    $flashMessage = 'Your enquiry sent to seller successfully.';
+                    $flashType = 'success';
+                }
+            }
+        }
     }
 }
 
@@ -483,6 +541,33 @@ $ordersData = $uid ? orders_fetch_for_user($pdo, $uid) : [];
         </div>
         <div>
           <button class="checkout-btn" type="submit" style="max-width:none">Submit cancel request</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-overlay hidden" id="orderEnquiryModal">
+    <div class="modal-card detail-modal">
+      <div class="modal-header">
+        <div>
+          <h3>Order Help</h3>
+          <span class="modal-order-id" id="enquiryOrderId"></span>
+        </div>
+        <button class="modal-close" type="button" onclick="closeOrderEnquiryModal()">✕</button>
+      </div>
+      <form method="post" class="orders-modal-form">
+        <input type="hidden" name="action" value="submit_order_enquiry">
+        <input type="hidden" name="order_ref" id="enquiryOrderRef" value="">
+        <div>
+          <label for="enquiryOrderItemId">Product</label>
+          <select id="enquiryOrderItemId" name="order_item_id" required></select>
+        </div>
+        <div>
+          <label for="enquiryMessage">Your query</label>
+          <textarea id="enquiryMessage" name="enquiry_message" maxlength="1000" placeholder="Type your issue or question..." required></textarea>
+        </div>
+        <div>
+          <button class="checkout-btn" type="submit" style="max-width:none">Send to seller</button>
         </div>
       </form>
     </div>

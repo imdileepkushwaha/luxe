@@ -3218,6 +3218,10 @@ function initThemeToggle() {
     // Allow fresh request only when no request exists or last one was rejected.
     return st === "rejected";
   }
+  function itemHasEnquiry(item) {
+    const eq = item?.enquiry;
+    return !!(eq && typeof eq === "object" && String(eq.message || "").trim() !== "");
+  }
   function hasReturnInProgress(item) {
     const rr = item?.returnRequest;
     if (!rr || typeof rr !== "object") return false;
@@ -3229,6 +3233,10 @@ function initThemeToggle() {
     if (!rr || typeof rr !== "object") return false;
     const st = String(rr.status || "").toLowerCase();
     return st === "refunded";
+  }
+  function isHelpEligibleOrder(order) {
+    const st = String(order?.status || "").toLowerCase();
+    return ["processing", "confirmed", "shipped", "out"].includes(st);
   }
   function escHtml(v) {
     return String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -3261,6 +3269,9 @@ function initThemeToggle() {
       const hasAnyReturnInProgress = (order.items || []).some(item => hasReturnInProgress(item));
       const hasAnyReturnCompleted = (order.items || []).some(item => hasReturnCompleted(item));
       const canCancel = order.status === "processing" || order.status === "confirmed" || order.status === "shipped";
+      const helpBtn = isHelpEligibleOrder(order)
+        ? `<button class="action-btn secondary" onclick="openOrderEnquiryForm('${order.id}')">Need Help</button>`
+        : "";
       const cancelBtn = canCancel
         ? `<button class="action-btn secondary" onclick="openOrderCancelForm('${order.id}')">Cancel Order</button>`
         : "";
@@ -3320,7 +3331,7 @@ function initThemeToggle() {
         ${order.status !== "cancelled" ? `<div class="tracking-section"><div class="tracking-label">📍 Item-wise Order Progress</div>${itemProgressHtml}${(order.items || []).length > 3 ? `<div style="font-size:0.76rem;color:var(--text-dim)">+${order.items.length - 3} more item(s)</div>` : ""}</div>` : ""}
         ${returnProgressHtml}
         <div class="order-card-footer"><div class="order-total-info"><span class="order-total-label">Order Total</span><span class="order-total-val">₹${order.total.toLocaleString()}</span></div>
-        <div class="order-card-actions">${order.status === "delivered" && reviewableItems.length > 0 ? `<button class="action-btn secondary" onclick="openOrderReviewForm('${order.id}')">Rate & Review</button>` : ""}${invoiceBtn}${cancelBtn}${returnBtn}<button class="action-btn primary" onclick="viewDetail('${order.id}')">View Details →</button></div></div>
+        <div class="order-card-actions">${order.status === "delivered" && reviewableItems.length > 0 ? `<button class="action-btn secondary" onclick="openOrderReviewForm('${order.id}')">Rate & Review</button>` : ""}${helpBtn}${invoiceBtn}${cancelBtn}${returnBtn}<button class="action-btn primary" onclick="viewDetail('${order.id}')">View Details →</button></div></div>
       </div>`;
     }).join("");
     observeAll();
@@ -3376,7 +3387,24 @@ function initThemeToggle() {
           ${returnItemsHtml}
         </div>`
       : "";
-    document.getElementById("detailContent").innerHTML = `<div style="display:flex;flex-direction:column;gap:16px"><div style="background:var(--bg3);border-radius:var(--radius-sm);padding:16px;display:flex;justify-content:space-between;align-items:center"><div><span style="font-size:0.78rem;color:var(--text-dim)">STATUS</span><br/><span class="status-badge status-${order.status}" style="margin-top:6px;display:inline-flex">${capitalize(order.status)}</span></div><div><span style="font-size:0.78rem;color:var(--text-dim)">DATE</span><br/><strong style="color:var(--white)">${order.date}</strong></div><div><span style="font-size:0.78rem;color:var(--text-dim)">PAYMENT</span><br/><strong style="color:var(--white)">${order.payment}</strong></div></div><div><h4 style="font-size:0.85rem;color:var(--text-muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.08em">Items Ordered</h4>${detailItemsHtml}</div>${returnCardHtml}<div style="background:var(--bg3);border-radius:var(--radius-sm);padding:16px"><h4 style="font-size:0.85rem;color:var(--text-muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.08em">Delivery Address</h4><p style="color:var(--text-muted);font-size:0.88rem">📍 ${order.address}</p></div><div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-top:1px solid var(--border)"><strong style="color:var(--white)">Order Total</strong><strong style="font-size:1.3rem;color:var(--primary-light)">₹${order.total.toLocaleString()}</strong></div></div>`;
+    const enquiryItemsHtml = (order.items || [])
+      .filter(item => itemHasEnquiry(item))
+      .map(item => {
+        const eq = item.enquiry || {};
+        const sellerReply = String(eq.sellerReply || "").trim();
+        return `<div style="padding:12px 0;border-bottom:1px solid var(--border)">
+          <strong style="color:var(--white);display:block">${escHtml(item.name || "Item")}</strong>
+          <span style="display:block;font-size:0.74rem;color:var(--text-dim);margin-top:3px">You: ${escHtml(String(eq.message || ""))}</span>
+          ${sellerReply ? `<span style="display:block;font-size:0.78rem;color:#22c55e;font-weight:600;margin-top:4px">Seller reply: ${escHtml(sellerReply)}</span>` : `<span style="display:block;font-size:0.78rem;color:#f59e0b;font-weight:600;margin-top:4px">Seller reply pending</span>`}
+        </div>`;
+      }).join("");
+    const enquiryCardHtml = enquiryItemsHtml
+      ? `<div style="background:var(--bg3);border-radius:var(--radius-sm);padding:16px">
+          <h4 style="font-size:0.85rem;color:var(--text-muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.08em">Help & Enquiries</h4>
+          ${enquiryItemsHtml}
+        </div>`
+      : "";
+    document.getElementById("detailContent").innerHTML = `<div style="display:flex;flex-direction:column;gap:16px"><div style="background:var(--bg3);border-radius:var(--radius-sm);padding:16px;display:flex;justify-content:space-between;align-items:center"><div><span style="font-size:0.78rem;color:var(--text-dim)">STATUS</span><br/><span class="status-badge status-${order.status}" style="margin-top:6px;display:inline-flex">${capitalize(order.status)}</span></div><div><span style="font-size:0.78rem;color:var(--text-dim)">DATE</span><br/><strong style="color:var(--white)">${order.date}</strong></div><div><span style="font-size:0.78rem;color:var(--text-dim)">PAYMENT</span><br/><strong style="color:var(--white)">${order.payment}</strong></div></div><div><h4 style="font-size:0.85rem;color:var(--text-muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.08em">Items Ordered</h4>${detailItemsHtml}</div>${returnCardHtml}${enquiryCardHtml}<div style="background:var(--bg3);border-radius:var(--radius-sm);padding:16px"><h4 style="font-size:0.85rem;color:var(--text-muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.08em">Delivery Address</h4><p style="color:var(--text-muted);font-size:0.88rem">📍 ${order.address}</p></div><div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-top:1px solid var(--border)"><strong style="color:var(--white)">Order Total</strong><strong style="font-size:1.3rem;color:var(--primary-light)">₹${order.total.toLocaleString()}</strong></div></div>`;
     document.getElementById("detailModal").classList.remove("hidden");
   };
   window.closeModal = function() { document.getElementById("detailModal").classList.add("hidden"); };
@@ -3462,10 +3490,40 @@ function initThemeToggle() {
   window.closeOrderCancelModal = function() {
     document.getElementById("orderCancelModal")?.classList.add("hidden");
   };
+  window.openOrderEnquiryForm = function(ordId) {
+    const order = orders.find(o => o.id === ordId);
+    if (!order) return;
+    if (!isHelpEligibleOrder(order)) {
+      showToast("Help option only for non-delivered active orders.");
+      return;
+    }
+    const modal = document.getElementById("orderEnquiryModal");
+    const orderRefInput = document.getElementById("enquiryOrderRef");
+    const orderIdText = document.getElementById("enquiryOrderId");
+    const itemSelect = document.getElementById("enquiryOrderItemId");
+    if (!modal || !orderRefInput || !orderIdText || !itemSelect) return;
+    const eligibleItems = (order.items || []).filter(i => Number(i.orderItemId || 0) > 0);
+    if (!eligibleItems.length) {
+      showToast("No item found for enquiry.");
+      return;
+    }
+    orderRefInput.value = order.id;
+    orderIdText.textContent = "#" + order.id;
+    itemSelect.innerHTML = eligibleItems.map(i => {
+      const oid = Number(i.orderItemId || 0);
+      const nm = escHtml(i.name || "Item");
+      return `<option value="${oid}">${nm}</option>`;
+    }).join("");
+    modal.classList.remove("hidden");
+  };
+  window.closeOrderEnquiryModal = function() {
+    document.getElementById("orderEnquiryModal")?.classList.add("hidden");
+  };
 
   document.getElementById("orderReviewModal")?.addEventListener("click", e => { if (e.target === e.currentTarget) closeOrderReviewModal(); });
   document.getElementById("orderReturnModal")?.addEventListener("click", e => { if (e.target === e.currentTarget) closeOrderReturnModal(); });
   document.getElementById("orderCancelModal")?.addEventListener("click", e => { if (e.target === e.currentTarget) closeOrderCancelModal(); });
+  document.getElementById("orderEnquiryModal")?.addEventListener("click", e => { if (e.target === e.currentTarget) closeOrderEnquiryModal(); });
 
   document.addEventListener("DOMContentLoaded", renderOrders);
 })();

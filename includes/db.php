@@ -938,6 +938,37 @@ function db_ensure_user_order_cancel_requests_table(PDO $pdo): void
     }
 }
 
+function db_ensure_user_order_enquiries_table(PDO $pdo): void
+{
+    try {
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS user_order_enquiries (
+                id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                user_id INT UNSIGNED NOT NULL,
+                seller_id INT UNSIGNED NOT NULL,
+                order_id INT UNSIGNED NOT NULL,
+                order_item_id INT UNSIGNED NOT NULL,
+                order_ref VARCHAR(32) NOT NULL,
+                product_id INT UNSIGNED NULL,
+                product_name VARCHAR(255) NOT NULL DEFAULT '',
+                message VARCHAR(1000) NOT NULL DEFAULT '',
+                seller_reply VARCHAR(1000) NOT NULL DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                replied_at DATETIME NULL,
+                KEY idx_user_order_enquiry_user (user_id, created_at),
+                KEY idx_user_order_enquiry_seller (seller_id, created_at),
+                KEY idx_user_order_enquiry_order (order_id, order_item_id, seller_id),
+                CONSTRAINT fk_user_order_enquiry_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                CONSTRAINT fk_user_order_enquiry_seller FOREIGN KEY (seller_id) REFERENCES seller_users(id) ON DELETE CASCADE,
+                CONSTRAINT fk_user_order_enquiry_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+                CONSTRAINT fk_user_order_enquiry_order_item FOREIGN KEY (order_item_id) REFERENCES order_items(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+    } catch (Throwable) {
+        // Missing permissions or non-MySQL: rely on manual migrations
+    }
+}
+
 function db_ensure_orders_platform_fee_column(PDO $pdo): void
 {
     try {
@@ -1165,6 +1196,7 @@ function db(): PDO
     db_ensure_product_reviews_table($pdo);
     db_ensure_user_return_requests_table($pdo);
     db_ensure_user_order_cancel_requests_table($pdo);
+    db_ensure_user_order_enquiries_table($pdo);
     db_ensure_site_settings_table($pdo);
     db_ensure_orders_platform_fee_column($pdo);
     db_ensure_orders_delivered_at_column($pdo);

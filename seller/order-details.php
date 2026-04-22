@@ -542,6 +542,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
 
     header('Location: order-details.php?id=' . (int) $order['id'] . '&msg=return_updated#return-details-card');
     exit;
+} elseif ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') === 'reply_order_enquiry') {
+    $enquiryId = (int) ($_POST['enquiry_id'] ?? 0);
+    $sellerReply = trim((string) ($_POST['seller_reply'] ?? ''));
+    if ($enquiryId <= 0 || $sellerReply === '') {
+        header('Location: order-details.php?id=' . (int) $order['id'] . '&msg=enquiry_invalid#order-enquiries-card');
+        exit;
+    }
+    if (strlen($sellerReply) > 1000) {
+        $sellerReply = substr($sellerReply, 0, 1000);
+    }
+    $upd = $pdo->prepare(
+        'UPDATE user_order_enquiries
+         SET seller_reply = ?, replied_at = NOW()
+         WHERE id = ? AND seller_id = ? AND order_id = ?
+         LIMIT 1'
+    );
+    $upd->execute([$sellerReply, $enquiryId, (int) $seller['id'], (int) $order['id']]);
+    if ($upd->rowCount() > 0) {
+        header('Location: order-details.php?id=' . (int) $order['id'] . '&msg=enquiry_replied#order-enquiries-card');
+        exit;
+    }
+    header('Location: order-details.php?id=' . (int) $order['id'] . '&msg=enquiry_invalid#order-enquiries-card');
+    exit;
 }
 
 $itemsSt = $pdo->prepare(
@@ -693,6 +716,15 @@ foreach ($orderReturnRows as $rr) {
 }
 $orderReturnRows = $orderReturnRowsDeduped;
 
+$enquirySt = $pdo->prepare(
+    'SELECT id, order_item_id, product_name, message, seller_reply, created_at, replied_at
+     FROM user_order_enquiries
+     WHERE seller_id = ? AND order_id = ?
+     ORDER BY id DESC'
+);
+$enquirySt->execute([(int) $seller['id'], (int) $order['id']]);
+$orderEnquiries = $enquirySt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
 $sellerSubtotal = 0;
 foreach ($items as $it) {
     $sellerSubtotal += ((int) ($it['price'] ?? 0)) * ((int) ($it['qty'] ?? 0));
@@ -712,6 +744,11 @@ if ($msg === 'status_updated') {
     $flashOk = true;
 } elseif ($msg === 'return_invalid') {
     $flash = 'Return request action invalid hai.';
+} elseif ($msg === 'enquiry_replied') {
+    $flash = 'Enquiry reply sent to customer.';
+    $flashOk = true;
+} elseif ($msg === 'enquiry_invalid') {
+    $flash = 'Enquiry reply save nahi ho paya.';
 }
 
 if ($msg === 'status_updated') {
@@ -795,6 +832,64 @@ require __DIR__ . '/partials/shell-top.php';
               </form>
             </div>
           </div>
+        <?php endif; ?>
+
+        <?php if ($orderEnquiries !== []): ?>
+        <div class="card seller-txn-card seller-order-detail-card" id="order-enquiries-card">
+          <div class="card-header seller-txn-card-head">
+            <div>
+              <h2 class="card-title">Order enquiries</h2>
+              <p class="card-subtitle seller-txn-card-sub">Customer ke help queries yahan show hoti hain. Reply bhejne par user order details me dekh lega.</p>
+            </div>
+          </div>
+          <div class="card-body card-body--flush">
+            <div class="admin-table-wrap">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    <th>Customer query</th>
+                    <th>Seller reply</th>
+                    <th>Created</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <?php foreach ($orderEnquiries as $enq): ?>
+                    <?php
+                    $enquiryId = (int) ($enq['id'] ?? 0);
+                    $sellerReply = trim((string) ($enq['seller_reply'] ?? ''));
+                    ?>
+                    <tr>
+                      <td>
+                        <strong><?= h((string) ($enq['product_name'] ?? 'Order item')) ?></strong>
+                        <div class="seller-return-table-meta">Line ID <?= (int) ($enq['order_item_id'] ?? 0) ?></div>
+                      </td>
+                      <td><?= h((string) ($enq['message'] ?? '')) ?></td>
+                      <td>
+                        <?php if ($sellerReply !== ''): ?>
+                          <div><?= h($sellerReply) ?></div>
+                          <div class="seller-return-table-meta">Replied: <?= h((string) ($enq['replied_at'] ?? '-')) ?></div>
+                        <?php else: ?>
+                          <span class="seller-help">No reply yet</span>
+                        <?php endif; ?>
+                      </td>
+                      <td><?= h((string) ($enq['created_at'] ?? '-')) ?></td>
+                      <td>
+                        <form method="post" class="seller-return-action-form">
+                          <input type="hidden" name="action" value="reply_order_enquiry">
+                          <input type="hidden" name="enquiry_id" value="<?= $enquiryId ?>">
+                          <input type="text" name="seller_reply" class="seller-return-note-input" maxlength="1000" placeholder="Type reply..." autocomplete="off" required>
+                          <button class="admin-btn admin-btn--primary" type="submit"><?= $sellerReply !== '' ? 'Update reply' : 'Send reply' ?></button>
+                        </form>
+                      </td>
+                    </tr>
+                  <?php endforeach; ?>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
         <?php endif; ?>
 
         <div class="card seller-txn-card seller-order-detail-card seller-order-detail-summary">

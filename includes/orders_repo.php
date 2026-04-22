@@ -99,6 +99,7 @@ function orders_fetch_for_user(PDO $pdo, int $userId): array
     }
 
     $returnMap = [];
+    $enquiryMap = [];
     $returnSt = $pdo->prepare(
         'SELECT urr.id, urr.order_ref, urr.order_id, urr.order_item_id, urr.product_id, urr.product_name, urr.reason, urr.details, urr.status,
                 urr.pickup_status, urr.pickup_note, urr.refund_amount, urr.refund_mode,
@@ -140,6 +141,27 @@ function orders_fetch_for_user(PDO $pdo, int $userId): array
         $returnMap[$resolved] = orders_return_request_payload($pdo, $rr);
     }
 
+    $enquirySt = $pdo->prepare(
+        'SELECT id, order_item_id, message, seller_reply, created_at, replied_at
+         FROM user_order_enquiries
+         WHERE user_id = ?
+         ORDER BY id DESC'
+    );
+    $enquirySt->execute([$userId]);
+    while ($eq = $enquirySt->fetch()) {
+        $orderItemId = (int) ($eq['order_item_id'] ?? 0);
+        if ($orderItemId <= 0 || isset($enquiryMap[$orderItemId])) {
+            continue;
+        }
+        $enquiryMap[$orderItemId] = [
+            'id' => (int) ($eq['id'] ?? 0),
+            'message' => (string) ($eq['message'] ?? ''),
+            'sellerReply' => (string) ($eq['seller_reply'] ?? ''),
+            'createdAt' => (string) ($eq['created_at'] ?? ''),
+            'repliedAt' => (string) ($eq['replied_at'] ?? ''),
+        ];
+    }
+
     $st = $pdo->prepare(
         'SELECT id, order_ref, status, total_amount, payment_method, shipping_address, created_at
          FROM orders WHERE user_id = ? ORDER BY created_at DESC'
@@ -178,6 +200,7 @@ function orders_fetch_for_user(PDO $pdo, int $userId): array
                 'tracking' => order_tracking_steps($itemStatus),
                 'lineTotal' => $lineTotal,
                 'returnRequest' => $returnMap[$orderItemId] ?? null,
+                'enquiry' => $enquiryMap[$orderItemId] ?? null,
                 'hasReview' => $productId > 0 && isset($reviewedProductIds[$productId]),
             ];
         }
