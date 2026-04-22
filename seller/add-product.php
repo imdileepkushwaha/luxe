@@ -40,6 +40,25 @@ $categoryLabels = [
 ];
 
 $colorCatalogFull = ['Black', 'White', 'Blue', 'Navy', 'Red', 'Green', 'Yellow', 'Orange', 'Pink', 'Purple', 'Brown', 'Grey', 'Silver', 'Gold', 'Beige', 'Maroon'];
+$selectedGenderWizard = 'unisex';
+$colorSwatches = [
+    'Black' => '#1f2937',
+    'White' => '#f8fafc',
+    'Blue' => '#3b82f6',
+    'Navy' => '#1e3a8a',
+    'Red' => '#ef4444',
+    'Green' => '#22c55e',
+    'Yellow' => '#fbbf24',
+    'Orange' => '#fb923c',
+    'Pink' => '#f472b6',
+    'Purple' => '#a855f7',
+    'Brown' => '#92400e',
+    'Grey' => '#94a3b8',
+    'Silver' => '#d1d5db',
+    'Gold' => '#eab308',
+    'Beige' => '#e7d7b1',
+    'Maroon' => '#be123c',
+];
 
 /** Category-specific colours in Advance → Inventory (subset of catalog). */
 $colorsByCategory = [
@@ -55,7 +74,7 @@ foreach ($colorsByCategory as $k => $arr) {
 
 if ($editProductId > 0) {
     $editSt = $pdo->prepare(
-        'SELECT id, name, sku, category, product_type, price, original_price, emoji, badge, brand, size_options, color_options, stock_qty, description,
+        'SELECT id, name, sku, category, product_type, gender, price, original_price, emoji, badge, brand, size_options, color_options, stock_qty, description,
                 offer_flash_text, offer_countdown_seconds, offer_bank_text, shipping_class,
                 manufacturer_generic_name, manufacturer_country, manufacturer_name_address, packer_name_address,
                 active, approval_status, image_path, created_at
@@ -81,6 +100,8 @@ if ($editProductId > 0) {
     }
     $sc = strtolower(trim((string) ($editProduct['shipping_class'] ?? 'standard')));
     $shippingClassWizard = in_array($sc, ['standard', 'express', 'free'], true) ? $sc : 'standard';
+    $genderRaw = strtolower(trim((string) ($editProduct['gender'] ?? 'unisex')));
+    $selectedGenderWizard = in_array($genderRaw, ['men', 'women', 'unisex'], true) ? $genderRaw : 'unisex';
 
     $ap = strtolower(trim((string) ($editProduct['approval_status'] ?? '')));
     $active = (int) ($editProduct['active'] ?? 0) === 1;
@@ -366,6 +387,15 @@ require __DIR__ . '/partials/shell-top.php';
                     </select>
                     <p class="seller-form-field__hint">Pehle category chuno — phir product type.</p>
                   </div>
+                  <div class="seller-form-field<?= !$canAddProducts ? ' seller-form-field--disabled' : '' ?>">
+                    <label class="seller-form-field__label" for="wizard_gender">Gender</label>
+                    <select id="wizard_gender" name="gender" class="seller-wizard-select" <?= $canAddProducts ? '' : 'disabled' ?>>
+                      <option value="men"<?= $selectedGenderWizard === 'men' ? ' selected' : '' ?>>Men</option>
+                      <option value="women"<?= $selectedGenderWizard === 'women' ? ' selected' : '' ?>>Women</option>
+                      <option value="unisex"<?= $selectedGenderWizard === 'unisex' ? ' selected' : '' ?>>Unisex</option>
+                    </select>
+                    <p class="seller-form-field__hint">Yeh batata hai product men, women ya unisex ke liye hai.</p>
+                  </div>
 
                   <div class="seller-form-field seller-wizard-product-type-wrap<?= !$canAddProducts ? ' seller-form-field--disabled' : '' ?>" id="wizard_product_type_field" hidden>
                     <span class="seller-form-field__label">Product type <span class="seller-req" aria-hidden="true">*</span></span>
@@ -581,9 +611,13 @@ require __DIR__ . '/partials/shell-top.php';
                                     <?php
                                     $cid = 'col_' . $ck . '_' . $ptSlug . '_' . preg_replace('/[^a-z0-9]+/i', '_', $col);
                                     ?>
-                                    <label class="seller-wizard-opt-chip" for="<?= h($cid) ?>">
+                                    <?php $swatchHex = $colorSwatches[$col] ?? '#cbd5e1'; ?>
+                                    <label class="seller-wizard-opt-chip seller-wizard-opt-chip--color" for="<?= h($cid) ?>" title="<?= h($col) ?>">
                                       <input type="checkbox" name="color_options[]" id="<?= h($cid) ?>" value="<?= h($col) ?>" <?= $canAddProducts ? '' : 'disabled' ?><?= in_array($col, $selectedColorsWizard, true) ? ' checked' : '' ?>>
-                                      <span><?= h($col) ?></span>
+                                      <span style="--seller-swatch-color: <?= h($swatchHex) ?>;">
+                                        <i aria-hidden="true"></i>
+                                        <span class="visually-hidden"><?= h($col) ?></span>
+                                      </span>
                                     </label>
                                   <?php endforeach; ?>
                                 </div>

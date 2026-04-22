@@ -149,6 +149,16 @@ function seller_parse_offer_countdown_to_seconds(string $value): int
     return ($hours * 3600) + ($minutes * 60) + $seconds;
 }
 
+/** @return 'men'|'women'|'unisex' */
+function seller_normalize_gender(string $raw): string
+{
+    $v = strtolower(trim($raw));
+    if ($v === 'men' || $v === 'women' || $v === 'unisex') {
+        return $v;
+    }
+    return 'unisex';
+}
+
 /**
  * @return array{ok:bool,paths?:list<string>,error?:string}
  */
@@ -245,6 +255,7 @@ $drawerMode = 'add';
 $editingProduct = null;
 $productByIdSt = $pdo->prepare(
     'SELECT id, name, sku, category, product_type, price, original_price, emoji, badge, brand, size_options, color_options, stock_qty, description, image_path,
+            gender,
             offer_flash_text, offer_countdown_seconds, offer_bank_text, shipping_class,
             manufacturer_generic_name, manufacturer_country, manufacturer_name_address, packer_name_address,
             active, approval_status
@@ -360,6 +371,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ? (string) ($editingProduct['product_type'] ?? '')
             : '';
         $productType = seller_normalize_product_type($category, (string) ($_POST['product_type'] ?? $productTypePrev));
+        $genderPrev = ($drawerMode === 'edit' && $editingProduct)
+            ? (string) ($editingProduct['gender'] ?? 'unisex')
+            : 'unisex';
+        $gender = seller_normalize_gender((string) ($_POST['gender'] ?? $genderPrev));
 
         if ($error === '' && $name === '') {
             $error = 'Product name required hai.';
@@ -396,11 +411,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $sku = $skuInput !== '' ? $skuInput : seller_generate_unique_sku($pdo, $name, $category);
             $ins = $pdo->prepare(
                 'INSERT INTO products
-                    (seller_id, name, slug, sku, category, product_type, price, original_price, emoji, badge, rating, review_count, brand, image_bg, image_path, size_options, color_options, stock_qty, description,
+                    (seller_id, name, slug, sku, category, product_type, gender, price, original_price, emoji, badge, rating, review_count, brand, image_bg, image_path, size_options, color_options, stock_qty, description,
                      offer_flash_text, offer_countdown_seconds, offer_bank_text, shipping_class,
                      manufacturer_generic_name, manufacturer_country, manufacturer_name_address, packer_name_address,
                      active, approval_status)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 4.5, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, \'pending\')'
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 4.5, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, \'pending\')'
             );
             $uploadedPaths = is_array($upload['paths'] ?? null) ? $upload['paths'] : [];
             $mainImagePath = $uploadedPaths[0] ?? null;
@@ -411,6 +426,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $sku,
                 $category,
                 $productType,
+                $gender,
                 $price,
                 $originalPrice,
                 $emoji === '' ? '📦' : $emoji,
@@ -460,7 +476,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($mainImagePath !== null) {
                     $upd = $pdo->prepare(
                         'UPDATE products
-                         SET name = ?, slug = ?, sku = ?, category = ?, product_type = ?, price = ?, original_price = ?, emoji = ?, badge = ?, brand = ?, image_path = ?, size_options = ?, color_options = ?, stock_qty = ?, description = ?
+                         SET name = ?, slug = ?, sku = ?, category = ?, product_type = ?, gender = ?, price = ?, original_price = ?, emoji = ?, badge = ?, brand = ?, image_path = ?, size_options = ?, color_options = ?, stock_qty = ?, description = ?
                             , offer_flash_text = ?, offer_countdown_seconds = ?, offer_bank_text = ?, shipping_class = ?
                             , manufacturer_generic_name = ?, manufacturer_country = ?, manufacturer_name_address = ?, packer_name_address = ?
                             , approval_status = CASE WHEN approval_status = \'approved\' THEN \'approved\' ELSE \'pending\' END
@@ -473,6 +489,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $sku,
                         $category,
                         $productType,
+                        $gender,
                         $price,
                         $originalPrice,
                         $emoji === '' ? '📦' : $emoji,
@@ -497,7 +514,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 } else {
                     $upd = $pdo->prepare(
                         'UPDATE products
-                         SET name = ?, slug = ?, sku = ?, category = ?, product_type = ?, price = ?, original_price = ?, emoji = ?, badge = ?, brand = ?, size_options = ?, color_options = ?, stock_qty = ?, description = ?
+                         SET name = ?, slug = ?, sku = ?, category = ?, product_type = ?, gender = ?, price = ?, original_price = ?, emoji = ?, badge = ?, brand = ?, size_options = ?, color_options = ?, stock_qty = ?, description = ?
                             , offer_flash_text = ?, offer_countdown_seconds = ?, offer_bank_text = ?, shipping_class = ?
                             , manufacturer_generic_name = ?, manufacturer_country = ?, manufacturer_name_address = ?, packer_name_address = ?
                             , approval_status = CASE WHEN approval_status = \'approved\' THEN \'approved\' ELSE \'pending\' END
@@ -510,6 +527,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $sku,
                         $category,
                         $productType,
+                        $gender,
                         $price,
                         $originalPrice,
                         $emoji === '' ? '📦' : $emoji,
@@ -597,7 +615,7 @@ $productsPerPage = $productsPageMeta['perPage'];
 $productsTotalPages = $productsPageMeta['totalPages'];
 
 $productsSt = $pdo->prepare(
-    'SELECT p.id, p.name, p.slug, p.sku, p.category, p.price, p.original_price, p.emoji, p.badge, p.brand, p.image_path, p.size_options, p.color_options, p.stock_qty, p.description, p.active,
+    'SELECT p.id, p.name, p.slug, p.sku, p.category, p.gender, p.price, p.original_price, p.emoji, p.badge, p.brand, p.image_path, p.size_options, p.color_options, p.stock_qty, p.description, p.active,
             p.offer_flash_text, p.offer_countdown_seconds, p.offer_bank_text, p.approval_status,
             COALESCE(v.variant_stock_sum, p.stock_qty) AS display_stock_qty
      FROM products p
@@ -729,6 +747,7 @@ require __DIR__ . '/partials/shell-top.php';
                         . trim((string) ($p['slug'] ?? '')) . ' '
                         . trim((string) ($p['sku'] ?? '')) . ' '
                         . trim((string) ($p['category'] ?? '')) . ' '
+                        . trim((string) ($p['gender'] ?? '')) . ' '
                         . trim((string) ($p['brand'] ?? '')) . ' '
                         . trim((string) ($p['badge'] ?? '')) . ' '
                         . (string) (int) ($p['price'] ?? 0) . ' '
@@ -954,6 +973,15 @@ require __DIR__ . '/partials/shell-top.php';
                         <?php foreach ($allowedCategories as $cat): ?>
                           <option value="<?= h($cat) ?>"<?= ((string) ($_POST['category'] ?? ($editingProduct['category'] ?? '')) === $cat) ? ' selected' : '' ?>><?= h(ucfirst($cat)) ?></option>
                         <?php endforeach; ?>
+                      </select>
+                    </div>
+                    <div class="seller-product-form-field">
+                      <label for="gender">Gender</label>
+                      <?php $genderFormVal = seller_normalize_gender((string) ($_POST['gender'] ?? ($editingProduct['gender'] ?? 'unisex'))); ?>
+                      <select id="gender" name="gender" <?= $canAddProducts ? '' : 'disabled' ?>>
+                        <option value="men"<?= $genderFormVal === 'men' ? ' selected' : '' ?>>Men</option>
+                        <option value="women"<?= $genderFormVal === 'women' ? ' selected' : '' ?>>Women</option>
+                        <option value="unisex"<?= $genderFormVal === 'unisex' ? ' selected' : '' ?>>Unisex</option>
                       </select>
                     </div>
                     <div class="seller-product-form-field seller-product-form-field--emoji">

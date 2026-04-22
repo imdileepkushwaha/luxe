@@ -2971,12 +2971,16 @@ function initThemeToggle() {
       const step = getTrackingStep(order);
       const canReturn = isReturnWindowOpen(order);
       const returnItems = (order.items || []).filter(item => itemHasReturnRequest(item));
+      const reviewableItems = (order.items || []).filter(item => Number(item.productId || 0) > 0 && !item.hasReview);
       const returnableItems = (order.items || []).filter(item => canRequestReturn(item));
       const hasAnyReturnInProgress = (order.items || []).some(item => hasReturnInProgress(item));
       const hasAnyReturnCompleted = (order.items || []).some(item => hasReturnCompleted(item));
       const canCancel = order.status === "processing" || order.status === "confirmed" || order.status === "shipped";
       const cancelBtn = canCancel
         ? `<button class="action-btn secondary" onclick="openOrderCancelForm('${order.id}')">Cancel Order</button>`
+        : "";
+      const invoiceBtn = order.status === "delivered"
+        ? `<a class="action-btn secondary" href="download-invoice.php?order_ref=${encodeURIComponent(order.id)}">Download Invoice</a>`
         : "";
       const returnBtn = order.status === "delivered"
         ? (canReturn && returnableItems.length > 0
@@ -3023,7 +3027,7 @@ function initThemeToggle() {
         ${order.status !== "cancelled" ? `<div class="tracking-section"><div class="tracking-label">📍 Order Progress</div><div class="tracking-steps">${trackingLabels.map((label, i) => `<div class="tracking-step ${i < step ? "done" : ""} ${i === step - 1 && order.status !== "delivered" ? "active" : ""}"><div class="step-dot">${i < step ? "✓" : i+1}</div><span class="step-label">${label}</span></div>`).join("")}</div></div>` : ""}
         ${returnProgressHtml}
         <div class="order-card-footer"><div class="order-total-info"><span class="order-total-label">Order Total</span><span class="order-total-val">₹${order.total.toLocaleString()}</span></div>
-        <div class="order-card-actions">${order.status === "delivered" ? `<button class="action-btn secondary" onclick="openOrderReviewForm('${order.id}')">Rate & Review</button>` : ""}${cancelBtn}${returnBtn}<button class="action-btn primary" onclick="viewDetail('${order.id}')">View Details →</button></div></div>
+        <div class="order-card-actions">${order.status === "delivered" && reviewableItems.length > 0 ? `<button class="action-btn secondary" onclick="openOrderReviewForm('${order.id}')">Rate & Review</button>` : ""}${invoiceBtn}${cancelBtn}${returnBtn}<button class="action-btn primary" onclick="viewDetail('${order.id}')">View Details →</button></div></div>
       </div>`;
     }).join("");
     observeAll();
@@ -3087,9 +3091,13 @@ function initThemeToggle() {
     orderRefInput.value = order.id;
     orderIdText.textContent = "#" + order.id;
     const options = (order.items || [])
-      .filter(i => Number(i.productId || 0) > 0)
+      .filter(i => Number(i.productId || 0) > 0 && !i.hasReview)
       .map(i => `<option value="${Number(i.productId)}">${escHtml(i.name)}</option>`)
       .join("");
+    if (!options) {
+      showToast("You have already reviewed all items in this order.");
+      return;
+    }
     productSelect.innerHTML = options || `<option value="">No reviewable product found</option>`;
     modal.classList.remove("hidden");
   };

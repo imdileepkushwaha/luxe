@@ -324,6 +324,15 @@ function db_ensure_products_seller_column(PDO $pdo): void
             $pdo->exec("ALTER TABLE products ADD COLUMN product_type VARCHAR(64) NOT NULL DEFAULT '' AFTER category");
         }
 
+        $genderChk = $pdo->prepare(
+            'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $genderChk->execute([$dbName, 'products', 'gender']);
+        if (!(bool) $genderChk->fetchColumn()) {
+            $pdo->exec("ALTER TABLE products ADD COLUMN gender VARCHAR(16) NOT NULL DEFAULT 'unisex' AFTER product_type");
+        }
+
         $offerFlashChk = $pdo->prepare(
             'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
              WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?'
@@ -978,6 +987,35 @@ function db_ensure_orders_delivered_at_column(PDO $pdo): void
     }
 }
 
+function db_ensure_orders_status_time_columns(PDO $pdo): void
+{
+    try {
+        $dbName = (string) $pdo->query('SELECT DATABASE()')->fetchColumn();
+        if ($dbName === '') {
+            return;
+        }
+        $chk = $pdo->prepare(
+            'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+
+        $columns = [
+            'confirmed_at' => "ALTER TABLE orders ADD COLUMN confirmed_at DATETIME NULL DEFAULT NULL AFTER created_at",
+            'shipped_at' => "ALTER TABLE orders ADD COLUMN shipped_at DATETIME NULL DEFAULT NULL AFTER confirmed_at",
+            'out_for_delivery_at' => "ALTER TABLE orders ADD COLUMN out_for_delivery_at DATETIME NULL DEFAULT NULL AFTER shipped_at",
+        ];
+
+        foreach ($columns as $col => $sql) {
+            $chk->execute([$dbName, 'orders', $col]);
+            if (!$chk->fetchColumn()) {
+                $pdo->exec($sql);
+            }
+        }
+    } catch (Throwable) {
+        // Missing permissions or non-MySQL
+    }
+}
+
 function db_ensure_user_loyalty_redeemed_column(PDO $pdo): void
 {
     try {
@@ -1083,6 +1121,7 @@ function db(): PDO
     db_ensure_site_settings_table($pdo);
     db_ensure_orders_platform_fee_column($pdo);
     db_ensure_orders_delivered_at_column($pdo);
+    db_ensure_orders_status_time_columns($pdo);
     db_ensure_user_loyalty_redeemed_column($pdo);
     return $pdo;
 }

@@ -19,7 +19,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
     if ($confirmOrderId > 0) {
         $confirmSt = $pdo->prepare(
             "UPDATE orders o
-             SET o.status = 'confirmed'
+             SET o.status = 'confirmed',
+                 o.confirmed_at = COALESCE(o.confirmed_at, NOW())
              WHERE o.id = ?
                AND o.status = 'processing'
                AND EXISTS (
@@ -583,7 +584,9 @@ require __DIR__ . '/partials/shell-top.php';
                             <form method="post" class="seller-order-action-form" action="<?= h($ordersFormAction) ?>">
                               <input type="hidden" name="action" value="confirm_order">
                               <input type="hidden" name="order_id" value="<?= (int) $o['id'] ?>">
-                              <button class="admin-btn admin-btn--primary seller-order-confirm-btn" type="submit">Confirm</button>
+                              <button class="admin-btn admin-btn--primary seller-order-confirm-btn" type="submit" aria-label="Confirm order" title="Confirm order">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path stroke-linecap="round" stroke-linejoin="round" d="m20 6-11 11-5-5"/></svg>
+                              </button>
                             </form>
                           <?php endif; ?>
                           <?php

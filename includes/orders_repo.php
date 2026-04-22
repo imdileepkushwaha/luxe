@@ -83,6 +83,21 @@ function orders_return_request_payload(PDO $pdo, array $rr): array
  */
 function orders_fetch_for_user(PDO $pdo, int $userId): array
 {
+    $reviewedProductIds = [];
+    $reviewedSt = $pdo->prepare(
+        'SELECT product_id
+         FROM product_reviews
+         WHERE user_id = ?
+           AND product_id IS NOT NULL'
+    );
+    $reviewedSt->execute([$userId]);
+    while ($rv = $reviewedSt->fetch()) {
+        $rpid = (int) ($rv['product_id'] ?? 0);
+        if ($rpid > 0) {
+            $reviewedProductIds[$rpid] = true;
+        }
+    }
+
     $returnMap = [];
     $returnSt = $pdo->prepare(
         'SELECT urr.id, urr.order_ref, urr.order_id, urr.order_item_id, urr.product_id, urr.product_name, urr.reason, urr.details, urr.status,
@@ -146,16 +161,18 @@ function orders_fetch_for_user(PDO $pdo, int $userId): array
             $lineTotal = $price * $qty;
             $computedTotal += $lineTotal;
             $orderItemId = (int) ($row['order_item_id'] ?? 0);
+            $productId = (int) ($row['product_id'] ?? 0);
             $items[] = [
                 'orderItemId' => $orderItemId,
                 'emoji' => $row['emoji'] ?? '📦',
                 'name' => $row['name'],
-                'productId' => (int) ($row['product_id'] ?? 0),
+                'productId' => $productId,
                 'variant' => $row['variant'] ?? '',
                 'price' => $price,
                 'qty' => $qty,
                 'lineTotal' => $lineTotal,
                 'returnRequest' => $returnMap[$orderItemId] ?? null,
+                'hasReview' => $productId > 0 && isset($reviewedProductIds[$productId]),
             ];
         }
         $orderTotal = $computedTotal > 0 ? $computedTotal : (int) $o['total_amount'];

@@ -317,14 +317,16 @@ require __DIR__ . '/partials/shell-top.php';
                 </div>
               </div>
               <div class="seller-form__row seller-profile-upload-row">
-                <div>
+                <div class="seller-profile-upload-field">
                   <label for="logo_file">Logo file</label>
                   <input id="logo_file" class="seller-badge-input seller-profile-file-input" type="file" name="logo_file" accept=".jpg,.jpeg,.png,.webp,.gif,image/*">
+                  <p class="seller-profile-file-name" id="logoFileName" aria-live="polite">No file selected</p>
                   <p class="seller-profile-file-hint">JPG / PNG / WebP / GIF · max <strong>5 MB</strong> · square suggest</p>
                 </div>
-                <div>
+                <div class="seller-profile-upload-field">
                   <label for="banner_file">Banner file</label>
                   <input id="banner_file" class="seller-badge-input seller-profile-file-input" type="file" name="banner_file" accept=".jpg,.jpeg,.png,.webp,.gif,image/*">
+                  <p class="seller-profile-file-name" id="bannerFileName" aria-live="polite">No file selected</p>
                   <p class="seller-profile-file-hint">Wide ratio · max <strong>5 MB</strong></p>
                 </div>
               </div>
@@ -383,5 +385,21 @@ require __DIR__ . '/partials/shell-top.php';
             </div>
           </div>
         </div>
+
+        <script>
+          (function () {
+            function bindFileName(inputId, outputId) {
+              var input = document.getElementById(inputId);
+              var output = document.getElementById(outputId);
+              if (!input || !output) return;
+              input.addEventListener('change', function () {
+                var fileName = (input.files && input.files[0] && input.files[0].name) ? input.files[0].name : 'No file selected';
+                output.textContent = fileName;
+              });
+            }
+            bindFileName('logo_file', 'logoFileName');
+            bindFileName('banner_file', 'bannerFileName');
+          })();
+        </script>
 
 <?php require __DIR__ . '/partials/shell-bottom.php'; ?>

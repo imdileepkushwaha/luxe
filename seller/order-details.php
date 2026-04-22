@@ -39,6 +39,17 @@ function seller_next_statuses(string $status): array
     };
 }
 
+function seller_order_status_cta_label(string $nextStatus): string
+{
+    return match (strtolower(trim($nextStatus))) {
+        'confirmed' => 'Confirm order',
+        'shipped' => 'Mark as shipped',
+        'out' => 'Mark out for delivery',
+        'delivered' => 'Mark as delivered',
+        default => 'Update status',
+    };
+}
+
 /**
  * Product name key → order line id when exactly one seller line matches (fixes dedupe when legacy rows omit order_item_id).
  *
@@ -158,6 +169,25 @@ function seller_delivery_step_index(string $status): int
     };
 }
 
+/**
+ * @param array<string,mixed> $order
+ * @return array<string,string>
+ */
+function seller_delivery_step_times(array $order): array
+{
+    $pick = static function (string $key) use ($order): string {
+        return trim((string) ($order[$key] ?? ''));
+    };
+
+    return [
+        'processing' => $pick('created_at'),
+        'confirmed' => $pick('confirmed_at'),
+        'shipped' => $pick('shipped_at'),
+        'out' => $pick('out_for_delivery_at'),
+        'delivered' => $pick('delivered_at'),
+    ];
+}
+
 /** @return list<string> */
 function seller_return_timeline_labels(): array
 {
@@ -178,6 +208,7 @@ function seller_return_timeline_index(string $reqStatus): int
 
 $orderSt = $pdo->prepare(
     "SELECT o.id, o.order_ref, o.status, o.total_amount, o.payment_method, o.shipping_address, o.created_at,
+            o.confirmed_at, o.shipped_at, o.out_for_delivery_at, o.delivered_at,
             COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), 'Guest') AS customer_name,
             COALESCE(u.email, '-') AS customer_email
      FROM orders o
@@ -206,8 +237,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
         try {
             $pdo->beginTransaction();
 
-            $upd = $pdo->prepare('UPDATE orders SET status = ? WHERE id = ? LIMIT 1');
-            $upd->execute([$newStatus, (int) $order['id']]);
+            $timeFieldByStatus = [
+                'confirmed' => 'confirmed_at',
+                'shipped' => 'shipped_at',
+                'out' => 'out_for_delivery_at',
+                'delivered' => 'delivered_at',
+            ];
+            $timeField = $timeFieldByStatus[$newStatus] ?? '';
+            if ($timeField !== '') {
+                $upd = $pdo->prepare("UPDATE orders SET status = ?, {$timeField} = COALESCE({$timeField}, NOW()) WHERE id = ? LIMIT 1");
+                $upd->execute([$newStatus, (int) $order['id']]);
+            } else {
+                $upd = $pdo->prepare('UPDATE orders SET status = ? WHERE id = ? LIMIT 1');
+                $upd->execute([$newStatus, (int) $order['id']]);
+            }
 
             $pdo->commit();
             header('Location: order-details.php?id=' . (int) $order['id'] . '&msg=status_updated');
@@ -492,16 +535,27 @@ if ($msg === 'status_updated') {
 }
 
 if ($msg === 'status_updated') {
-    $refreshSt = $pdo->prepare('SELECT status FROM orders WHERE id = ? LIMIT 1');
+    $refreshSt = $pdo->prepare('SELECT status, confirmed_at, shipped_at, out_for_delivery_at, delivered_at FROM orders WHERE id = ? LIMIT 1');
     $refreshSt->execute([(int) $order['id']]);
-    $fresh = $refreshSt->fetchColumn();
-    if (is_string($fresh) && $fresh !== '') {
-        $order['status'] = $fresh;
+    $fresh = $refreshSt->fetch(PDO::FETCH_ASSOC) ?: null;
+    if (is_array($fresh)) {
+        $freshStatus = trim((string) ($fresh['status'] ?? ''));
+        if ($freshStatus !== '') {
+            $order['status'] = $freshStatus;
+        }
+        $order['confirmed_at'] = (string) ($fresh['confirmed_at'] ?? '');
+        $order['shipped_at'] = (string) ($fresh['shipped_at'] ?? '');
+        $order['out_for_delivery_at'] = (string) ($fresh['out_for_delivery_at'] ?? '');
+        $order['delivered_at'] = (string) ($fresh['delivered_at'] ?? '');
     }
 }
 
 $nextStatuses = seller_next_statuses((string) $order['status']);
+$nextStatus = $nextStatuses[0] ?? '';
+$nextStatusCtaLabel = seller_order_status_cta_label($nextStatus);
 $deliveryStepLabels = ['Placed', 'Confirmed', 'Shipped', 'Out for delivery', 'Delivered'];
+$deliveryStepKeys = ['processing', 'confirmed', 'shipped', 'out', 'delivered'];
+$deliveryStepTimes = seller_delivery_step_times($order);
 $deliveryStepIndex = seller_delivery_step_index((string) $order['status']);
 $deliveryStatusLabel = seller_delivery_status_label((string) $order['status']);
 $deliveryEtaLabel = seller_delivery_eta((string) $order['status'], (string) ($order['created_at'] ?? ''));
@@ -523,6 +577,43 @@ require __DIR__ . '/partials/shell-top.php';
         <div class="seller-order-detail">
         <?php if ($flash !== ''): ?>
           <div class="seller-alert seller-order-detail-flash<?= $flashOk ? ' seller-alert--success' : ' seller-alert--error' ?>"><?= h($flash) ?></div>
+        <?php endif; ?>
+
+        <?php if ($nextStatus !== ''): ?>
+          <div class="card seller-txn-card seller-order-detail-card seller-order-detail-status-card">
+            <div class="card-header seller-txn-card-head">
+              <div>
+                <h2 class="card-title">Update order status</h2>
+                <p class="card-subtitle seller-txn-card-sub">Quick action: next allowed step par click karke order status update karein.</p>
+              </div>
+            </div>
+            <div class="card-body seller-order-status-card__body">
+              <div class="seller-order-status-callout" role="note">
+                <span class="seller-order-status-callout__icon" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                </span>
+                <div class="seller-order-status-callout__body">
+                  <p class="seller-order-status-callout__text">One-click status update available.</p>
+                  <div class="seller-order-status-track" aria-label="Order status transition">
+                    <span class="seller-order-status-track__badge seller-order-status-track__badge--current"><?= h((string) ucfirst((string) $order['status'])) ?></span>
+                    <span class="seller-order-status-track__arrow" aria-hidden="true">→</span>
+                    <span class="seller-order-status-track__badge seller-order-status-track__badge--next"><?= h((string) ucfirst($nextStatus)) ?></span>
+                  </div>
+                </div>
+              </div>
+              <form method="post" class="seller-order-status-form seller-order-status-form--detail seller-order-status-form--quick">
+                <input type="hidden" name="action" value="update_status">
+                <input type="hidden" name="new_status" value="<?= h($nextStatus) ?>">
+                <button
+                  type="submit"
+                  class="admin-btn seller-order-status-submit seller-order-status-submit--<?= h($nextStatus) ?>"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14"/><path stroke-linecap="round" stroke-linejoin="round" d="m12 5 7 7-7 7"/></svg>
+                  <?= h($nextStatusCtaLabel) ?>
+                </button>
+              </form>
+            </div>
+          </div>
         <?php endif; ?>
 
         <div class="card seller-txn-card seller-order-detail-card seller-order-detail-summary">
@@ -594,49 +685,28 @@ require __DIR__ . '/partials/shell-top.php';
                 <?php
                 $isDone = strtolower((string) $order['status']) === 'delivered' || $i < $deliveryStepIndex;
                 $isActive = strtolower((string) $order['status']) !== 'delivered' && $i === $deliveryStepIndex;
+                $stepKey = $deliveryStepKeys[$i] ?? '';
+                $stepRawTime = $stepKey !== '' ? (string) ($deliveryStepTimes[$stepKey] ?? '') : '';
+                $stepTimeLabel = $stepRawTime !== '' ? seller_order_detail_format_dt($stepRawTime) : '—';
                 ?>
                 <div class="seller-order-delivery-step<?= $isDone ? ' seller-order-delivery-step--done' : '' ?><?= $isActive ? ' seller-order-delivery-step--active' : '' ?>">
-                  <span class="seller-order-delivery-step__dot"><?= $isDone ? '✓' : (string) ($i + 1) ?></span>
-                  <span class="seller-order-delivery-step__label"><?= h($stepLabel) ?></span>
+                  <span class="seller-order-delivery-step__bar" aria-hidden="true"><span class="seller-order-delivery-step__bar-fill"></span></span>
+                  <span class="seller-order-delivery-step__text">
+                    <span class="seller-order-delivery-step__label-row">
+                      <span class="seller-order-delivery-step__label"><?= h($stepLabel) ?></span>
+                      <?php if ($isActive): ?>
+                        <span class="seller-order-delivery-step__spinner" aria-hidden="true"></span>
+                      <?php endif; ?>
+                    </span>
+                    <span class="seller-order-delivery-step__time"><?= h($stepTimeLabel) ?></span>
+                  </span>
                 </div>
               <?php endforeach; ?>
             </div>
           </div>
         </div>
 
-        <div class="card seller-txn-card seller-order-detail-card seller-order-detail-status-card">
-          <div class="card-header seller-txn-card-head">
-            <div>
-              <h2 class="card-title">Update order status</h2>
-              <p class="card-subtitle seller-txn-card-sub">Allowed next step choose karke order ko aage badhayein.</p>
-            </div>
-          </div>
-          <div class="card-body">
-            <div class="seller-order-status-callout" role="note">
-              <span class="seller-order-status-callout__icon" aria-hidden="true">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-              </span>
-              <p class="seller-order-status-callout__text">Stock deduction checkout / order placement ke time par ho chuki hoti hai.</p>
-            </div>
-            <?php if ($nextStatuses === []): ?>
-              <p class="seller-help seller-order-status-done-msg">Is order ka status ab aage update nahi kiya ja sakta.</p>
-            <?php else: ?>
-              <form method="post" class="seller-order-status-form seller-order-status-form--detail">
-                <input type="hidden" name="action" value="update_status">
-                <div class="seller-order-status-form__field">
-                  <label for="newStatus">Next status</label>
-                  <select id="newStatus" name="new_status" required>
-                    <?php foreach ($nextStatuses as $status): ?>
-                      <option value="<?= h($status) ?>"><?= h(ucfirst($status)) ?></option>
-                    <?php endforeach; ?>
-                  </select>
-                </div>
-                <button type="submit" class="admin-btn admin-btn--primary seller-order-status-submit">Update status</button>
-              </form>
-            <?php endif; ?>
-          </div>
-        </div>
-
+        <?php if ($orderReturnRows !== []): ?>
         <div class="card seller-txn-card seller-order-detail-card seller-order-detail-returns" id="return-details-card">
           <div class="card-header seller-txn-card-head">
             <div>
@@ -645,7 +715,6 @@ require __DIR__ . '/partials/shell-top.php';
             </div>
           </div>
           <div class="card-body card-body--flush">
-            <?php if ($orderReturnRows !== []): ?>
               <p class="seller-help seller-return-panels-intro">Summary table se quick actions; neeche <strong>Return process — full view</strong> mein poora flow, refund aur timestamps.</p>
               <div class="admin-table-wrap">
                 <table class="admin-table">
@@ -815,10 +884,20 @@ require __DIR__ . '/partials/shell-top.php';
                             <?php
                             $done = $isRefundedPanel || ($ti < $stepIndex);
                             $active = !$isRefundedPanel && $ti === $stepIndex;
+                            $timelineRaw = match ($ti) {
+                                0 => (string) ($rrPanel['requested_at'] ?? ''),
+                                1 => (string) ($rrPanel['reviewed_at'] ?? ''),
+                                2 => (string) ($rrPanel['pickup_scheduled_at'] ?? ''),
+                                3 => (string) ($rrPanel['pickup_completed_at'] ?? ''),
+                                4 => (string) ($rrPanel['resolved_at'] ?? ''),
+                                default => '',
+                            };
+                            $timelineFmt = seller_return_format_dt($timelineRaw);
                             ?>
                             <div class="seller-return-timeline-step<?= $done ? ' seller-return-timeline-step--done' : '' ?><?= $active ? ' seller-return-timeline-step--active' : '' ?>">
                               <span class="seller-return-timeline-dot"><?= $done ? '✓' : (string) ($ti + 1) ?></span>
                               <span class="seller-return-timeline-label"><?= h($tlabel) ?></span>
+                              <span class="seller-return-timeline-time"><?= h($timelineFmt) ?></span>
                             </div>
                           <?php endforeach; ?>
                           </div>
@@ -836,29 +915,14 @@ require __DIR__ . '/partials/shell-top.php';
                             <div class="seller-return-fact seller-return-fact--wide"><dt>Pickup note</dt><dd><?= h(trim((string) ($rrPanel['pickup_note'] ?? '')) !== '' ? (string) $rrPanel['pickup_note'] : '—') ?></dd></div>
                           </dl>
                         </div>
-                        <div class="seller-return-facts-block">
-                          <h4 class="seller-return-facts-block-title">Timeline</h4>
-                          <dl class="seller-return-facts seller-return-facts--timeline">
-                            <div class="seller-return-fact"><dt>Requested</dt><dd><?= h(seller_return_format_dt($rrPanel['requested_at'] ?? null)) ?></dd></div>
-                            <div class="seller-return-fact"><dt>Reviewed</dt><dd><?= h(seller_return_format_dt($rrPanel['reviewed_at'] ?? null)) ?></dd></div>
-                            <div class="seller-return-fact"><dt>Pickup scheduled</dt><dd><?= h(seller_return_format_dt($rrPanel['pickup_scheduled_at'] ?? null)) ?></dd></div>
-                            <div class="seller-return-fact"><dt>Pickup completed</dt><dd><?= h(seller_return_format_dt($rrPanel['pickup_completed_at'] ?? null)) ?></dd></div>
-                            <div class="seller-return-fact"><dt>Resolved</dt><dd><?= h(seller_return_format_dt($rrPanel['resolved_at'] ?? null)) ?></dd></div>
-                          </dl>
-                        </div>
                       </div>
                     </div>
                   </details>
                 <?php endforeach; ?>
               </div>
-            <?php else: ?>
-              <div class="seller-return-empty-state" role="status">
-                <p class="seller-return-empty-state__title">Is order ke liye abhi koi return request nahi mili.</p>
-                <p class="seller-return-empty-state__hint">Customer jab return raise karega, yahan status, pickup aur refund steps dikhenge.</p>
-              </div>
-            <?php endif; ?>
           </div>
         </div>
+        <?php endif; ?>
 
         <div class="card seller-txn-card seller-order-detail-card seller-order-detail-items">
           <div class="card-header seller-txn-card-head">
