@@ -16,6 +16,17 @@ $allowedFilters = ['all', 'shipped', 'out', 'delivered'];
 if (!in_array($statusFilter, $allowedFilters, true)) {
     $statusFilter = 'all';
 }
+$dateFilter = strtolower(trim((string) ($_GET['date_filter'] ?? 'all')));
+$dateFilterMap = [
+    'all' => ['label' => 'All time', 'sql' => ''],
+    'day' => ['label' => 'Last 24 hours', 'sql' => ' AND o.created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)'],
+    'week' => ['label' => 'Last 7 days', 'sql' => ' AND o.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)'],
+    'month' => ['label' => 'Last 30 days', 'sql' => ' AND o.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)'],
+];
+if (!isset($dateFilterMap[$dateFilter])) {
+    $dateFilter = 'all';
+}
+$dateWhereSql = (string) ($dateFilterMap[$dateFilter]['sql'] ?? '');
 
 function seller_shipped_status_chip(string $status): string
 {
@@ -80,8 +91,13 @@ $totalSt = $pdo->prepare(
      WHERE p.seller_id = ?
        AND o.status IN ('shipped', 'out', 'delivered')"
      . ($statusFilter !== 'all' ? ' AND o.status = ?' : '')
+     . $dateWhereSql
 );
-if ($statusFilter === 'all') {
+if ($statusFilter === 'all' && $dateFilter === 'all') {
+    $totalSt->execute([$sellerId]);
+} elseif ($statusFilter !== 'all' && $dateFilter === 'all') {
+    $totalSt->execute([$sellerId, $statusFilter]);
+} elseif ($statusFilter === 'all') {
     $totalSt->execute([$sellerId]);
 } else {
     $totalSt->execute([$sellerId, $statusFilter]);
@@ -116,7 +132,7 @@ $sql = "SELECT oi.id AS order_item_id,
         INNER JOIN products p ON p.id = oi.product_id
         LEFT JOIN users u ON u.id = o.user_id
         WHERE p.seller_id = ?
-          AND o.status IN ('shipped', 'out', 'delivered')";
+          AND o.status IN ('shipped', 'out', 'delivered')" . $dateWhereSql;
 if ($statusFilter !== 'all') {
     $sql .= ' AND o.status = ?';
 }
@@ -131,8 +147,11 @@ if ($statusFilter === 'all') {
 }
 $rows = $rowsSt->fetchAll();
 
-$filterQueryBase = static function (string $script, string $filter, int $page, int $perPage): string {
+$filterQueryBase = static function (string $script, string $filter, string $date, int $page, int $perPage): string {
     $q = ['status' => $filter, 'page' => $page, 'per_page' => $perPage];
+    if ($date !== 'all') {
+        $q['date_filter'] = $date;
+    }
 
     return $script . '?' . http_build_query($q);
 };
@@ -203,7 +222,7 @@ require __DIR__ . '/partials/shell-top.php';
           ];
           foreach ($filters as $key => $label):
               $isActive = $statusFilter === $key;
-              $href = $filterQueryBase('shipped-products.php', $key, 1, $listPerPage);
+              $href = $filterQueryBase('shipped-products.php', $key, $dateFilter, 1, $listPerPage);
               ?>
             <a
               class="seller-shipped-filter<?= $isActive ? ' seller-shipped-filter--active' : '' ?>"
@@ -219,9 +238,27 @@ require __DIR__ . '/partials/shell-top.php';
             <div class="seller-card-head seller-card-head--inventory seller-orders-card-head">
               <div>
                 <h2 class="card-title">Line items</h2>
-                <p class="card-subtitle seller-orders-card-sub"><?= $totalLines === 0 ? 'Abhi is filter par koi shipped line nahi.' : (int) $totalLines . ' line' . ($totalLines === 1 ? '' : 's') . ' · Har row aapka ek product + us order ka live status.' ?></p>
+                <p class="card-subtitle seller-orders-card-sub">
+                  <?php if ($dateFilter === 'all'): ?>
+                    <?= $totalLines === 0 ? 'Abhi is filter par koi shipped line nahi.' : (int) $totalLines . ' line' . ($totalLines === 1 ? '' : 's') . ' · Har row aapka ek product + us order ka live status.' ?>
+                  <?php else: ?>
+                    Showing <strong><?= (int) $totalLines ?></strong> line<?= $totalLines === 1 ? '' : 's' ?> for <strong><?= h((string) ($dateFilterMap[$dateFilter]['label'] ?? 'Selected range')) ?></strong>.
+                  <?php endif; ?>
+                </p>
               </div>
               <div class="seller-inventory-toolbar seller-orders-toolbar">
+                <form method="get" class="seller-orders-date-filter-form">
+                  <input type="hidden" name="status" value="<?= h($statusFilter) ?>">
+                  <input type="hidden" name="page" value="1">
+                  <input type="hidden" name="per_page" value="<?= (int) $listPerPage ?>">
+                  <label class="seller-orders-date-filter-label" for="sellerShippedDateFilter">Date</label>
+                  <select id="sellerShippedDateFilter" name="date_filter" class="seller-orders-date-filter-select" onchange="this.form.submit()">
+                    <option value="all"<?= $dateFilter === 'all' ? ' selected' : '' ?>>All time</option>
+                    <option value="day"<?= $dateFilter === 'day' ? ' selected' : '' ?>>Last 24 hours</option>
+                    <option value="week"<?= $dateFilter === 'week' ? ' selected' : '' ?>>Last 7 days</option>
+                    <option value="month"<?= $dateFilter === 'month' ? ' selected' : '' ?>>Last 30 days</option>
+                  </select>
+                </form>
                 <label class="seller-inventory-search-wrap seller-orders-search" for="sellerShippedSearch">
                   <span class="seller-inventory-search-icon" aria-hidden="true">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>

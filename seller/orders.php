@@ -185,6 +185,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
 
 require_once __DIR__ . '/../admin/_pagination.php';
 
+$ordersDateFilter = strtolower(trim((string) ($_GET['date_filter'] ?? 'all')));
+$ordersDateFilterMap = [
+    'all' => ['label' => 'All time', 'sql' => ''],
+    'day' => ['label' => 'Last 24 hours', 'sql' => ' AND o.created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)'],
+    'week' => ['label' => 'Last 7 days', 'sql' => ' AND o.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)'],
+    'month' => ['label' => 'Last 30 days', 'sql' => ' AND o.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)'],
+];
+if (!isset($ordersDateFilterMap[$ordersDateFilter])) {
+    $ordersDateFilter = 'all';
+}
+$ordersDateWhereSql = (string) ($ordersDateFilterMap[$ordersDateFilter]['sql'] ?? '');
+
 $orderTotalSt = $pdo->prepare(
     "SELECT COUNT(DISTINCT o.id)
      FROM orders o
@@ -194,6 +206,16 @@ $orderTotalSt = $pdo->prepare(
 );
 $orderTotalSt->execute([(int) $seller['id']]);
 $orderTotalCount = (int) $orderTotalSt->fetchColumn();
+
+$orderFilteredTotalSt = $pdo->prepare(
+    "SELECT COUNT(DISTINCT o.id)
+     FROM orders o
+     INNER JOIN order_items oi ON oi.order_id = o.id
+     INNER JOIN products p ON p.id = oi.product_id
+     WHERE p.seller_id = ?" . $ordersDateWhereSql
+);
+$orderFilteredTotalSt->execute([(int) $seller['id']]);
+$orderFilteredCount = (int) $orderFilteredTotalSt->fetchColumn();
 
 $orderStatusSt = $pdo->prepare(
     "SELECT o.status, COUNT(DISTINCT o.id) AS cnt
@@ -223,7 +245,7 @@ while ($row = $orderStatusSt->fetch()) {
 }
 
 ['page' => $ordersListPage, 'perPage' => $ordersPerPage] = admin_pagination_read(25);
-$ordersPageMeta = admin_pagination_resolve($orderTotalCount, $ordersListPage, $ordersPerPage);
+$ordersPageMeta = admin_pagination_resolve($orderFilteredCount, $ordersListPage, $ordersPerPage);
 $ordersPage = $ordersPageMeta['page'];
 $ordersOffset = $ordersPageMeta['offset'];
 $ordersPerPage = $ordersPageMeta['perPage'];
@@ -237,7 +259,7 @@ $st = $pdo->prepare(
      INNER JOIN order_items oi ON oi.order_id = o.id
      INNER JOIN products p ON p.id = oi.product_id
      LEFT JOIN users u ON u.id = o.user_id
-     WHERE p.seller_id = ?
+     WHERE p.seller_id = ?" . $ordersDateWhereSql . "
      GROUP BY o.id, o.order_ref, o.status, o.total_amount, o.payment_method, o.shipping_address, o.created_at,
               u.first_name, u.last_name, u.email
      ORDER BY o.id DESC
@@ -313,12 +335,16 @@ $cancelRequests = $cancelReqSt->fetchAll();
 $returnTotalCount = 0;
 $returnPendingCount = 0;
 $returnOpenCount = 0;
+$returnCompletedCount = 0;
+$returnSellerCancelledCount = 0;
 try {
     $returnKpiSt = $pdo->prepare(
         "SELECT
             COUNT(*) AS total,
             SUM(CASE WHEN LOWER(TRIM(status)) = 'pending' THEN 1 ELSE 0 END) AS pending_n,
-            SUM(CASE WHEN LOWER(TRIM(status)) NOT IN ('rejected', 'refunded') THEN 1 ELSE 0 END) AS open_n
+            SUM(CASE WHEN LOWER(TRIM(status)) NOT IN ('rejected', 'refunded') THEN 1 ELSE 0 END) AS open_n,
+            SUM(CASE WHEN LOWER(TRIM(status)) = 'refunded' THEN 1 ELSE 0 END) AS completed_n,
+            SUM(CASE WHEN LOWER(TRIM(status)) = 'rejected' THEN 1 ELSE 0 END) AS seller_cancelled_n
          FROM user_return_requests
          WHERE seller_id = ?"
     );
@@ -327,14 +353,22 @@ try {
     $returnTotalCount = (int) ($returnKpiRow['total'] ?? 0);
     $returnPendingCount = (int) ($returnKpiRow['pending_n'] ?? 0);
     $returnOpenCount = (int) ($returnKpiRow['open_n'] ?? 0);
+    $returnCompletedCount = (int) ($returnKpiRow['completed_n'] ?? 0);
+    $returnSellerCancelledCount = (int) ($returnKpiRow['seller_cancelled_n'] ?? 0);
 } catch (Throwable) {
     $returnTotalCount = 0;
     $returnPendingCount = 0;
     $returnOpenCount = 0;
+    $returnCompletedCount = 0;
+    $returnSellerCancelledCount = 0;
 }
 
 $orderCount = $orderTotalCount;
-$ordersFormAction = 'orders.php?' . http_build_query(['page' => $ordersPage, 'per_page' => $ordersPerPage]);
+$ordersFormQuery = ['page' => $ordersPage, 'per_page' => $ordersPerPage];
+if ($ordersDateFilter !== 'all') {
+    $ordersFormQuery['date_filter'] = $ordersDateFilter;
+}
+$ordersFormAction = 'orders.php?' . http_build_query($ordersFormQuery);
 
 function seller_order_status_chip_modifier(string $status): string
 {
@@ -464,7 +498,7 @@ require __DIR__ . '/partials/shell-top.php';
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/></svg>
             </div>
           </div>
-          <div class="seller-kpi-card seller-kpi-card--revenue">
+          <div class="seller-kpi-card seller-kpi-card--kpi-yellow">
             <div>
               <div class="seller-kpi-card__label">Needs confirm</div>
               <div class="seller-kpi-card__value"><?= (int) $processingCount ?></div>
@@ -474,7 +508,7 @@ require __DIR__ . '/partials/shell-top.php';
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
             </div>
           </div>
-          <div class="seller-kpi-card seller-kpi-card--products">
+          <div class="seller-kpi-card seller-kpi-card--kpi-orange">
             <div>
               <div class="seller-kpi-card__label">In transit</div>
               <div class="seller-kpi-card__value"><?= (int) $inTransitCount ?></div>
@@ -484,7 +518,7 @@ require __DIR__ . '/partials/shell-top.php';
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h13v10H3z"/><path d="M16 10h3l2 2v5h-5z"/></svg>
             </div>
           </div>
-          <div class="seller-kpi-card seller-kpi-card--orders">
+          <div class="seller-kpi-card seller-kpi-card--kpi-green">
             <div>
               <div class="seller-kpi-card__label">Delivered</div>
               <div class="seller-kpi-card__value"><?= (int) $deliveredCount ?></div>
@@ -506,7 +540,7 @@ require __DIR__ . '/partials/shell-top.php';
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
             </div>
           </div>
-          <div class="seller-kpi-card seller-kpi-card--revenue">
+          <div class="seller-kpi-card seller-kpi-card--kpi-yellow">
             <div>
               <div class="seller-kpi-card__label">Open returns</div>
               <div class="seller-kpi-card__value"><?= (int) $returnOpenCount ?></div>
@@ -522,6 +556,26 @@ require __DIR__ . '/partials/shell-top.php';
             </div>
             <div class="seller-kpi-card__icon" aria-hidden="true">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+            </div>
+          </div>
+          <div class="seller-kpi-card seller-kpi-card--kpi-green">
+            <div>
+              <div class="seller-kpi-card__label">Return completed</div>
+              <div class="seller-kpi-card__value"><?= (int) $returnCompletedCount ?></div>
+              <div class="seller-kpi-card__hint">Refund completed and closed</div>
+            </div>
+            <div class="seller-kpi-card__icon" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+          </div>
+          <div class="seller-kpi-card seller-kpi-card--returns-cancelled">
+            <div>
+              <div class="seller-kpi-card__label">Seller cancelled return</div>
+              <div class="seller-kpi-card__value"><?= (int) $returnSellerCancelledCount ?></div>
+              <div class="seller-kpi-card__hint">Rejected by seller</div>
+            </div>
+            <div class="seller-kpi-card__icon" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
             </div>
           </div>
         </div>
@@ -595,9 +649,26 @@ require __DIR__ . '/partials/shell-top.php';
             <div class="seller-card-head seller-card-head--inventory seller-orders-card-head">
               <div>
                 <h2 class="card-title">Order list</h2>
-                <p class="card-subtitle seller-orders-card-sub"><?= $orderCount === 0 ? 'Orders with your products will show here.' : (int) $orderCount . ' order' . ($orderCount === 1 ? '' : 's') . ' total · Auto-refresh keeps the list current.' ?></p>
+                <p class="card-subtitle seller-orders-card-sub">
+                  <?php if ($ordersDateFilter === 'all'): ?>
+                    <?= $orderCount === 0 ? 'Orders with your products will show here.' : (int) $orderCount . ' order' . ($orderCount === 1 ? '' : 's') . ' total · Auto-refresh keeps the list current.' ?>
+                  <?php else: ?>
+                    Showing <strong><?= (int) $orderFilteredCount ?></strong> order<?= $orderFilteredCount === 1 ? '' : 's' ?> for <strong><?= h((string) ($ordersDateFilterMap[$ordersDateFilter]['label'] ?? 'Selected range')) ?></strong>.
+                  <?php endif; ?>
+                </p>
               </div>
               <div class="seller-inventory-toolbar seller-orders-toolbar">
+                <form method="get" class="seller-orders-date-filter-form">
+                  <input type="hidden" name="page" value="1">
+                  <input type="hidden" name="per_page" value="<?= (int) $ordersPerPage ?>">
+                  <label class="seller-orders-date-filter-label" for="sellerOrdersDateFilter">Date</label>
+                  <select id="sellerOrdersDateFilter" name="date_filter" class="seller-orders-date-filter-select" onchange="this.form.submit()">
+                    <option value="all"<?= $ordersDateFilter === 'all' ? ' selected' : '' ?>>All time</option>
+                    <option value="day"<?= $ordersDateFilter === 'day' ? ' selected' : '' ?>>Last 24 hours</option>
+                    <option value="week"<?= $ordersDateFilter === 'week' ? ' selected' : '' ?>>Last 7 days</option>
+                    <option value="month"<?= $ordersDateFilter === 'month' ? ' selected' : '' ?>>Last 30 days</option>
+                  </select>
+                </form>
                 <label class="seller-inventory-search-wrap seller-orders-search" for="sellerOrdersSearch">
                   <span class="seller-inventory-search-icon" aria-hidden="true">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
@@ -765,7 +836,7 @@ require __DIR__ . '/partials/shell-top.php';
             </div>
             <?php
             $paginationScript = 'orders.php';
-            $paginationTotal = $orderTotalCount;
+            $paginationTotal = $orderFilteredCount;
             $paginationPage = $ordersPage;
             $paginationPerPage = $ordersPerPage;
             $paginationTotalPages = $ordersTotalPages;
