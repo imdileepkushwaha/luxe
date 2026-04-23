@@ -1666,6 +1666,7 @@ function initThemeToggle() {
       if (!r.ok && data && !data.message) {
         data.message = "Request failed (HTTP " + r.status + ").";
       }
+      data._httpStatus = r.status;
       return data;
     }).then(data => {
       if (!data) return;
@@ -1681,7 +1682,11 @@ function initThemeToggle() {
           showToast("📧 Check your inbox for the 4-digit code.");
         }
       } else {
-        showToast(data.message || "Could not send verification code.");
+        const msg = data.message || "Could not send verification code.";
+        if (data._httpStatus === 409 || data.code === "email_taken") {
+          setError("rg-email-group", "rg-email-err", msg);
+        }
+        showToast(msg);
       }
     }).catch(() => {
       setLoading("regSubmitBtn", "regLoader", false);
@@ -3552,7 +3557,9 @@ function initThemeToggle() {
   let editing = false;
   if (profileForm) window.toggleEdit = function() {
     editing = !editing;
-    document.querySelectorAll("#profileForm input, #profileForm select").forEach(el => el.disabled = !editing);
+    document.querySelectorAll("#profileForm input:not(#email):not(#phone), #profileForm select").forEach(el => {
+      el.disabled = !editing;
+    });
     document.getElementById("formActions").classList.toggle("hidden", !editing);
     document.getElementById("editToggle").textContent = editing ? "✕ Cancel" : "✏️ Edit";
   };
@@ -3562,13 +3569,11 @@ function initThemeToggle() {
       e.preventDefault();
       const first = document.getElementById("firstName").value.trim();
       const last = document.getElementById("lastName").value.trim();
-      const email = document.getElementById("email").value.trim();
-      const phone = document.getElementById("phone").value.trim();
       const dob = document.getElementById("dob").value.trim();
       const genderEl = document.getElementById("gender");
       const gender = genderEl ? genderEl.value : "";
-      if (!first || !last || !email) {
-        showToast("❌ Please fill first name, last name, and email.");
+      if (!first || !last) {
+        showToast("❌ Please fill first and last name.");
         return;
       }
       const url = typeof window.__API_PROFILE_UPDATE__ === "string"
@@ -3578,7 +3583,7 @@ function initThemeToggle() {
         const r = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ first_name: first, last_name: last, email, phone, dob, gender }),
+          body: JSON.stringify({ first_name: first, last_name: last, dob, gender }),
           credentials: "same-origin",
         });
         const j = await r.json().catch(() => ({}));
@@ -3588,19 +3593,264 @@ function initThemeToggle() {
         }
         document.getElementById("profileName").textContent = `${first} ${last}`;
         document.getElementById("avatarEl").textContent = (first[0] || "?").toUpperCase();
-        document.getElementById("profileEmail").textContent = email;
+        const emailEl = document.getElementById("email");
         const phoneEl = document.getElementById("phone");
+        if (typeof j.email === "string" && emailEl) {
+          emailEl.value = j.email;
+          const pe = document.getElementById("profileEmail");
+          if (pe) pe.textContent = j.email;
+        }
+        if (typeof j.phone === "string" && phoneEl) phoneEl.value = j.phone;
         const dobEl = document.getElementById("dob");
-        if (phoneEl && typeof j.phone === "string") phoneEl.value = j.phone;
         if (dobEl) dobEl.value = j.dob && typeof j.dob === "string" ? j.dob : "";
         if (genderEl) {
           const g = j.gender;
           genderEl.value = g === "male" || g === "female" || g === "other" ? g : "other";
         }
+        const evChip = document.getElementById("emailVerifiedChip");
+        if (evChip && typeof j.email_verified === "boolean") {
+          evChip.textContent = j.email_verified ? "✓ Verified" : "Pending";
+          evChip.classList.toggle("profile-verified-chip--pending", !j.email_verified);
+          evChip.title = j.email_verified ? "Email confirmed" : "Confirm pending";
+        }
+        const pvChip = document.getElementById("phoneVerifiedChip");
+        if (pvChip && typeof j.phone_verified === "boolean") {
+          pvChip.textContent = j.phone_verified ? "✓ Verified" : "Verify";
+          pvChip.classList.toggle("profile-verified-chip--pending", !j.phone_verified);
+          pvChip.title = j.phone_verified ? "Mobile verified" : "Verify mobile";
+        }
         toggleEdit();
         showToast("✅ Profile updated successfully!");
       } catch (_err) {
         showToast("❌ Network error. Try again.");
+      }
+    };
+
+    function profileMaskEmail(em) {
+      const s = (em || "").trim();
+      const at = s.indexOf("@");
+      if (at <= 0) return s || "—";
+      const local = s.slice(0, at);
+      const dom = s.slice(at);
+      const show = local.length <= 2 ? local[0] || "•" : local[0] + "***" + local.slice(-1);
+      return show + dom;
+    }
+
+    function profileSetEmailChip(verified) {
+      const el = document.getElementById("emailVerifiedChip");
+      if (!el) return;
+      el.textContent = verified ? "✓ Verified" : "Pending";
+      el.classList.toggle("profile-verified-chip--pending", !verified);
+      el.title = verified ? "Email confirmed" : "Confirm pending";
+    }
+
+    function profileSetPhoneChip(verified) {
+      const el = document.getElementById("phoneVerifiedChip");
+      if (!el) return;
+      el.textContent = verified ? "✓ Verified" : "Verify";
+      el.classList.toggle("profile-verified-chip--pending", !verified);
+      el.title = verified ? "Mobile verified" : "Verify mobile";
+    }
+
+    window.openEmailChangeModal = function() {
+      const m = document.getElementById("emailChangeModal");
+      if (!m) return;
+      document.getElementById("emailChangeNew").value = "";
+      document.getElementById("emailChangeCode").value = "";
+      document.getElementById("emailChangeStep2").classList.add("hidden");
+      m.classList.remove("hidden");
+      setTimeout(() => document.getElementById("emailChangeNew")?.focus(), 50);
+    };
+    window.closeEmailChangeModal = function() {
+      document.getElementById("emailChangeModal")?.classList.add("hidden");
+    };
+    window.profileEmailSendCode = async function() {
+      const newEmail = (document.getElementById("emailChangeNew")?.value || "").trim();
+      if (!newEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+        showToast("❌ Please enter a valid new email.");
+        return;
+      }
+      const url = window.__API_PROFILE_EMAIL_SEND__ || "actions/profile-email-change-send.php";
+      const btn = document.getElementById("emailChangeSendBtn");
+      if (btn) btn.disabled = true;
+      try {
+        const r = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ new_email: newEmail }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!j.ok) {
+          showToast("❌ " + (j.message || "Could not send the code."));
+          return;
+        }
+        document.getElementById("emailChangeStep2")?.classList.remove("hidden");
+        const hint = document.getElementById("emailChangeHint");
+        if (hint) hint.textContent = "Code sent to " + (j.email_hint || newEmail);
+        if (j.dev_code) showToast((j.dev_note || "Code") + " — " + j.dev_code);
+        else showToast("📧 Check the inbox of your new email.");
+        document.getElementById("emailChangeCode")?.focus();
+      } catch (_e) {
+        showToast("❌ Network error.");
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    };
+    window.profileEmailVerifyCode = async function() {
+      const code = (document.getElementById("emailChangeCode")?.value || "").replace(/\D/g, "");
+      if (code.length !== 4) {
+        showToast("❌ Enter the 4-digit code.");
+        return;
+      }
+      const url = window.__API_PROFILE_EMAIL_VERIFY__ || "actions/profile-email-change-verify.php";
+      const btn = document.getElementById("emailChangeVerifyBtn");
+      if (btn) btn.disabled = true;
+      try {
+        const r = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ code }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!j.ok) {
+          showToast("❌ " + (j.message || "Verification failed."));
+          return;
+        }
+        const em = document.getElementById("email");
+        if (em && j.email) em.value = j.email;
+        const pe = document.getElementById("profileEmail");
+        if (pe && j.email) pe.textContent = j.email;
+        profileSetEmailChip(true);
+        closeEmailChangeModal();
+        showToast("✅ " + (j.message || "Email updated."));
+      } catch (_e) {
+        showToast("❌ Network error.");
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    };
+    window.profileEmailResend = async function() {
+      const url = window.__API_PROFILE_EMAIL_SEND__ || "actions/profile-email-change-send.php";
+      try {
+        const r = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ resend: true }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!j.ok) {
+          showToast("❌ " + (j.message || "Resend fail."));
+          return;
+        }
+        if (j.dev_code) showToast((j.dev_note || "New code") + " — " + j.dev_code);
+        else showToast("📧 A new code has been sent.");
+      } catch (_e) {
+        showToast("❌ Network error.");
+      }
+    };
+
+    window.openPhoneChangeModal = function() {
+      const m = document.getElementById("phoneChangeModal");
+      if (!m) return;
+      const cur = (document.getElementById("phone")?.value || "").trim();
+      document.getElementById("phoneChangeNew").value = cur;
+      document.getElementById("phoneChangeCode").value = "";
+      document.getElementById("phoneChangeStep2").classList.add("hidden");
+      const maskEl = document.getElementById("phoneChangeEmailMask");
+      const accEm = (document.getElementById("email")?.value || "").trim();
+      if (maskEl) maskEl.textContent = profileMaskEmail(accEm);
+      m.classList.remove("hidden");
+      setTimeout(() => document.getElementById("phoneChangeNew")?.focus(), 50);
+    };
+    window.closePhoneChangeModal = function() {
+      document.getElementById("phoneChangeModal")?.classList.add("hidden");
+    };
+    window.profilePhoneSendCode = async function() {
+      const newPhone = (document.getElementById("phoneChangeNew")?.value || "").trim();
+      if (!newPhone) {
+        showToast("❌ Enter a mobile number.");
+        return;
+      }
+      const url = window.__API_PROFILE_PHONE_SEND__ || "actions/profile-phone-change-send.php";
+      const btn = document.getElementById("phoneChangeSendBtn");
+      if (btn) btn.disabled = true;
+      try {
+        const r = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ new_phone: newPhone }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!j.ok) {
+          showToast("❌ " + (j.message || "Could not send the OTP."));
+          return;
+        }
+        document.getElementById("phoneChangeStep2")?.classList.remove("hidden");
+        const hint = document.getElementById("phoneChangeHint");
+        if (hint) hint.textContent = "OTP sent to " + (j.email_hint || "your registered email");
+        if (j.dev_code) showToast((j.dev_note || "Code") + " — " + j.dev_code);
+        else showToast("📧 Check your registered email inbox.");
+        document.getElementById("phoneChangeCode")?.focus();
+      } catch (_e) {
+        showToast("❌ Network error.");
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    };
+    window.profilePhoneVerifyCode = async function() {
+      const code = (document.getElementById("phoneChangeCode")?.value || "").replace(/\D/g, "");
+      if (code.length !== 4) {
+        showToast("❌ Enter the 4-digit OTP.");
+        return;
+      }
+      const url = window.__API_PROFILE_PHONE_VERIFY__ || "actions/profile-phone-change-verify.php";
+      const btn = document.getElementById("phoneChangeVerifyBtn");
+      if (btn) btn.disabled = true;
+      try {
+        const r = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ code }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!j.ok) {
+          showToast("❌ " + (j.message || "Verification failed."));
+          return;
+        }
+        const ph = document.getElementById("phone");
+        if (ph && j.phone) ph.value = j.phone;
+        profileSetPhoneChip(true);
+        closePhoneChangeModal();
+        showToast("✅ " + (j.message || "Mobile number verified."));
+      } catch (_e) {
+        showToast("❌ Network error.");
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    };
+    window.profilePhoneResend = async function() {
+      const url = window.__API_PROFILE_PHONE_SEND__ || "actions/profile-phone-change-send.php";
+      try {
+        const r = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ resend: true }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!j.ok) {
+          showToast("❌ " + (j.message || "Resend fail."));
+          return;
+        }
+        if (j.dev_code) showToast((j.dev_note || "New code") + " — " + j.dev_code);
+        else showToast("📧 A new OTP has been sent.");
+      } catch (_e) {
+        showToast("❌ Network error.");
       }
     };
 

@@ -83,11 +83,11 @@ function luxe_signup_email_skip_send(): bool
 }
 
 /**
- * Send signup verification email, or skip on localhost / when configured.
+ * Send a 4-digit OTP by email (signup, profile email/phone flows).
  *
  * @return array{ok: bool, dev_code: ?string, dev_note: ?string}
  */
-function luxe_deliver_signup_verification_code(string $to, string $code): array
+function luxe_deliver_verification_code_email(string $to, string $subject, string $code, string $footerSentence): array
 {
     if (luxe_signup_email_skip_send()) {
         return [
@@ -102,14 +102,14 @@ function luxe_deliver_signup_verification_code(string $to, string $code): array
     $smtpCfg = is_array($mailCfg['smtp'] ?? null) ? $mailCfg['smtp'] : [];
     $host = trim((string) ($smtpCfg['host'] ?? ''));
 
-    $subject = 'Your LUXE sign-up code';
     $safeCode = h($code);
+    $safeFooter = h($footerSentence);
     $html = '<!DOCTYPE html><html><body style="font-family:system-ui,sans-serif;line-height:1.5;color:#1e1e3a;">'
         . '<p>Your verification code is:</p>'
         . '<p style="font-size:28px;font-weight:700;letter-spacing:0.25em;">' . $safeCode . '</p>'
-        . '<p>This code expires in <strong>15 minutes</strong>. If you did not sign up for LUXE, ignore this email.</p>'
+        . '<p>This code expires in <strong>15 minutes</strong>. ' . $safeFooter . '</p>'
         . '</body></html>';
-    $plain = "Your LUXE verification code is {$code}. It expires in 15 minutes.\n";
+    $plain = "Your LUXE verification code is {$code}. It expires in 15 minutes. {$footerSentence}\n";
 
     if ($host !== '') {
         $autoload = dirname(__DIR__) . '/vendor/autoload.php';
@@ -196,4 +196,19 @@ function luxe_deliver_signup_verification_code(string $to, string $code): array
         'dev_code' => null,
         'dev_note' => null,
     ];
+}
+
+/**
+ * Send signup verification email, or skip on localhost / when configured.
+ *
+ * @return array{ok: bool, dev_code: ?string, dev_note: ?string}
+ */
+function luxe_deliver_signup_verification_code(string $to, string $code): array
+{
+    return luxe_deliver_verification_code_email(
+        $to,
+        'Your LUXE sign-up code',
+        $code,
+        'If you did not sign up for LUXE, ignore this email.'
+    );
 }

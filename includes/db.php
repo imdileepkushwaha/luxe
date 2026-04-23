@@ -34,6 +34,55 @@ function db_ensure_user_profile_columns(PDO $pdo): void
 }
 
 /**
+ * Tracks customer email confirmation; login is blocked until set (see actions/login.php).
+ */
+function db_ensure_user_email_verified_at_column(PDO $pdo): void
+{
+    try {
+        $dbName = (string) $pdo->query('SELECT DATABASE()')->fetchColumn();
+        if ($dbName === '') {
+            return;
+        }
+        $chk = $pdo->prepare(
+            'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $chk->execute([$dbName, 'users', 'email_verified_at']);
+        if (!$chk->fetchColumn()) {
+            $pdo->exec('ALTER TABLE users ADD COLUMN email_verified_at DATETIME NULL DEFAULT NULL AFTER created_at');
+        }
+        // Existing accounts (created before this column) can keep signing in.
+        $pdo->exec('UPDATE users SET email_verified_at = created_at WHERE email_verified_at IS NULL');
+    } catch (Throwable) {
+        // Missing permissions or non-MySQL: rely on manual migrations
+    }
+}
+
+function db_ensure_user_phone_verified_at_column(PDO $pdo): void
+{
+    try {
+        $dbName = (string) $pdo->query('SELECT DATABASE()')->fetchColumn();
+        if ($dbName === '') {
+            return;
+        }
+        $chk = $pdo->prepare(
+            'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $chk->execute([$dbName, 'users', 'phone_verified_at']);
+        if (!$chk->fetchColumn()) {
+            $pdo->exec('ALTER TABLE users ADD COLUMN phone_verified_at DATETIME NULL DEFAULT NULL AFTER email_verified_at');
+        }
+        $pdo->exec(
+            "UPDATE users SET phone_verified_at = COALESCE(phone_verified_at, created_at)
+             WHERE phone_verified_at IS NULL AND TRIM(COALESCE(phone, '')) <> ''"
+        );
+    } catch (Throwable) {
+        // Missing permissions or non-MySQL: rely on manual migrations
+    }
+}
+
+/**
  * Ensures admin table exists with one default admin account for first-time setup.
  */
 function db_ensure_admin_users_table(PDO $pdo): void
@@ -1177,6 +1226,8 @@ function db(): PDO
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     ]);
     db_ensure_user_profile_columns($pdo);
+    db_ensure_user_email_verified_at_column($pdo);
+    db_ensure_user_phone_verified_at_column($pdo);
     db_ensure_admin_users_table($pdo);
     db_ensure_account_deletion_requests($pdo);
     db_ensure_seller_account_deletion_requests($pdo);

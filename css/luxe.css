@@ -5360,6 +5360,20 @@ label {
         transform: none;
     }
 }
+
+:root[data-theme="light"] .forgot-overlay {
+    background: linear-gradient(165deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.96) 100%);
+    box-shadow:
+        inset 0 0 0 1px rgba(139, 92, 246, 0.12),
+        0 24px 56px rgba(15, 23, 42, 0.1);
+    backdrop-filter: blur(12px);
+}
+
+:root[data-theme="light"] .forgot-overlay .submit-btn,
+:root[data-theme="light"] .forgot-overlay .submit-btn:hover {
+    color: #ffffff;
+}
+
 .forgot-back {
     background: none;
     border: none;
@@ -9076,6 +9090,60 @@ html[data-theme="light"] .desc-text .desc-body blockquote {
     color: var(--text-dim);
 }
 
+.profile-contact-field .profile-contact-input-wrap {
+    position: relative;
+    width: 100%;
+}
+.profile-contact-field .profile-contact-input-wrap .profile-contact-readonly {
+    width: 100%;
+    box-sizing: border-box;
+    padding-right: 6.75rem;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    opacity: 0.95;
+    cursor: default;
+}
+.profile-contact-field .profile-contact-input-wrap .profile-verified-chip {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 1;
+    max-width: min(42%, 7.5rem);
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 4px 9px;
+    border-radius: 99px;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+    line-height: 1.2;
+    background: rgba(22, 163, 74, 0.35);
+    border: 1px solid rgba(74, 222, 128, 0.55);
+    color: #ecfdf5;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+.profile-contact-field .profile-contact-input-wrap .profile-verified-chip--pending {
+    background: rgba(245, 158, 11, 0.28);
+    border: 1px solid rgba(251, 191, 36, 0.55);
+    color: #fffbeb;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+}
+.profile-contact-btn {
+    margin-top: 4px;
+    font-size: 0.85rem;
+    padding: 8px 14px;
+}
+.profile-contact-note {
+    margin: 8px 0 0;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    line-height: 1.45;
+    max-width: 520px;
+}
+
 .profile-stats {
     display: flex;
     align-items: center;
@@ -10308,6 +10376,18 @@ html[data-theme="light"] .desc-text .desc-body blockquote {
     background: #fee2e2;
     border-color: #fca5a5;
 }
+:root[data-theme="light"] .profile-contact-field .profile-contact-input-wrap .profile-verified-chip {
+    background: #dcfce7;
+    border: 1px solid #22c55e;
+    color: #14532d;
+    box-shadow: none;
+}
+:root[data-theme="light"] .profile-contact-field .profile-contact-input-wrap .profile-verified-chip--pending {
+    background: #fef3c7;
+    border: 1px solid #f59e0b;
+    color: #92400e;
+    box-shadow: none;
+}
 :root[data-theme="light"] .profile-review-seller-reply {
     background: rgba(139, 92, 246, 0.06);
     border-color: rgba(109, 40, 217, 0.22);
@@ -10718,12 +10798,17 @@ html[data-theme="light"] .desc-text .desc-body blockquote {
 }
 
 :root[data-theme="light"] .nav-login-btn {
-    background: rgba(139, 92, 246, 0.16);
-    color: #5b21b6;
+    background: linear-gradient(180deg, #ffffff 0%, #f1f5ff 100%);
+    border-color: rgba(91, 33, 182, 0.45);
+    color: #4c1d95;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
 }
 
 :root[data-theme="light"] .nav-login-btn:hover {
+    background: linear-gradient(135deg, #7c3aed, #db2777);
+    border-color: transparent;
     color: #ffffff;
+    box-shadow: 0 8px 24px rgba(124, 58, 237, 0.32);
 }
 
 :root[data-theme="light"] .cart-btn {

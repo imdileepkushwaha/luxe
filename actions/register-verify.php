@@ -70,11 +70,17 @@ try {
     if ($st->fetch()) {
         unset($_SESSION['signup_pending']);
         http_response_code(409);
-        echo json_encode(['ok' => false, 'message' => 'An account with this email already exists.']);
+        echo json_encode([
+            'ok' => false,
+            'code' => 'email_taken',
+            'message' => 'This email is already registered. Sign in or use a different email.',
+        ]);
         exit;
     }
 
-    $ins = $pdo->prepare('INSERT INTO users (email, password_hash, first_name, last_name) VALUES (?,?,?,?)');
+    $ins = $pdo->prepare(
+        'INSERT INTO users (email, password_hash, first_name, last_name, email_verified_at) VALUES (?,?,?,?, CURRENT_TIMESTAMP)'
+    );
     $ins->execute([$email, $passwordHash, $fname, $lname]);
     unset($_SESSION['signup_pending']);
     auth_set_user((int) $pdo->lastInsertId());
