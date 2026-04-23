@@ -98,8 +98,8 @@ img {
 
 /* ===================== CUSTOM CURSOR ===================== */
 .cursor-dot {
-    width: 8px;
-    height: 8px;
+    width: 9px;
+    height: 9px;
     background: var(--primary);
     border-radius: 50%;
     position: fixed;
@@ -108,11 +108,16 @@ img {
     pointer-events: none;
     z-index: 9999;
     transform: translate(-50%, -50%);
-    transition: transform 0.1s;
+    opacity: 0;
+    box-shadow: 0 0 18px rgba(139, 92, 246, 0.55);
+    will-change: left, top, opacity, transform;
+    transition:
+        opacity 0.22s ease,
+        transform 0.22s ease;
 }
 .cursor-ring {
-    width: 32px;
-    height: 32px;
+    width: 34px;
+    height: 34px;
     border: 2px solid var(--primary);
     border-radius: 50%;
     position: fixed;
@@ -121,13 +126,38 @@ img {
     pointer-events: none;
     z-index: 9998;
     transform: translate(-50%, -50%);
-    transition: all 0.15s ease;
-    opacity: 0.6;
+    transition:
+        transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+        border-color 0.24s ease,
+        opacity 0.22s ease;
+    opacity: 0;
+    will-change: left, top, opacity, transform;
+}
+.cursor-dot.is-visible,
+.cursor-ring.is-visible {
+    opacity: 1;
 }
 .cursor-ring.hover {
-    transform: translate(-50%, -50%) scale(1.6);
+    transform: translate(-50%, -50%) scale(1.45);
     opacity: 1;
     border-color: var(--accent2);
+}
+.cursor-ring.pressed {
+    transform: translate(-50%, -50%) scale(1.1);
+    border-color: var(--primary-light);
+}
+
+/* Touch devices: disable custom cursor and restore native cursor behavior */
+@media (hover: none), (pointer: coarse) {
+    .cursor-dot,
+    .cursor-ring {
+        display: none !important;
+    }
+    html,
+    body,
+    body * {
+        cursor: auto !important;
+    }
 }
 
 /* Fixed background layer (login, product, cart, etc.) */
@@ -376,7 +406,7 @@ img {
     gap: 40px;
 }
 .nav-logo {
-    font-size: 1.8rem;
+    font-size: 2.5rem;
     font-weight: 900;
     letter-spacing: 0.15em;
     background: var(--gradient);
@@ -631,8 +661,8 @@ img {
     color: rgba(255, 255, 255, 0.8);
 }
 .index-page .nav-kart-main {
-    padding-top: 12px;
-    padding-bottom: 12px;
+    padding-top: 15px;
+    padding-bottom: 15px;
     gap: 16px;
 }
 .index-page .nav-kart-search {
@@ -9851,7 +9881,7 @@ html[data-theme="light"] .desc-text .desc-body blockquote {
     gap: 4px;
 }
 .wi-name {
-    font-family: "Playfair Display", Georgia, serif;
+    /* font-family: "Playfair Display", Georgia, serif; */
     font-size: 1.02rem;
     font-weight: 600;
     color: var(--white);
