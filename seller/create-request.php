@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/signup_mail.php';
+require_once __DIR__ . '/../includes/notification_mail.php';
 
 $pdo = db();
 $error = '';
@@ -87,6 +88,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 'pending',
                             ]);
 
+                            luxe_send_welcome_email(
+                                $email,
+                                (string) ($pendingForm['full_name'] ?? ''),
+                                'seller'
+                            );
                             unset($_SESSION['seller_create_verify']);
                             $success = 'Registration request submit ho gayi. Admin approval ke baad seller panel login karke KYC + bank details fill karein.';
                             foreach ($form as $key => $_) {

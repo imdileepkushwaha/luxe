@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/cart_session.php';
 require_once __DIR__ . '/../includes/coupons.php';
+require_once __DIR__ . '/../includes/notification_mail.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -234,6 +235,21 @@ try {
     $_SESSION['cart'] = [];
     unset($_SESSION['checkout']);
     $pdo->commit();
+    try {
+        $userSt = $pdo->prepare(
+            "SELECT email, COALESCE(NULLIF(TRIM(CONCAT(COALESCE(first_name, ''), ' ', COALESCE(last_name, ''))), ''), 'Customer') AS customer_name
+             FROM users WHERE id = ? LIMIT 1"
+        );
+        $userSt->execute([$userId]);
+        $userRow = $userSt->fetch(PDO::FETCH_ASSOC) ?: null;
+        $userEmail = trim((string) ($userRow['email'] ?? ''));
+        if ($userEmail !== '') {
+            $customerName = trim((string) ($userRow['customer_name'] ?? 'Customer'));
+            luxe_send_order_update_email($userEmail, $customerName, $ref, 'processing');
+        }
+    } catch (Throwable $mailErr) {
+        error_log('LUXE order mail send failed: ' . $mailErr->getMessage());
+    }
     echo json_encode(['ok' => true, 'order_ref' => $ref]);
 } catch (Throwable $e) {
     if (isset($pdo) && $pdo->inTransaction()) {

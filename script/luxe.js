@@ -3243,6 +3243,24 @@ function initThemeToggle() {
     const st = String(order?.status || "").toLowerCase();
     return ["processing", "confirmed", "shipped"].includes(st);
   }
+  function cancelRequestStatus(order) {
+    const cr = order?.cancelRequest;
+    if (!cr || typeof cr !== "object") return "none";
+    const st = String(cr.status || "").toLowerCase();
+    if (["pending", "approved", "rejected"].includes(st)) return st;
+    return "none";
+  }
+  function canRequestCancel(order) {
+    const st = cancelRequestStatus(order);
+    return st === "none" || st === "rejected";
+  }
+  function cancelRequestReasonText(order) {
+    const cr = order?.cancelRequest;
+    if (!cr || typeof cr !== "object") return "";
+    const sellerReason = String(cr.sellerReason || "").trim();
+    if (sellerReason) return sellerReason;
+    return "Seller rejected this cancellation request.";
+  }
   function escHtml(v) {
     return String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
@@ -3273,12 +3291,21 @@ function initThemeToggle() {
       const returnableItems = (order.items || []).filter(item => canRequestReturn(item));
       const hasAnyReturnInProgress = (order.items || []).some(item => hasReturnInProgress(item));
       const hasAnyReturnCompleted = (order.items || []).some(item => hasReturnCompleted(item));
-      const canCancel = order.status === "processing" || order.status === "confirmed" || order.status === "shipped";
+      const canCancelByOrderStage = order.status === "processing" || order.status === "confirmed" || order.status === "shipped";
+      const cancelStatus = cancelRequestStatus(order);
+      const canCancel = canCancelByOrderStage && canRequestCancel(order);
       const helpBtn = isHelpEligibleOrder(order)
         ? `<button class="action-btn secondary" onclick="openOrderEnquiryForm('${order.id}')">Need Help</button>`
         : "";
       const cancelBtn = canCancel
-        ? `<button class="action-btn secondary" onclick="openOrderCancelForm('${order.id}')">Cancel Order</button>`
+        ? `<button class="action-btn secondary" onclick="openOrderCancelForm('${order.id}')">${cancelStatus === "rejected" ? "Request Cancel Again" : "Cancel Order"}</button>`
+        : (canCancelByOrderStage && cancelStatus === "pending")
+          ? `<button class="action-btn secondary is-disabled" type="button" disabled title="Cancellation request already pending">Cancel Request Pending</button>`
+          : "";
+      const cancelInfoHtml = cancelStatus === "rejected"
+        ? `<div style="margin-top:8px;padding:9px 10px;border:1px solid rgba(239,68,68,.35);border-radius:10px;background:rgba(239,68,68,.08);font-size:.78rem;color:#fecaca">
+            <strong style="color:#fca5a5">Cancel request rejected:</strong> ${escHtml(cancelRequestReasonText(order))}
+          </div>`
         : "";
       const invoiceBtn = order.status === "delivered"
         ? `<a class="action-btn secondary" href="download-invoice.php?order_ref=${encodeURIComponent(order.id)}">Download Invoice</a>`
@@ -3335,6 +3362,7 @@ function initThemeToggle() {
         }).join("")}${extra > 0 ? `<span class="order-more-items">+${extra} more</span>` : ""}</div>
         ${order.status !== "cancelled" ? `<div class="tracking-section"><div class="tracking-label">📍 Item-wise Order Progress</div>${itemProgressHtml}${(order.items || []).length > 3 ? `<div style="font-size:0.76rem;color:var(--text-dim)">+${order.items.length - 3} more item(s)</div>` : ""}</div>` : ""}
         ${returnProgressHtml}
+        ${cancelInfoHtml}
         <div class="order-card-footer"><div class="order-total-info"><span class="order-total-label">Order Total</span><span class="order-total-val">₹${order.total.toLocaleString()}</span></div>
         <div class="order-card-actions">${order.status === "delivered" && reviewableItems.length > 0 ? `<button class="action-btn secondary" onclick="openOrderReviewForm('${order.id}')">Rate & Review</button>` : ""}${helpBtn}${invoiceBtn}${cancelBtn}${returnBtn}<button class="action-btn primary" onclick="viewDetail('${order.id}')">View Details →</button></div></div>
       </div>`;
@@ -3409,7 +3437,15 @@ function initThemeToggle() {
           ${enquiryItemsHtml}
         </div>`
       : "";
-    document.getElementById("detailContent").innerHTML = `<div style="display:flex;flex-direction:column;gap:16px"><div style="background:var(--bg3);border-radius:var(--radius-sm);padding:16px;display:flex;justify-content:space-between;align-items:center"><div><span style="font-size:0.78rem;color:var(--text-dim)">STATUS</span><br/><span class="status-badge status-${order.status}" style="margin-top:6px;display:inline-flex">${capitalize(order.status)}</span></div><div><span style="font-size:0.78rem;color:var(--text-dim)">DATE</span><br/><strong style="color:var(--white)">${order.date}</strong></div><div><span style="font-size:0.78rem;color:var(--text-dim)">PAYMENT</span><br/><strong style="color:var(--white)">${order.payment}</strong></div></div><div><h4 style="font-size:0.85rem;color:var(--text-muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.08em">Items Ordered</h4>${detailItemsHtml}</div>${returnCardHtml}${enquiryCardHtml}<div style="background:var(--bg3);border-radius:var(--radius-sm);padding:16px"><h4 style="font-size:0.85rem;color:var(--text-muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.08em">Delivery Address</h4><p style="color:var(--text-muted);font-size:0.88rem">📍 ${order.address}</p></div><div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-top:1px solid var(--border)"><strong style="color:var(--white)">Order Total</strong><strong style="font-size:1.3rem;color:var(--primary-light)">₹${order.total.toLocaleString()}</strong></div></div>`;
+    const cancelStatus = cancelRequestStatus(order);
+    const cancelCardHtml = cancelStatus !== "none"
+      ? `<div style="background:var(--bg3);border-radius:var(--radius-sm);padding:16px">
+          <h4 style="font-size:0.85rem;color:var(--text-muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.08em">Cancellation Request</h4>
+          <span class="status-badge ${cancelStatus === "pending" ? "status-processing" : (cancelStatus === "approved" ? "status-cancelled" : "status-cancelled")}" style="margin-bottom:8px;display:inline-flex">${cancelStatus === "pending" ? "Pending Seller Review" : (cancelStatus === "approved" ? "Approved" : "Rejected")}</span>
+          ${cancelStatus === "rejected" ? `<p style="font-size:0.82rem;color:#fecaca;margin-top:6px">Reason: ${escHtml(cancelRequestReasonText(order))}</p>` : ""}
+        </div>`
+      : "";
+    document.getElementById("detailContent").innerHTML = `<div style="display:flex;flex-direction:column;gap:16px"><div style="background:var(--bg3);border-radius:var(--radius-sm);padding:16px;display:flex;justify-content:space-between;align-items:center"><div><span style="font-size:0.78rem;color:var(--text-dim)">STATUS</span><br/><span class="status-badge status-${order.status}" style="margin-top:6px;display:inline-flex">${capitalize(order.status)}</span></div><div><span style="font-size:0.78rem;color:var(--text-dim)">DATE</span><br/><strong style="color:var(--white)">${order.date}</strong></div><div><span style="font-size:0.78rem;color:var(--text-dim)">PAYMENT</span><br/><strong style="color:var(--white)">${order.payment}</strong></div></div><div><h4 style="font-size:0.85rem;color:var(--text-muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.08em">Items Ordered</h4>${detailItemsHtml}</div>${cancelCardHtml}${returnCardHtml}${enquiryCardHtml}<div style="background:var(--bg3);border-radius:var(--radius-sm);padding:16px"><h4 style="font-size:0.85rem;color:var(--text-muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.08em">Delivery Address</h4><p style="color:var(--text-muted);font-size:0.88rem">📍 ${order.address}</p></div><div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-top:1px solid var(--border)"><strong style="color:var(--white)">Order Total</strong><strong style="font-size:1.3rem;color:var(--primary-light)">₹${order.total.toLocaleString()}</strong></div></div>`;
     document.getElementById("detailModal").classList.remove("hidden");
   };
   window.closeModal = function() { document.getElementById("detailModal").classList.add("hidden"); };
@@ -3480,6 +3516,15 @@ function initThemeToggle() {
   window.openOrderCancelForm = function(ordId) {
     const order = orders.find(o => o.id === ordId);
     if (!order) return;
+    const cst = cancelRequestStatus(order);
+    if (cst === "pending") {
+      showToast("⏳ Your cancel request is already pending with seller.");
+      return;
+    }
+    if (cst === "approved") {
+      showToast("✅ Cancellation already approved.");
+      return;
+    }
     if (!(order.status === "processing" || order.status === "confirmed" || order.status === "shipped")) {
       showToast("❌ Cancel not allowed after out for delivery.");
       return;

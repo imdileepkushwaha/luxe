@@ -1006,6 +1006,7 @@ function db_ensure_user_order_cancel_requests_table(PDO $pdo): void
                 order_ref VARCHAR(32) NOT NULL,
                 reason VARCHAR(120) NOT NULL DEFAULT '',
                 details VARCHAR(1000) NOT NULL DEFAULT '',
+                seller_note VARCHAR(255) NOT NULL DEFAULT '',
                 status VARCHAR(16) NOT NULL DEFAULT 'pending',
                 requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 reviewed_at DATETIME NULL,
@@ -1017,6 +1018,26 @@ function db_ensure_user_order_cancel_requests_table(PDO $pdo): void
                 CONSTRAINT fk_user_cancel_seller FOREIGN KEY (seller_id) REFERENCES seller_users(id) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
         );
+    } catch (Throwable) {
+        // Missing permissions or non-MySQL: rely on manual migrations
+    }
+
+    try {
+        $dbName = (string) $pdo->query('SELECT DATABASE()')->fetchColumn();
+        if ($dbName === '') {
+            return;
+        }
+        $chk = $pdo->prepare(
+            'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $chk->execute([$dbName, 'user_order_cancel_requests', 'seller_note']);
+        if (!$chk->fetchColumn()) {
+            $pdo->exec(
+                "ALTER TABLE user_order_cancel_requests
+                 ADD COLUMN seller_note VARCHAR(255) NOT NULL DEFAULT '' AFTER details"
+            );
+        }
     } catch (Throwable) {
         // Missing permissions or non-MySQL: rely on manual migrations
     }

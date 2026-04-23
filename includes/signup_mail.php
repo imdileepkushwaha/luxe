@@ -83,18 +83,12 @@ function luxe_signup_email_skip_send(): bool
 }
 
 /**
- * Send a 6-digit OTP by email (signup, profile email/phone flows).
- *
- * @return array{ok: bool, dev_code: ?string, dev_note: ?string}
+ * Generic transactional email sender used by OTP and notification emails.
  */
-function luxe_deliver_verification_code_email(string $to, string $subject, string $code, string $footerSentence): array
+function luxe_send_transactional_email(string $to, string $subject, string $html, string $plain): bool
 {
     if (luxe_signup_email_skip_send()) {
-        return [
-            'ok' => true,
-            'dev_code' => $code,
-            'dev_note' => 'Email is not sent on localhost / dev mode. Use the code shown in the message below.',
-        ];
+        return true;
     }
 
     $cfg = luxe_app_config();
@@ -102,22 +96,11 @@ function luxe_deliver_verification_code_email(string $to, string $subject, strin
     $smtpCfg = is_array($mailCfg['smtp'] ?? null) ? $mailCfg['smtp'] : [];
     $host = trim((string) ($smtpCfg['host'] ?? ''));
 
-    $safeCode = h($code);
-    $safeFooter = h($footerSentence);
-    $html = '<!DOCTYPE html><html><body style="font-family:system-ui,sans-serif;line-height:1.5;color:#1e1e3a;">'
-        . '<p>Your verification code is:</p>'
-        . '<p style="font-size:28px;font-weight:700;letter-spacing:0.25em;">' . $safeCode . '</p>'
-        . '<p>This code expires in <strong>15 minutes</strong>. ' . $safeFooter . '</p>'
-        . '</body></html>';
-    $plain = "Your LUXE verification code is {$code}. It expires in 15 minutes. {$footerSentence}\n";
-
-    // When mail.smtp.host is set, all verification emails go only through PHPMailer + SMTP (no mail() fallback).
     if ($host !== '') {
         $autoload = dirname(__DIR__) . '/vendor/autoload.php';
         if (is_file($autoload)) {
             require_once $autoload;
         } else {
-            // Non-composer fallback: support bundled PHPMailer source files.
             $phpMailerSrc = dirname(__DIR__) . '/vendor/phpmailer/phpmailer/src';
             $exceptionFile = $phpMailerSrc . '/Exception.php';
             $smtpFile = $phpMailerSrc . '/SMTP.php';
@@ -129,13 +112,13 @@ function luxe_deliver_verification_code_email(string $to, string $subject, strin
             } else {
                 error_log('LUXE mail: PHPMailer files missing (autoload and direct src include both unavailable).');
 
-                return ['ok' => false, 'dev_code' => null, 'dev_note' => null];
+                return false;
             }
         }
         if (!class_exists(\PHPMailer\PHPMailer\PHPMailer::class)) {
             error_log('LUXE mail: PHPMailer class not found after autoload.');
 
-            return ['ok' => false, 'dev_code' => null, 'dev_note' => null];
+            return false;
         }
         try {
             [$fromEmail, $fromName] = luxe_mail_from_parts($mailCfg);
@@ -179,11 +162,11 @@ function luxe_deliver_verification_code_email(string $to, string $subject, strin
             $mail->AltBody = $plain;
             $mail->send();
 
-            return ['ok' => true, 'dev_code' => null, 'dev_note' => null];
+            return true;
         } catch (\Throwable $e) {
             error_log('LUXE PHPMailer: ' . $e->getMessage());
 
-            return ['ok' => false, 'dev_code' => null, 'dev_note' => null];
+            return false;
         }
     }
 
@@ -198,7 +181,34 @@ function luxe_deliver_verification_code_email(string $to, string $subject, strin
         ? @mail($to, $subject, $html, $headers, $extra)
         : @mail($to, $subject, $html, $headers);
 
-    if ($sent) {
+    return (bool) $sent;
+}
+
+/**
+ * Send a 6-digit OTP by email (signup, profile email/phone flows).
+ *
+ * @return array{ok: bool, dev_code: ?string, dev_note: ?string}
+ */
+function luxe_deliver_verification_code_email(string $to, string $subject, string $code, string $footerSentence): array
+{
+    if (luxe_signup_email_skip_send()) {
+        return [
+            'ok' => true,
+            'dev_code' => $code,
+            'dev_note' => 'Email is not sent on localhost / dev mode. Use the code shown in the message below.',
+        ];
+    }
+
+    $safeCode = h($code);
+    $safeFooter = h($footerSentence);
+    $html = '<!DOCTYPE html><html><body style="font-family:system-ui,sans-serif;line-height:1.5;color:#1e1e3a;">'
+        . '<p>Your verification code is:</p>'
+        . '<p style="font-size:28px;font-weight:700;letter-spacing:0.25em;">' . $safeCode . '</p>'
+        . '<p>This code expires in <strong>15 minutes</strong>. ' . $safeFooter . '</p>'
+        . '</body></html>';
+    $plain = "Your LUXE verification code is {$code}. It expires in 15 minutes. {$footerSentence}\n";
+
+    if (luxe_send_transactional_email($to, $subject, $html, $plain)) {
         return ['ok' => true, 'dev_code' => null, 'dev_note' => null];
     }
 

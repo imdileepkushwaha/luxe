@@ -362,6 +362,7 @@ CREATE TABLE user_order_cancel_requests (
   order_ref VARCHAR(32) NOT NULL,
   reason VARCHAR(120) NOT NULL DEFAULT '',
   details VARCHAR(1000) NOT NULL DEFAULT '',
+  seller_note VARCHAR(255) NOT NULL DEFAULT '',
   status VARCHAR(16) NOT NULL DEFAULT 'pending',
   requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   reviewed_at DATETIME NULL,

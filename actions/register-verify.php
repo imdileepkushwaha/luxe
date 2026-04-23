@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/signup_mail.php';
+require_once __DIR__ . '/../includes/notification_mail.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -84,6 +85,8 @@ try {
     $ins->execute([$email, $passwordHash, $fname, $lname]);
     unset($_SESSION['signup_pending']);
     auth_set_user((int) $pdo->lastInsertId());
+    $fullName = trim($fname . ' ' . $lname);
+    luxe_send_welcome_email($email, $fullName, 'user');
     echo json_encode(['ok' => true, 'redirect' => 'index.php']);
 } catch (Throwable $e) {
     http_response_code(500);

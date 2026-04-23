@@ -100,6 +100,7 @@ function orders_fetch_for_user(PDO $pdo, int $userId): array
 
     $returnMap = [];
     $enquiryMap = [];
+    $cancelByOrder = [];
     $returnSt = $pdo->prepare(
         'SELECT urr.id, urr.order_ref, urr.order_id, urr.order_item_id, urr.product_id, urr.product_name, urr.reason, urr.details, urr.status,
                 urr.pickup_status, urr.pickup_note, urr.refund_amount, urr.refund_mode,
@@ -162,6 +163,63 @@ function orders_fetch_for_user(PDO $pdo, int $userId): array
         ];
     }
 
+    $cancelSt = $pdo->prepare(
+        'SELECT id, order_id, status, reason, details, seller_note, requested_at, reviewed_at
+         FROM user_order_cancel_requests
+         WHERE user_id = ?
+         ORDER BY id DESC'
+    );
+    $cancelSt->execute([$userId]);
+    while ($cr = $cancelSt->fetch(PDO::FETCH_ASSOC)) {
+        $orderId = (int) ($cr['order_id'] ?? 0);
+        if ($orderId <= 0) {
+            continue;
+        }
+        if (!isset($cancelByOrder[$orderId])) {
+            $cancelByOrder[$orderId] = [
+                'status' => 'none',
+                'requestReason' => '',
+                'requestDetails' => '',
+                'sellerReason' => '',
+                'requestedAt' => '',
+                'reviewedAt' => '',
+            ];
+        }
+        $status = strtolower(trim((string) ($cr['status'] ?? '')));
+        if ($status === 'approved') {
+            $cancelByOrder[$orderId]['status'] = 'approved';
+        } elseif (
+            $status === 'pending'
+            && $cancelByOrder[$orderId]['status'] !== 'approved'
+        ) {
+            $cancelByOrder[$orderId]['status'] = 'pending';
+        } elseif (
+            $status === 'rejected'
+            && !in_array($cancelByOrder[$orderId]['status'], ['approved', 'pending'], true)
+        ) {
+            $cancelByOrder[$orderId]['status'] = 'rejected';
+        }
+
+        if ($cancelByOrder[$orderId]['requestReason'] === '') {
+            $cancelByOrder[$orderId]['requestReason'] = (string) ($cr['reason'] ?? '');
+        }
+        if ($cancelByOrder[$orderId]['requestDetails'] === '') {
+            $cancelByOrder[$orderId]['requestDetails'] = (string) ($cr['details'] ?? '');
+        }
+        if ($cancelByOrder[$orderId]['requestedAt'] === '') {
+            $cancelByOrder[$orderId]['requestedAt'] = (string) ($cr['requested_at'] ?? '');
+        }
+        if ($cancelByOrder[$orderId]['reviewedAt'] === '') {
+            $cancelByOrder[$orderId]['reviewedAt'] = (string) ($cr['reviewed_at'] ?? '');
+        }
+        if (
+            $status === 'rejected'
+            && $cancelByOrder[$orderId]['sellerReason'] === ''
+        ) {
+            $cancelByOrder[$orderId]['sellerReason'] = trim((string) ($cr['seller_note'] ?? ''));
+        }
+    }
+
     $st = $pdo->prepare(
         'SELECT id, order_ref, status, total_amount, payment_method, shipping_address, created_at
          FROM orders WHERE user_id = ? ORDER BY created_at DESC'
@@ -215,6 +273,7 @@ function orders_fetch_for_user(PDO $pdo, int $userId): array
             'address' => $o['shipping_address'] ?? '',
             'payment' => $o['payment_method'] ?? '',
             'tracking' => order_tracking_steps($o['status']),
+            'cancelRequest' => $cancelByOrder[(int) $o['id']] ?? null,
         ];
     }
     return $out;

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/_auth.php';
+require_once __DIR__ . '/../includes/notification_mail.php';
 
 $pdo = db();
 $seller = seller_require_login($pdo);
@@ -17,6 +18,7 @@ $toastIsError = false;
 function seller_orders_status_rank(string $status): int
 {
     return match (strtolower(trim($status))) {
+        'cancelled' => 0,
         'processing' => 1,
         'confirmed' => 2,
         'shipped' => 3,
@@ -33,6 +35,7 @@ function seller_orders_status_from_rank(int $rank): string
         4 => 'out',
         3 => 'shipped',
         2 => 'confirmed',
+        0 => 'cancelled',
         default => 'processing',
     };
 }
@@ -54,21 +57,57 @@ function seller_orders_sync_parent_order_status_from_items(PDO $pdo, int $orderI
     $upd->execute([seller_orders_status_from_rank($minRank), $orderId]);
 }
 
+/**
+ * @return array{email:string,customer_name:string,order_ref:string}|null
+ */
+function seller_orders_customer_mail_meta(PDO $pdo, int $orderId): ?array
+{
+    if ($orderId <= 0) {
+        return null;
+    }
+    $st = $pdo->prepare(
+        "SELECT COALESCE(u.email, '') AS email,
+                COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), 'Customer') AS customer_name,
+                o.order_ref
+         FROM orders o
+         LEFT JOIN users u ON u.id = o.user_id
+         WHERE o.id = ?
+         LIMIT 1"
+    );
+    $st->execute([$orderId]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($row)) {
+        return null;
+    }
+
+    return [
+        'email' => trim((string) ($row['email'] ?? '')),
+        'customer_name' => trim((string) ($row['customer_name'] ?? 'Customer')),
+        'order_ref' => trim((string) ($row['order_ref'] ?? '')),
+    ];
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') === 'confirm_order') {
     $confirmOrderId = (int) ($_POST['order_id'] ?? 0);
     if ($confirmOrderId > 0) {
         $confirmSt = $pdo->prepare(
             "UPDATE order_items oi
              INNER JOIN products p ON p.id = oi.product_id
+             INNER JOIN orders o ON o.id = oi.order_id
              SET oi.status = 'confirmed',
                  oi.confirmed_at = COALESCE(oi.confirmed_at, NOW())
              WHERE oi.order_id = ?
                AND oi.status = 'processing'
+               AND o.status IN ('processing', 'confirmed')
                AND p.seller_id = ?"
         );
         $confirmSt->execute([$confirmOrderId, (int) $seller['id']]);
         if ($confirmSt->rowCount() > 0) {
             seller_orders_sync_parent_order_status_from_items($pdo, $confirmOrderId);
+            $mailMeta = seller_orders_customer_mail_meta($pdo, $confirmOrderId);
+            if (is_array($mailMeta) && $mailMeta['email'] !== '') {
+                luxe_send_order_update_email($mailMeta['email'], $mailMeta['customer_name'], $mailMeta['order_ref'], 'confirmed');
+            }
             $toastMessage = 'Order confirmed successfully.';
         } else {
             $toastMessage = 'Order confirm nahi ho paaya. Shayad order already updated hai.';
@@ -81,6 +120,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
 } elseif ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') === 'review_cancel_request') {
     $requestId = (int) ($_POST['request_id'] ?? 0);
     $decision = strtolower(trim((string) ($_POST['decision'] ?? '')));
+    $sellerNote = trim((string) ($_POST['seller_note'] ?? ''));
+    if (strlen($sellerNote) > 255) {
+        $sellerNote = substr($sellerNote, 0, 255);
+    }
     if ($requestId <= 0 || !in_array($decision, ['approve', 'reject'], true)) {
         $toastMessage = 'Invalid cancel request action.';
         $toastIsError = true;
@@ -100,10 +143,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
         } elseif ($decision === 'approve') {
             $updReq = $pdo->prepare(
                 'UPDATE user_order_cancel_requests
-                 SET status = ?, reviewed_at = NOW()
+                 SET status = ?, seller_note = ?, reviewed_at = NOW()
                  WHERE order_id = ? AND status = ?'
             );
-            $updReq->execute(['approved', $orderId, 'pending']);
+            $updReq->execute(['approved', '', $orderId, 'pending']);
 
             $updOrder = $pdo->prepare(
                 'UPDATE orders
@@ -112,16 +155,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
                  LIMIT 1'
             );
             $updOrder->execute(['cancelled', $orderId, 'processing', 'confirmed', 'shipped', 'out']);
+            if ($updOrder->rowCount() > 0) {
+                $updLines = $pdo->prepare(
+                    "UPDATE order_items
+                     SET status = 'cancelled'
+                     WHERE order_id = ?
+                       AND status IN ('processing', 'confirmed', 'shipped', 'out')"
+                );
+                $updLines->execute([$orderId]);
+                $mailMeta = seller_orders_customer_mail_meta($pdo, $orderId);
+                if (is_array($mailMeta) && $mailMeta['email'] !== '') {
+                    luxe_send_order_update_email($mailMeta['email'], $mailMeta['customer_name'], $mailMeta['order_ref'], 'cancelled');
+                }
+            }
 
             $toastMessage = 'Cancel request approved and order cancelled.';
         } else {
             $updReq = $pdo->prepare(
                 'UPDATE user_order_cancel_requests
-                 SET status = ?, reviewed_at = NOW()
+                 SET status = ?, seller_note = ?, reviewed_at = NOW()
                  WHERE id = ? AND seller_id = ? AND status = ?
                  LIMIT 1'
             );
-            $updReq->execute(['rejected', $requestId, (int) $seller['id'], 'pending']);
+            $updReq->execute(['rejected', $sellerNote, $requestId, (int) $seller['id'], 'pending']);
             $toastMessage = 'Cancel request rejected.';
         }
     }
@@ -520,6 +576,7 @@ require __DIR__ . '/partials/shell-top.php';
                             <input type="hidden" name="action" value="review_cancel_request">
                             <input type="hidden" name="request_id" value="<?= (int) ($req['id'] ?? 0) ?>">
                             <input type="hidden" name="decision" value="reject">
+                            <input type="text" name="seller_note" maxlength="255" placeholder="Reject reason (visible to user)" class="seller-return-note-input" autocomplete="off">
                             <button class="admin-btn admin-btn--ghost-light seller-cancel-btn" type="submit">Reject</button>
                           </form>
                         </div>
@@ -598,7 +655,11 @@ require __DIR__ . '/partials/shell-top.php';
                         . trim((string) ($o['shipping_address'] ?? '')) . ' '
                         . trim((string) ($o['created_at'] ?? ''))
                     );
+                    $parentOrderStatus = strtolower(trim((string) ($o['status'] ?? '')));
                     $sellerStatus = (string) ($sellerStatusByOrderId[(int) ($o['id'] ?? 0)] ?? (string) ($o['status'] ?? 'processing'));
+                    if ($parentOrderStatus === 'cancelled') {
+                        $sellerStatus = 'cancelled';
+                    }
                     $stMod = seller_order_status_chip_modifier($sellerStatus);
                     $stLabel = seller_order_status_label_orders($sellerStatus);
                     $catPills = seller_orders_category_pills((string) ($o['categories'] ?? ''));
