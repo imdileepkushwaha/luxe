@@ -783,7 +783,7 @@
 }
 
 .seller-detail-item strong {
-  display: block;
+  display: flex;
   font-size: 0.92rem;
   color: var(--admin-text);
   line-height: 1.4;
@@ -834,8 +834,8 @@
   border: 1px solid #d1d5db;
   background: #f3f4f6;
   color: #374151;
-  font-size: 0.76rem;
-  font-weight: 600;
+  font-size: 0.7rem;
+  font-weight: 500;
   text-transform: capitalize;
 }
 
@@ -1006,7 +1006,7 @@
   width: 100%;
   height: 3px;
   background: currentColor;
-  opacity: 0.3;
+  opacity: 1;
 }
 
 .seller-kpi-card__label {
@@ -1027,7 +1027,7 @@
 
 .seller-kpi-card__hint {
   margin-top: 5px;
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   color: #64748b;
 }
 
@@ -1039,7 +1039,7 @@
   display: grid;
   place-items: center;
   background: rgba(255, 255, 255, 0.55);
-  border: 1px solid rgba(148, 163, 184, 0.35);
+  border: 1px solid rgba(148, 163, 184, 0);
 }
 
 .seller-kpi-card--orders {
@@ -1064,6 +1064,38 @@
 
 .seller-kpi-card--products .seller-kpi-card__icon {
   background: rgba(124, 58, 237, 0.12);
+}
+
+.seller-kpi-card--kpi-yellow {
+  color: #ffc345;
+}
+
+.seller-kpi-card--kpi-yellow .seller-kpi-card__icon {
+  background: rgba(202, 138, 4, 0.14);
+}
+
+.seller-kpi-card--kpi-orange {
+  color: #ea580c;
+}
+
+.seller-kpi-card--kpi-orange .seller-kpi-card__icon {
+  background: rgba(234, 88, 12, 0.14);
+}
+
+.seller-kpi-card--kpi-green {
+  color: #16a34a;
+}
+
+.seller-kpi-card--kpi-green .seller-kpi-card__icon {
+  background: rgba(22, 163, 74, 0.12);
+}
+
+.seller-kpi-card--returns-cancelled {
+  color: #dc2626;
+}
+
+.seller-kpi-card--returns-cancelled .seller-kpi-card__icon {
+  background: rgba(220, 38, 38, 0.12);
 }
 
 .seller-danger-card {
@@ -1478,7 +1510,7 @@ html.admin-theme-dark .seller-product-list-sku {
 }
 
 html.admin-theme-dark .seller-products-table thead th {
-  background: linear-gradient(180deg, #1a1f2e 0%, #121212 100%);
+  background: linear-gradient(180deg, #222222 0%, #121212 100%);
   box-shadow: 0 1px 0 rgba(243, 243, 243, 0.1);
 }
 
@@ -1676,6 +1708,64 @@ html.admin-theme-dark .seller-products-no-match-inner {
   color: var(--admin-text-muted);
 }
 
+.seller-products-date-filter-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.seller-products-date-filter-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--admin-text-muted);
+}
+
+.seller-products-date-filter-select {
+  min-width: 150px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--admin-border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--admin-text);
+  font-size: 0.82rem;
+}
+
+.seller-products-date-filter-select:focus {
+  border-color: var(--admin-accent);
+  box-shadow: 0 0 0 3px rgba(229, 57, 53, 0.12);
+  outline: none;
+}
+
+.seller-orders-date-filter-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.seller-orders-date-filter-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--admin-text-muted);
+}
+
+.seller-orders-date-filter-select {
+  min-width: 150px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--admin-border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--admin-text);
+  font-size: 0.82rem;
+}
+
+.seller-orders-date-filter-select:focus {
+  border-color: var(--admin-accent);
+  box-shadow: 0 0 0 3px rgba(229, 57, 53, 0.12);
+  outline: none;
+}
+
 html.admin-theme-dark .seller-inventory-search-wrap {
   background: #121212;
   border-color: rgba(243, 243, 243, 0.08);
@@ -1698,11 +1788,40 @@ html.admin-theme-dark .seller-inventory-search-input::placeholder {
   color: #94a3b8;
 }
 
+html.admin-theme-dark .seller-products-date-filter-label {
+  color: #cbd5e1;
+}
+
+html.admin-theme-dark .seller-products-date-filter-select {
+  background: #121212;
+  border-color: rgba(243, 243, 243, 0.1);
+  color: #f3f4f6;
+}
+
+html.admin-theme-dark .seller-products-date-filter-select:focus {
+  box-shadow: 0 0 0 3px rgba(229, 57, 53, 0.18);
+}
+
+html.admin-theme-dark .seller-orders-date-filter-label {
+  color: #cbd5e1;
+}
+
+html.admin-theme-dark .seller-orders-date-filter-select {
+  background: #121212;
+  border-color: rgba(243, 243, 243, 0.1);
+  color: #f3f4f6;
+}
+
+html.admin-theme-dark .seller-orders-date-filter-select:focus {
+  box-shadow: 0 0 0 3px rgba(229, 57, 53, 0.18);
+}
+
 .seller-drawer-backdrop {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.45);
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
   transition: opacity 0.2s ease;
   z-index: 1200;
@@ -1710,6 +1829,7 @@ html.admin-theme-dark .seller-inventory-search-input::placeholder {
 
 .seller-drawer-backdrop.is-visible {
   opacity: 1;
+  visibility: visible;
   pointer-events: auto;
 }
 
@@ -1723,7 +1843,10 @@ html.admin-theme-dark .seller-inventory-search-input::placeholder {
   border-left: 1px solid var(--admin-border);
   box-shadow: -16px 0 36px rgba(2, 6, 23, 0.12);
   transform: translateX(100%);
-  transition: transform 0.25s ease;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: transform 0.25s ease, opacity 0.2s ease;
   z-index: 1210;
   display: flex;
   flex-direction: column;
@@ -1731,6 +1854,9 @@ html.admin-theme-dark .seller-inventory-search-input::placeholder {
 
 .seller-drawer.is-open {
   transform: translateX(0);
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
 }
 
 .seller-drawer__head {
@@ -3509,6 +3635,42 @@ html.admin-theme-dark .seller-kpi-card__icon {
   border-color: rgba(148, 163, 184, 0.3);
 }
 
+html.admin-theme-dark .seller-kpi-card--kpi-yellow {
+  color: #facc15;
+}
+
+html.admin-theme-dark .seller-kpi-card--kpi-yellow .seller-kpi-card__icon {
+  background: rgba(250, 204, 21, 0.2);
+  border-color: rgba(250, 204, 21, 0.35);
+}
+
+html.admin-theme-dark .seller-kpi-card--kpi-orange {
+  color: #fb923c;
+}
+
+html.admin-theme-dark .seller-kpi-card--kpi-orange .seller-kpi-card__icon {
+  background: rgba(251, 146, 60, 0.2);
+  border-color: rgba(251, 146, 60, 0.35);
+}
+
+html.admin-theme-dark .seller-kpi-card--kpi-green {
+  color: #4ade80;
+}
+
+html.admin-theme-dark .seller-kpi-card--kpi-green .seller-kpi-card__icon {
+  background: rgba(74, 222, 128, 0.18);
+  border-color: rgba(74, 222, 128, 0.35);
+}
+
+html.admin-theme-dark .seller-kpi-card--returns-cancelled {
+  color: #f87171;
+}
+
+html.admin-theme-dark .seller-kpi-card--returns-cancelled .seller-kpi-card__icon {
+  background: rgba(248, 113, 113, 0.18);
+  border-color: rgba(248, 113, 113, 0.35);
+}
+
 html.admin-theme-dark .seller-alert--error {
   background: rgba(127, 29, 29, 0.35);
   border-color: rgba(248, 113, 113, 0.5);
@@ -3576,9 +3738,9 @@ html.admin-theme-dark .seller-delete-btn {
 }
 
 html.admin-theme-dark .seller-edit-btn {
-  background: rgba(30, 64, 175, 0.22);
-  border-color: rgba(96, 165, 250, 0.55);
-  color: #bfdbfe;
+  background: rgb(0 0 0 / 22%);
+  border-color: rgb(70 70 70 / 55%);
+  color: #898989;
 }
 
 html.admin-theme-dark .seller-view-btn {
@@ -5114,7 +5276,7 @@ html.admin-theme-dark .seller-orders-kpi-section-heading {
 .seller-orders-ref {
   display: inline-block;
   font-weight: 800;
-  font-size: 0.92rem;
+  font-size:0.75rem;
   letter-spacing: 0.02em;
   color: var(--admin-text);
 }
@@ -5146,7 +5308,7 @@ html.admin-theme-dark .seller-orders-kpi-section-heading {
 .seller-orders-customer-name {
   display: block;
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: 0.75rem;
   color: var(--admin-text);
 }
 
@@ -5182,7 +5344,7 @@ html.admin-theme-dark .seller-orders-kpi-section-heading {
 
 .seller-orders-amount {
   font-weight: 800;
-  font-size: 0.95rem;
+  font-size: 0.75rem;
   color: var(--admin-text);
 }
 
@@ -5386,7 +5548,7 @@ html.admin-theme-dark .seller-cancel-table thead th {
 }
 
 html.admin-theme-dark .seller-orders-table thead th {
-  background: linear-gradient(180deg, #1a1f2e 0%, #121212 100%);
+  background: linear-gradient(180deg, #222222 0%, #121212 100%);
   box-shadow: 0 1px 0 rgba(243, 243, 243, 0.1);
 }
 
@@ -5945,7 +6107,7 @@ html.admin-theme-dark .seller-settings-toc__link--danger:hover {
 }
 
 html.admin-theme-dark .seller-pw-modal__panel {
-  background: linear-gradient(180deg, #1a1f2e 0%, #121212 100%);
+  background: linear-gradient(180deg, #222222 0%, #121212 100%);
   border-color: rgba(243, 243, 243, 0.12);
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
 }
@@ -6701,7 +6863,7 @@ html.admin-theme-dark .seller-dashboard-quick__item:hover {
 }
 
 html.admin-theme-dark .seller-dashboard-table thead th {
-  background: linear-gradient(180deg, #1a1f2e 0%, #121212 100%);
+  background: linear-gradient(180deg, #222222 0%, #121212 100%);
   box-shadow: 0 1px 0 rgba(243, 243, 243, 0.1);
 }
 
@@ -6918,7 +7080,7 @@ html.admin-theme-dark .seller-dashboard-table thead th {
 }
 
 html.admin-theme-dark .seller-txn-table thead th {
-  background: linear-gradient(180deg, #1a1f2e 0%, #121212 100%);
+  background: linear-gradient(180deg, #222222 0%, #121212 100%);
   box-shadow: 0 1px 0 rgba(243, 243, 243, 0.1);
 }
 
@@ -8439,7 +8601,7 @@ html.admin-theme-dark .seller-inventory-search-bar {
 }
 
 html.admin-theme-dark .seller-inventory-table thead th {
-  background: linear-gradient(180deg, #1a1f2e 0%, #121212 100%);
+  background: linear-gradient(180deg, #222222 0%, #121212 100%);
   box-shadow: 0 1px 0 rgba(243, 243, 243, 0.1);
 }
 
@@ -10530,7 +10692,7 @@ html.admin-theme-dark .seller-wizard-footer {
 }
 
 html.admin-theme-dark .seller-wizard-sku-field {
-  background: linear-gradient(180deg, #1a1f2e 0%, #121212 100%);
+  background: linear-gradient(180deg, #222222 0%, #121212 100%);
   border-color: rgba(243, 243, 243, 0.12);
   box-shadow: none;
 }
@@ -10684,4 +10846,61 @@ html.admin-theme-dark .seller-wizard-offer-card__title {
 
 html.admin-theme-dark .seller-wizard-merch-card .seller-wizard-offer-card__body {
   border-top-color: rgba(243, 243, 243, 0.12);
+}
+.admin-sidebar__brand{
+  border-bottom: 1px solid #222222;
+}
+
+body.admin-app--merchant .admin-sidebar {
+  background: #121212;
+}
+
+body.admin-app--merchant .admin-sidebar__title {
+  color: #f8fafc;
+}
+
+body.admin-app--merchant .admin-sidebar__subtitle,
+body.admin-app--merchant .admin-nav__label {
+  color: #ffffff;
+}
+
+body.admin-app--merchant .admin-nav__link {
+  color: #a1a1a1;
+}
+
+body.admin-app--merchant .admin-nav__link:hover {
+  background: rgba(148, 163, 184, 0.14);
+  color: #f8fafc;
+}
+
+body.admin-app--merchant .admin-nav__link--active {
+  background: rgb(87 87 87 / 22%);
+  color: #ffffffcc;
+}
+
+.admin-sidebar__brand{
+  padding: 10px 20px;
+}
+
+.admin-table th {
+  padding: 15px 12px;
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+.admin-table td {
+  font-size: 0.7rem;
+}
+
+.admin-nav__link--active svg {
+  stroke: none;
+}
+
+.admin-nav__link--active:hover svg {
+  stroke: none;
+}
+
+.admin-sidebar__logo {
+  background: #1e222c;
+  border-color:rgba(243,243,243,0.08);
 }

@@ -91,7 +91,11 @@ try {
     $st->execute([$email]);
     if ($st->fetch()) {
         http_response_code(409);
-        echo json_encode(['ok' => false, 'message' => 'An account with this email already exists.']);
+        echo json_encode([
+            'ok' => false,
+            'code' => 'email_taken',
+            'message' => 'This email is already registered. Sign in or use a different email.',
+        ]);
         exit;
     }
 

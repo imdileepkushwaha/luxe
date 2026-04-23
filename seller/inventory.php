@@ -585,6 +585,14 @@ require __DIR__ . '/partials/shell-top.php';
             var drawers = document.querySelectorAll('.seller-variant-drawer');
             if (!backdrop || !drawers.length) return;
 
+            // Safety reset: if browser restores stale UI state, keep drawers closed on page load.
+            backdrop.classList.remove('is-visible');
+            drawers.forEach(function (d) {
+              d.classList.remove('is-open');
+              d.setAttribute('aria-hidden', 'true');
+            });
+            document.body.classList.remove('seller-drawer-open');
+
             var openDrawer = null;
             var lastFocus = null;
 

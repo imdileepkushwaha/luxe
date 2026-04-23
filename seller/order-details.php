@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/_auth.php';
+require_once __DIR__ . '/../includes/notification_mail.php';
 
 $pdo = db();
 $seller = seller_require_login($pdo);
@@ -412,6 +413,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
             seller_sync_parent_order_status_from_items($pdo, (int) $order['id']);
 
             $pdo->commit();
+            $customerEmail = trim((string) ($order['customer_email'] ?? ''));
+            if ($customerEmail !== '') {
+                luxe_send_order_update_email(
+                    $customerEmail,
+                    (string) ($order['customer_name'] ?? 'Customer'),
+                    (string) ($order['order_ref'] ?? ''),
+                    $newStatus
+                );
+            }
             header('Location: order-details.php?id=' . (int) $order['id'] . '&msg=status_updated');
             exit;
         } catch (Throwable) {
@@ -551,6 +561,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
         $upd->execute($updParams);
     }
 
+    $customerEmail = trim((string) ($order['customer_email'] ?? ''));
+    if ($customerEmail !== '') {
+        luxe_send_return_update_email(
+            $customerEmail,
+            (string) ($order['customer_name'] ?? 'Customer'),
+            (string) ($order['order_ref'] ?? ''),
+            $newStatus
+        );
+    }
+
     header('Location: order-details.php?id=' . (int) $order['id'] . '&msg=return_updated#return-details-card');
     exit;
 } elseif ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') === 'reply_order_enquiry') {
@@ -606,6 +626,10 @@ if ($items !== []) {
 }
 $sellerOverallStatus = seller_status_from_rank($sellerStatusRank);
 $sellerDeliveryStatus = seller_status_from_rank($sellerMaxStatusRank);
+if (strtolower(trim((string) ($order['status'] ?? ''))) === 'cancelled') {
+    $sellerDeliveryStatus = 'cancelled';
+    $sellerOverallStatus = 'cancelled';
+}
 $quickActionOrderItemId = 0;
 if ($items !== []) {
     foreach ($items as $itRow) {

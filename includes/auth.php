@@ -30,7 +30,11 @@ function auth_user(PDO $pdo): ?array
     if ($id === null) {
         return null;
     }
-    $st = $pdo->prepare('SELECT id, email, first_name, last_name, phone, dob, gender, created_at FROM users WHERE id = ? LIMIT 1');
+    $st = $pdo->prepare(
+        'SELECT id, email, first_name, last_name, phone, dob, gender, created_at,
+                email_verified_at, phone_verified_at
+         FROM users WHERE id = ? LIMIT 1'
+    );
     $st->execute([$id]);
     $row = $st->fetch();
     return $row ?: null;

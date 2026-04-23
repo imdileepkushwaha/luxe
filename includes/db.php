@@ -34,6 +34,55 @@ function db_ensure_user_profile_columns(PDO $pdo): void
 }
 
 /**
+ * Tracks customer email confirmation; login is blocked until set (see actions/login.php).
+ */
+function db_ensure_user_email_verified_at_column(PDO $pdo): void
+{
+    try {
+        $dbName = (string) $pdo->query('SELECT DATABASE()')->fetchColumn();
+        if ($dbName === '') {
+            return;
+        }
+        $chk = $pdo->prepare(
+            'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $chk->execute([$dbName, 'users', 'email_verified_at']);
+        if (!$chk->fetchColumn()) {
+            $pdo->exec('ALTER TABLE users ADD COLUMN email_verified_at DATETIME NULL DEFAULT NULL AFTER created_at');
+        }
+        // Existing accounts (created before this column) can keep signing in.
+        $pdo->exec('UPDATE users SET email_verified_at = created_at WHERE email_verified_at IS NULL');
+    } catch (Throwable) {
+        // Missing permissions or non-MySQL: rely on manual migrations
+    }
+}
+
+function db_ensure_user_phone_verified_at_column(PDO $pdo): void
+{
+    try {
+        $dbName = (string) $pdo->query('SELECT DATABASE()')->fetchColumn();
+        if ($dbName === '') {
+            return;
+        }
+        $chk = $pdo->prepare(
+            'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $chk->execute([$dbName, 'users', 'phone_verified_at']);
+        if (!$chk->fetchColumn()) {
+            $pdo->exec('ALTER TABLE users ADD COLUMN phone_verified_at DATETIME NULL DEFAULT NULL AFTER email_verified_at');
+        }
+        $pdo->exec(
+            "UPDATE users SET phone_verified_at = COALESCE(phone_verified_at, created_at)
+             WHERE phone_verified_at IS NULL AND TRIM(COALESCE(phone, '')) <> ''"
+        );
+    } catch (Throwable) {
+        // Missing permissions or non-MySQL: rely on manual migrations
+    }
+}
+
+/**
  * Ensures admin table exists with one default admin account for first-time setup.
  */
 function db_ensure_admin_users_table(PDO $pdo): void
@@ -207,6 +256,8 @@ function db_ensure_seller_users_table(PDO $pdo): void
                 'kyc_edit_reviewed_at' => 'ALTER TABLE seller_users ADD COLUMN kyc_edit_reviewed_at DATETIME NULL AFTER kyc_edit_reviewed_by',
                 'kyc_edit_rejection_reason' => "ALTER TABLE seller_users ADD COLUMN kyc_edit_rejection_reason VARCHAR(255) NOT NULL DEFAULT '' AFTER kyc_edit_reviewed_at",
                 'kyc_edit_unlocked' => 'ALTER TABLE seller_users ADD COLUMN kyc_edit_unlocked TINYINT(1) NOT NULL DEFAULT 0 AFTER kyc_edit_rejection_reason',
+                'email_verified_at' => 'ALTER TABLE seller_users ADD COLUMN email_verified_at DATETIME NULL DEFAULT NULL AFTER email',
+                'phone_verified_at' => 'ALTER TABLE seller_users ADD COLUMN phone_verified_at DATETIME NULL DEFAULT NULL AFTER phone_number',
             ];
 
             foreach ($requiredCols as $column => $query) {
@@ -239,6 +290,39 @@ function db_ensure_seller_users_table(PDO $pdo): void
                 ]);
             }
         }
+    } catch (Throwable) {
+        // Missing permissions or non-MySQL: rely on manual migrations
+    }
+}
+
+function db_ensure_seller_verification_columns(PDO $pdo): void
+{
+    try {
+        $dbName = (string) $pdo->query('SELECT DATABASE()')->fetchColumn();
+        if ($dbName === '') {
+            return;
+        }
+        $chk = $pdo->prepare(
+            'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+
+        $chk->execute([$dbName, 'seller_users', 'email_verified_at']);
+        if (!$chk->fetchColumn()) {
+            $pdo->exec('ALTER TABLE seller_users ADD COLUMN email_verified_at DATETIME NULL DEFAULT NULL AFTER email');
+        }
+
+        $chk->execute([$dbName, 'seller_users', 'phone_verified_at']);
+        if (!$chk->fetchColumn()) {
+            $pdo->exec('ALTER TABLE seller_users ADD COLUMN phone_verified_at DATETIME NULL DEFAULT NULL AFTER phone_number');
+        }
+
+        // Existing seller accounts keep working without forced reverification.
+        $pdo->exec("UPDATE seller_users SET email_verified_at = COALESCE(email_verified_at, created_at)");
+        $pdo->exec(
+            "UPDATE seller_users SET phone_verified_at = COALESCE(phone_verified_at, created_at)
+             WHERE TRIM(COALESCE(phone_number, '')) <> ''"
+        );
     } catch (Throwable) {
         // Missing permissions or non-MySQL: rely on manual migrations
     }
@@ -922,6 +1006,7 @@ function db_ensure_user_order_cancel_requests_table(PDO $pdo): void
                 order_ref VARCHAR(32) NOT NULL,
                 reason VARCHAR(120) NOT NULL DEFAULT '',
                 details VARCHAR(1000) NOT NULL DEFAULT '',
+                seller_note VARCHAR(255) NOT NULL DEFAULT '',
                 status VARCHAR(16) NOT NULL DEFAULT 'pending',
                 requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 reviewed_at DATETIME NULL,
@@ -933,6 +1018,26 @@ function db_ensure_user_order_cancel_requests_table(PDO $pdo): void
                 CONSTRAINT fk_user_cancel_seller FOREIGN KEY (seller_id) REFERENCES seller_users(id) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
         );
+    } catch (Throwable) {
+        // Missing permissions or non-MySQL: rely on manual migrations
+    }
+
+    try {
+        $dbName = (string) $pdo->query('SELECT DATABASE()')->fetchColumn();
+        if ($dbName === '') {
+            return;
+        }
+        $chk = $pdo->prepare(
+            'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $chk->execute([$dbName, 'user_order_cancel_requests', 'seller_note']);
+        if (!$chk->fetchColumn()) {
+            $pdo->exec(
+                "ALTER TABLE user_order_cancel_requests
+                 ADD COLUMN seller_note VARCHAR(255) NOT NULL DEFAULT '' AFTER details"
+            );
+        }
     } catch (Throwable) {
         // Missing permissions or non-MySQL: rely on manual migrations
     }
@@ -1177,10 +1282,13 @@ function db(): PDO
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     ]);
     db_ensure_user_profile_columns($pdo);
+    db_ensure_user_email_verified_at_column($pdo);
+    db_ensure_user_phone_verified_at_column($pdo);
     db_ensure_admin_users_table($pdo);
     db_ensure_account_deletion_requests($pdo);
     db_ensure_seller_account_deletion_requests($pdo);
     db_ensure_seller_users_table($pdo);
+    db_ensure_seller_verification_columns($pdo);
     db_ensure_products_seller_column($pdo);
     db_ensure_seller_create_requests_table($pdo);
     db_ensure_product_images_table($pdo);

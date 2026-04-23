@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/_auth.php';
+require_once __DIR__ . '/../includes/signup_mail.php';
 
 $pdo = db();
 $seller = seller_require_login($pdo);
@@ -86,6 +87,7 @@ $profileSt = $pdo->prepare(
             address_line1, city, state, pin_code,
             id_proof_type, id_proof_number,
             gst_doc_path, pan_doc_path, aadhaar_doc_path, phone_number, business_address, logo_path, banner_path,
+            email_verified_at, phone_verified_at,
             kyc_completed, kyc_updated_at, kyc_final_approved, kyc_final_reviewed_at, kyc_rejection_reason,
             kyc_edit_request_status, kyc_edit_requested_at, kyc_edit_reviewed_at, kyc_edit_rejection_reason
      FROM seller_users
@@ -126,13 +128,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
         if ($flash === '') {
             $logoPath = (string) ($logoUpload['path'] ?? (string) ($profile['logo_path'] ?? ''));
             $bannerPath = (string) ($bannerUpload['path'] ?? (string) ($profile['banner_path'] ?? ''));
+            $oldPhone = trim((string) ($profile['phone_number'] ?? ''));
+            $phoneChanged = $oldPhone !== $phoneNumber;
             $upd = $pdo->prepare(
                 'UPDATE seller_users
-                 SET phone_number = ?, business_address = ?, logo_path = ?, banner_path = ?
+                 SET phone_number = ?, business_address = ?, logo_path = ?, banner_path = ?,
+                     phone_verified_at = CASE WHEN ? = 1 THEN NULL ELSE phone_verified_at END
                  WHERE id = ?
                  LIMIT 1'
             );
-            $upd->execute([$phoneNumber, $businessAddress, $logoPath, $bannerPath, (int) $seller['id']]);
+            $upd->execute([$phoneNumber, $businessAddress, $logoPath, $bannerPath, $phoneChanged ? 1 : 0, (int) $seller['id']]);
+            if ($phoneChanged) {
+                unset($_SESSION['seller_profile_phone_verify']);
+            }
             $flash = 'Profile details updated successfully.';
             $flashOk = true;
 
@@ -140,6 +148,150 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
             $profile['business_address'] = $businessAddress;
             $profile['logo_path'] = $logoPath;
             $profile['banner_path'] = $bannerPath;
+            if ($phoneChanged) {
+                $profile['phone_verified_at'] = null;
+            }
+        }
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') === 'send_email_verify_code') {
+    $email = trim((string) ($profile['email'] ?? ''));
+    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $flash = 'Valid seller email missing hai. Admin se contact karein.';
+    } else {
+        $pending = $_SESSION['seller_profile_email_verify'] ?? null;
+        if (is_array($pending) && ((int) ($pending['seller_id'] ?? 0) === (int) $seller['id']) && time() - (int) ($pending['sent_at'] ?? 0) < 60) {
+            $flash = 'Naya email code bhejne se pehle 1 minute wait karein.';
+        } else {
+            $code = luxe_signup_otp_code();
+            $send = luxe_deliver_verification_code_email(
+                $email,
+                'Verify your seller email',
+                $code,
+                'Use this code to verify your seller account email on LUXE.'
+            );
+            if (!$send['ok']) {
+                $flash = 'Could not send email verification code. SMTP settings check karein.';
+            } else {
+                $_SESSION['seller_profile_email_verify'] = [
+                    'seller_id' => (int) $seller['id'],
+                    'email' => $email,
+                    'code_hash' => luxe_signup_code_hash($code),
+                    'expires_at' => time() + 900,
+                    'sent_at' => time(),
+                    'attempts' => 0,
+                ];
+                $flash = 'Email verification code bhej diya gaya hai.';
+                if (!empty($send['dev_code'])) {
+                    $flash .= ' Dev code: ' . (string) $send['dev_code'];
+                }
+                $flashOk = true;
+            }
+        }
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') === 'verify_email_code') {
+    $code = preg_replace('/\D/', '', (string) ($_POST['email_verification_code'] ?? '')) ?? '';
+    $pending = $_SESSION['seller_profile_email_verify'] ?? null;
+    if (!is_array($pending) || (int) ($pending['seller_id'] ?? 0) !== (int) $seller['id']) {
+        $flash = 'Email verification session missing hai. Pehle code bhejein.';
+    } elseif (strlen($code) !== 6) {
+        $flash = '6-digit email code enter karein.';
+    } elseif (time() > (int) ($pending['expires_at'] ?? 0)) {
+        unset($_SESSION['seller_profile_email_verify']);
+        $flash = 'Email verification code expire ho gaya. Naya code bhejein.';
+    } else {
+        $attempts = (int) ($pending['attempts'] ?? 0);
+        if ($attempts >= 8) {
+            unset($_SESSION['seller_profile_email_verify']);
+            $flash = 'Too many wrong attempts. Naya code bhejein.';
+        } elseif (!hash_equals((string) ($pending['code_hash'] ?? ''), luxe_signup_code_hash($code))) {
+            $_SESSION['seller_profile_email_verify']['attempts'] = $attempts + 1;
+            $flash = 'Invalid email verification code.';
+        } else {
+            $upd = $pdo->prepare('UPDATE seller_users SET email_verified_at = CURRENT_TIMESTAMP WHERE id = ? LIMIT 1');
+            $upd->execute([(int) $seller['id']]);
+            unset($_SESSION['seller_profile_email_verify']);
+            $profile['email_verified_at'] = date('Y-m-d H:i:s');
+            $flash = 'Email verified successfully.';
+            $flashOk = true;
+        }
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') === 'send_phone_verify_code') {
+    $phone = trim((string) ($profile['phone_number'] ?? ''));
+    $email = trim((string) ($profile['email'] ?? ''));
+    if ($phone === '') {
+        $flash = 'Phone number save karein, phir verify karein.';
+    } elseif (!preg_match('/^[0-9+\-\s]{8,20}$/', $phone)) {
+        $flash = 'Phone number format valid nahi hai.';
+    } elseif ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $flash = 'Valid seller email missing hai. Admin se contact karein.';
+    } else {
+        $pending = $_SESSION['seller_profile_phone_verify'] ?? null;
+        if (is_array($pending) && ((int) ($pending['seller_id'] ?? 0) === (int) $seller['id']) && time() - (int) ($pending['sent_at'] ?? 0) < 60) {
+            $flash = 'Naya phone code bhejne se pehle 1 minute wait karein.';
+        } else {
+            $code = luxe_signup_otp_code();
+            $send = luxe_deliver_verification_code_email(
+                $email,
+                'Verify your seller mobile number',
+                $code,
+                'Use this code to verify mobile number ' . $phone . ' on your seller profile.'
+            );
+            if (!$send['ok']) {
+                $flash = 'Could not send mobile verification code. SMTP settings check karein.';
+            } else {
+                $_SESSION['seller_profile_phone_verify'] = [
+                    'seller_id' => (int) $seller['id'],
+                    'email' => $email,
+                    'phone' => $phone,
+                    'code_hash' => luxe_signup_code_hash($code),
+                    'expires_at' => time() + 900,
+                    'sent_at' => time(),
+                    'attempts' => 0,
+                ];
+                $flash = 'Mobile verification code aapke email par bhej diya gaya hai.';
+                if (!empty($send['dev_code'])) {
+                    $flash .= ' Dev code: ' . (string) $send['dev_code'];
+                }
+                $flashOk = true;
+            }
+        }
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') === 'verify_phone_code') {
+    $code = preg_replace('/\D/', '', (string) ($_POST['phone_verification_code'] ?? '')) ?? '';
+    $pending = $_SESSION['seller_profile_phone_verify'] ?? null;
+    if (!is_array($pending) || (int) ($pending['seller_id'] ?? 0) !== (int) $seller['id']) {
+        $flash = 'Mobile verification session missing hai. Pehle code bhejein.';
+    } elseif (strlen($code) !== 6) {
+        $flash = '6-digit mobile code enter karein.';
+    } elseif (time() > (int) ($pending['expires_at'] ?? 0)) {
+        unset($_SESSION['seller_profile_phone_verify']);
+        $flash = 'Mobile verification code expire ho gaya. Naya code bhejein.';
+    } elseif (trim((string) ($profile['phone_number'] ?? '')) !== trim((string) ($pending['phone'] ?? ''))) {
+        unset($_SESSION['seller_profile_phone_verify']);
+        $flash = 'Phone number update ho chuka hai. Naya code bhejein.';
+    } else {
+        $attempts = (int) ($pending['attempts'] ?? 0);
+        if ($attempts >= 8) {
+            unset($_SESSION['seller_profile_phone_verify']);
+            $flash = 'Too many wrong attempts. Naya code bhejein.';
+        } elseif (!hash_equals((string) ($pending['code_hash'] ?? ''), luxe_signup_code_hash($code))) {
+            $_SESSION['seller_profile_phone_verify']['attempts'] = $attempts + 1;
+            $flash = 'Invalid mobile verification code.';
+        } else {
+            $upd = $pdo->prepare('UPDATE seller_users SET phone_verified_at = CURRENT_TIMESTAMP WHERE id = ? LIMIT 1');
+            $upd->execute([(int) $seller['id']]);
+            unset($_SESSION['seller_profile_phone_verify']);
+            $profile['phone_verified_at'] = date('Y-m-d H:i:s');
+            $flash = 'Mobile number verified successfully.';
+            $flashOk = true;
         }
     }
 }
@@ -147,6 +299,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
 $allowedCategories = array_values(array_filter(array_map('trim', explode(',', (string) ($profile['allowed_categories'] ?? ''))), static fn(string $v): bool => $v !== ''));
 $kycCompleted = (int) ($profile['kyc_completed'] ?? 0) === 1;
 $kycFinalApproved = (int) ($profile['kyc_final_approved'] ?? 0) === 1;
+$emailVerified = !empty($profile['email_verified_at']);
+$phoneVerified = !empty($profile['phone_verified_at']) && trim((string) ($profile['phone_number'] ?? '')) !== '';
+$emailNeedsVerify = !$emailVerified;
+$phoneNeedsVerify = !$phoneVerified;
 
 function seller_profile_format_dt(?string $raw): string
 {
@@ -254,9 +410,29 @@ require __DIR__ . '/partials/shell-top.php';
           <div class="card-body seller-profile-card-body">
             <div class="seller-detail-grid seller-profile-detail-grid">
               <div class="seller-detail-item seller-profile-detail-item"><span>Full name</span><strong><?= h((string) ($profile['full_name'] ?? '—')) ?></strong></div>
-              <div class="seller-detail-item seller-profile-detail-item"><span>Email</span><strong><?= h((string) ($profile['email'] ?? '—')) ?></strong></div>
+              <div class="seller-detail-item seller-profile-detail-item">
+                <span>Email</span>
+                <strong>
+                  <?= h((string) ($profile['email'] ?? '—')) ?>
+                  <?php if ($emailVerified): ?>
+                    <span class="seller-verify-icon seller-verify-icon--ok" title="Verified" aria-label="Verified">✓</span>
+                  <?php else: ?>
+                    <span class="seller-verify-icon seller-verify-icon--pending" title="Pending verification" aria-label="Pending verification">⚠</span>
+                  <?php endif; ?>
+                </strong>
+              </div>
               <div class="seller-detail-item seller-profile-detail-item"><span>Business name</span><strong><?= h((string) ($profile['business_name'] ?: '—')) ?></strong></div>
-              <div class="seller-detail-item seller-profile-detail-item"><span>Phone (on file)</span><strong><?= h((string) ($profile['phone_number'] ?: '—')) ?></strong></div>
+              <div class="seller-detail-item seller-profile-detail-item">
+                <span>Phone (on file)</span>
+                <strong>
+                  <?= h((string) ($profile['phone_number'] ?: '—')) ?>
+                  <?php if ($phoneVerified): ?>
+                    <span class="seller-verify-icon seller-verify-icon--ok" title="Verified" aria-label="Verified">✓</span>
+                  <?php else: ?>
+                    <span class="seller-verify-icon seller-verify-icon--pending" title="Pending verification" aria-label="Pending verification">⚠</span>
+                  <?php endif; ?>
+                </strong>
+              </div>
               <div class="seller-detail-item seller-detail-item--wide seller-profile-detail-item"><span>Business address (on file)</span><strong><?= h((string) ($profile['business_address'] ?: '—')) ?></strong></div>
               <div class="seller-detail-item seller-profile-detail-item"><span>Allowed categories</span><strong><?= h($allowedCategories !== [] ? implode(', ', $allowedCategories) : '—') ?></strong></div>
               <div class="seller-detail-item seller-profile-detail-item"><span>GST number</span><strong><?= h((string) ($profile['gst_number'] ?: '—')) ?></strong></div>
@@ -334,6 +510,46 @@ require __DIR__ . '/partials/shell-top.php';
                 <button class="admin-btn admin-btn--primary" type="submit">Save changes</button>
               </div>
             </form>
+            <?php if ($emailNeedsVerify || $phoneNeedsVerify): ?>
+            <div class="seller-profile-verify-grid">
+              <?php if ($emailNeedsVerify): ?>
+              <div class="seller-profile-verify-card">
+                <h3>Email verification</h3>
+                <p class="seller-profile-verify-note">Code aapke seller email par aayega.</p>
+                <form method="post" class="seller-actions">
+                  <input type="hidden" name="action" value="send_email_verify_code">
+                  <button class="admin-btn admin-btn--outline" type="submit">Send email code</button>
+                </form>
+                <form method="post">
+                  <label for="email_verification_code" class="seller-profile-verify-label">Enter 6-digit code</label>
+                  <input id="email_verification_code" class="seller-badge-input" type="text" name="email_verification_code" maxlength="6" inputmode="numeric" pattern="[0-9]*" placeholder="000000" autocomplete="one-time-code">
+                  <input type="hidden" name="action" value="verify_email_code">
+                  <div class="seller-actions">
+                    <button class="admin-btn admin-btn--primary" type="submit">Verify email</button>
+                  </div>
+                </form>
+              </div>
+              <?php endif; ?>
+              <?php if ($phoneNeedsVerify): ?>
+              <div class="seller-profile-verify-card">
+                <h3>Mobile verification</h3>
+                <p class="seller-profile-verify-note">Code registered email par aata hai.</p>
+                <form method="post" class="seller-actions">
+                  <input type="hidden" name="action" value="send_phone_verify_code">
+                  <button class="admin-btn admin-btn--outline" type="submit">Send mobile code</button>
+                </form>
+                <form method="post">
+                  <label for="phone_verification_code" class="seller-profile-verify-label">Enter 6-digit code</label>
+                  <input id="phone_verification_code" class="seller-badge-input" type="text" name="phone_verification_code" maxlength="6" inputmode="numeric" pattern="[0-9]*" placeholder="000000" autocomplete="one-time-code">
+                  <input type="hidden" name="action" value="verify_phone_code">
+                  <div class="seller-actions">
+                    <button class="admin-btn admin-btn--primary" type="submit">Verify mobile</button>
+                  </div>
+                </form>
+              </div>
+              <?php endif; ?>
+            </div>
+            <?php endif; ?>
           </div>
         </div>
 
@@ -401,5 +617,15 @@ require __DIR__ . '/partials/shell-top.php';
             bindFileName('banner_file', 'bannerFileName');
           })();
         </script>
+        <style>
+          .seller-verify-icon{display:flex!important;align-items:center;justify-content:center;flex:0 0 auto;width:20px;height:20px;margin-left:8px;border-radius:50%;font-size:12px;line-height:1;font-weight:700;vertical-align:middle}
+          .seller-verify-icon--ok{background:#dcfce7;color:#166534;border:1px solid #86efac}
+          .seller-verify-icon--pending{background:#fef3c7;color:#92400e;border:1px solid #fcd34d}
+          .seller-profile-verify-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:18px}
+          .seller-profile-verify-card{border:1px solid #e5e7eb;border-radius:12px;padding:14px;background:#fff;display:flex;flex-direction:column;gap:8px}
+          .seller-profile-verify-note{margin:0;color:#6b7280;font-size:12px}
+          .seller-profile-verify-label{font-size:12px;color:#4b5563}
+          @media (max-width: 920px){.seller-profile-verify-grid{grid-template-columns:1fr}}
+        </style>
 
 <?php require __DIR__ . '/partials/shell-bottom.php'; ?>

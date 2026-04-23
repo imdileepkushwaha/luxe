@@ -100,6 +100,8 @@ if ($createdRaw !== '') {
     $memberSinceLabel = $ts !== false ? date('M Y', $ts) : $createdRaw;
 }
 $profileBadgeLabel = $orderStats['order_count'] > 0 ? '⭐ LUXE Premium Member' : 'LUXE Member';
+$emailVerifiedUi = !empty($user['email_verified_at']);
+$phoneVerifiedUi = !empty($user['phone_verified_at']);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -153,7 +155,7 @@ $profileBadgeLabel = $orderStats['order_count'] > 0 ? '⭐ LUXE Premium Member' 
       <?php if ($pendingDeletion): ?>
       <div class="profile-deletion-banner" role="status">
         <strong>Account deletion scheduled</strong>
-        <p>Your request is with our team. Your account will be removed within 48 hours (by <?= h(date('M j, Y g:i A', strtotime((string) $pendingDeletion['process_after']))) ?>). Aapka account 48 ghante ke andar delete ho jayega.</p>
+        <p>Your request is with our team. Your account will be removed within 48 hours (by <?= h(date('M j, Y g:i A', strtotime((string) $pendingDeletion['process_after']))) ?>).</p>
       </div>
       <?php endif; ?>
 
@@ -245,13 +247,31 @@ $profileBadgeLabel = $orderStats['order_count'] > 0 ? '⭐ LUXE Premium Member' 
                   <label>Last Name</label>
                   <input type="text" id="lastName" value="<?= $user ? h($user['last_name']) : '' ?>" disabled />
                 </div>
-                <div class="form-field">
+                <div class="form-field profile-contact-field">
                   <label>Email Address</label>
-                  <input type="email" id="email" value="<?= $user ? h($user['email']) : '' ?>" disabled />
+                  <div class="profile-contact-input-wrap">
+                    <input type="email" id="email" class="profile-contact-readonly" value="<?= $user ? h($user['email']) : '' ?>" readonly autocomplete="email" />
+                    <?php if ($emailVerifiedUi): ?>
+                    <span class="profile-verified-chip" id="emailVerifiedChip" title="Email confirmed">✓ Verified</span>
+                    <?php else: ?>
+                    <span class="profile-verified-chip profile-verified-chip--pending" id="emailVerifiedChip" title="Confirm pending">Pending</span>
+                    <?php endif; ?>
+                  </div>
+                  <button type="button" class="ghost-btn profile-contact-btn" onclick="openEmailChangeModal()">Change or verify email</button>
+                  <p class="profile-contact-note">We send a 6-digit code to the new address. Your email only updates after you confirm the code.</p>
                 </div>
-                <div class="form-field">
+                <div class="form-field profile-contact-field">
                   <label>Phone Number</label>
-                  <input type="tel" id="phone" value="<?= $user ? h((string) ($user['phone'] ?? '')) : '' ?>" placeholder="+91 98765 43210" disabled />
+                  <div class="profile-contact-input-wrap">
+                    <input type="tel" id="phone" class="profile-contact-readonly" value="<?= $user ? h((string) ($user['phone'] ?? '')) : '' ?>" placeholder="+91 98765 43210" readonly autocomplete="tel" />
+                    <?php if ($phoneVerifiedUi): ?>
+                    <span class="profile-verified-chip" id="phoneVerifiedChip" title="Mobile verified">✓ Verified</span>
+                    <?php else: ?>
+                    <span class="profile-verified-chip profile-verified-chip--pending" id="phoneVerifiedChip" title="Verify mobile">Verify</span>
+                    <?php endif; ?>
+                  </div>
+                  <button type="button" class="ghost-btn profile-contact-btn" onclick="openPhoneChangeModal()">Add or verify mobile</button>
+                  <p class="profile-contact-note">The one-time code is sent to your <strong>registered email</strong> (SMS can be wired in later).</p>
                 </div>
                 <div class="form-field">
                   <label>Date of Birth</label>
@@ -312,7 +332,7 @@ $profileBadgeLabel = $orderStats['order_count'] > 0 ? '⭐ LUXE Premium Member' 
                   <h2 class="wishlist-title">My Reviews</h2>
                   <span class="wishlist-count-chip"><?= (int) $deliveredReviewCount ?></span>
                 </div>
-                <p class="wishlist-lede">Sirf <strong>delivered</strong> orders ke products. Pending review: <strong><?= (int) $pendingReviewCount ?></strong> · Submitted: <strong><?= (int) $reviewedPurchasesCount ?></strong>. Neeche se hi rating aur review submit karein.</p>
+                <p class="wishlist-lede">Only products from <strong>delivered</strong> orders. Pending review: <strong><?= (int) $pendingReviewCount ?></strong> · Submitted: <strong><?= (int) $reviewedPurchasesCount ?></strong>. Submit ratings and reviews below.</p>
               </div>
               <a href="orders.php" class="wishlist-cta-outline">My orders</a>
             </header>
@@ -325,9 +345,9 @@ $profileBadgeLabel = $orderStats['order_count'] > 0 ? '⭐ LUXE Premium Member' 
             <div class="wishlist-empty--premium profile-reviews-empty" role="status">
               <div class="wishlist-empty__glow" aria-hidden="true"></div>
               <span class="wishlist-empty__mark" aria-hidden="true">📦</span>
-              <h3 class="wishlist-empty__title">Abhi koi delivered product nahi</h3>
-              <p class="wishlist-empty__text">Jab aapka order <strong>Delivered</strong> ho jaye, woh products yahan dikhenge — phir aap review de sakte hain.</p>
-              <a href="orders.php" class="wishlist-empty__cta">Orders dekhein</a>
+              <h3 class="wishlist-empty__title">No delivered products yet</h3>
+              <p class="wishlist-empty__text">When an order is marked <strong>Delivered</strong>, those products will appear here so you can leave a review.</p>
+              <a href="orders.php" class="wishlist-empty__cta">View orders</a>
             </div>
             <?php else: ?>
             <div class="profile-reviews-list">
@@ -402,7 +422,7 @@ $profileBadgeLabel = $orderStats['order_count'] > 0 ? '⭐ LUXE Premium Member' 
                         <span class="profile-review-date">Review · <?= h($reviewDate) ?></span>
                         <?php endif; ?>
                         <?php else: ?>
-                        <span class="profile-review-pending-label">Abhi review nahi diya</span>
+                        <span class="profile-review-pending-label">No review yet</span>
                         <?php endif; ?>
                       </div>
                     </div>
@@ -415,7 +435,7 @@ $profileBadgeLabel = $orderStats['order_count'] > 0 ? '⭐ LUXE Premium Member' 
                   <?php if ($hasReview && $reviewBody !== ''): ?>
                   <p class="profile-review-text"><?= nl2br(h($reviewBody)) ?></p>
                   <?php elseif (!$hasReview): ?>
-                  <p class="profile-review-text profile-review-text--muted">Delivered order — yahin se rating aur review submit karein (min. 10 characters).</p>
+                  <p class="profile-review-text profile-review-text--muted">Delivered order — submit your rating and review here (minimum 10 characters).</p>
                   <form method="post" class="profile-review-inline-form">
                     <input type="hidden" name="action" value="submit_order_review">
                     <input type="hidden" name="order_ref" value="<?= h((string) ($rev['order_ref'] ?? '')) ?>">
@@ -430,7 +450,7 @@ $profileBadgeLabel = $orderStats['order_count'] > 0 ? '⭐ LUXE Premium Member' 
                     </div>
                     <div class="profile-review-inline-form__row">
                       <label class="profile-review-inline-label" for="profile-review-text-<?= (int) $pid ?>">Your review</label>
-                      <textarea id="profile-review-text-<?= (int) $pid ?>" name="review_text" class="profile-review-inline-textarea" rows="3" maxlength="1000" minlength="10" required placeholder="Apna experience share karein..."></textarea>
+                      <textarea id="profile-review-text-<?= (int) $pid ?>" name="review_text" class="profile-review-inline-textarea" rows="3" maxlength="1000" minlength="10" required placeholder="Share your experience..."></textarea>
                     </div>
                     <div class="profile-review-actions profile-review-actions--form">
                       <button type="submit" class="checkout-btn profile-review-write-btn">Submit review</button>
@@ -545,6 +565,70 @@ $profileBadgeLabel = $orderStats['order_count'] > 0 ? '⭐ LUXE Premium Member' 
     </div>
   </div>
 
+  <!-- Change email (verify new inbox) -->
+  <div class="modal-overlay hidden" id="emailChangeModal" role="dialog" aria-modal="true" aria-labelledby="emailChangeModalTitle">
+    <div class="modal-card" style="max-width:420px">
+      <div class="modal-header">
+        <h3 id="emailChangeModalTitle">Email change — verify</h3>
+        <button type="button" class="modal-close" onclick="closeEmailChangeModal()" aria-label="Close">✕</button>
+      </div>
+      <p class="password-modal-lead">Enter your new email, tap <strong>Send code</strong>, then enter the 6-digit code from that inbox to confirm.</p>
+      <div class="form-field">
+        <label for="emailChangeNew">New email</label>
+        <input type="email" id="emailChangeNew" autocomplete="email" placeholder="you@example.com" />
+      </div>
+      <div class="form-actions" style="margin-top:8px">
+        <button type="button" class="checkout-btn" id="emailChangeSendBtn" style="max-width:200px" onclick="profileEmailSendCode()">Send code</button>
+      </div>
+      <div id="emailChangeStep2" class="hidden" style="margin-top:16px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.12)">
+        <p class="password-modal-lead" id="emailChangeHint">A code has been sent.</p>
+        <div class="form-field">
+          <label for="emailChangeCode">6-digit code</label>
+          <input type="text" id="emailChangeCode" inputmode="numeric" maxlength="6" pattern="[0-9]*" placeholder="000000" autocomplete="one-time-code" />
+        </div>
+        <div class="form-actions">
+          <button type="button" class="checkout-btn" id="emailChangeVerifyBtn" style="max-width:200px" onclick="profileEmailVerifyCode()">Confirm email</button>
+          <button type="button" class="ghost-btn" onclick="profileEmailResend()">Resend code</button>
+        </div>
+      </div>
+      <div class="form-actions" style="margin-top:12px">
+        <button type="button" class="ghost-btn" onclick="closeEmailChangeModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Verify mobile (OTP on registered email) -->
+  <div class="modal-overlay hidden" id="phoneChangeModal" role="dialog" aria-modal="true" aria-labelledby="phoneChangeModalTitle">
+    <div class="modal-card" style="max-width:420px">
+      <div class="modal-header">
+        <h3 id="phoneChangeModalTitle">Mobile verify</h3>
+        <button type="button" class="modal-close" onclick="closePhoneChangeModal()" aria-label="Close">✕</button>
+      </div>
+      <p class="password-modal-lead">Enter the number you want to save. A one-time code will be sent to your account email (<span id="phoneChangeEmailMask"></span>).</p>
+      <div class="form-field">
+        <label for="phoneChangeNew">Mobile number</label>
+        <input type="tel" id="phoneChangeNew" autocomplete="tel" placeholder="+91 98765 43210" maxlength="40" />
+      </div>
+      <div class="form-actions" style="margin-top:8px">
+        <button type="button" class="checkout-btn" id="phoneChangeSendBtn" style="max-width:200px" onclick="profilePhoneSendCode()">Send OTP to email</button>
+      </div>
+      <div id="phoneChangeStep2" class="hidden" style="margin-top:16px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.12)">
+        <p class="password-modal-lead" id="phoneChangeHint">Check your email inbox.</p>
+        <div class="form-field">
+          <label for="phoneChangeCode">6-digit code</label>
+          <input type="text" id="phoneChangeCode" inputmode="numeric" maxlength="6" pattern="[0-9]*" placeholder="000000" autocomplete="one-time-code" />
+        </div>
+        <div class="form-actions">
+          <button type="button" class="checkout-btn" id="phoneChangeVerifyBtn" style="max-width:220px" onclick="profilePhoneVerifyCode()">Confirm mobile</button>
+          <button type="button" class="ghost-btn" onclick="profilePhoneResend()">Resend OTP</button>
+        </div>
+      </div>
+      <div class="form-actions" style="margin-top:12px">
+        <button type="button" class="ghost-btn" onclick="closePhoneChangeModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Change password modal -->
   <div class="modal-overlay hidden" id="changePasswordModal" role="dialog" aria-modal="true" aria-labelledby="changePasswordModalTitle">
     <div class="modal-card">
@@ -592,6 +676,10 @@ $profileBadgeLabel = $orderStats['order_count'] > 0 ? '⭐ LUXE Premium Member' 
     window.__WISHLIST__ = <?= json_encode($wishlistArr, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
     window.__PRODUCTS__ = <?= json_encode($allProducts, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
     window.__API_PROFILE_UPDATE__ = 'actions/update-profile.php';
+    window.__API_PROFILE_EMAIL_SEND__ = 'actions/profile-email-change-send.php';
+    window.__API_PROFILE_EMAIL_VERIFY__ = 'actions/profile-email-change-verify.php';
+    window.__API_PROFILE_PHONE_SEND__ = 'actions/profile-phone-change-send.php';
+    window.__API_PROFILE_PHONE_VERIFY__ = 'actions/profile-phone-change-verify.php';
     window.__API_ACCOUNT_DELETE__ = 'actions/request-account-deletion.php';
     window.__API_CHANGE_PASSWORD__ = 'actions/change-password.php';
     window.__API_ADDRESS_SAVE__ = 'actions/save-address.php';

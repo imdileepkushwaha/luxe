@@ -12,8 +12,9 @@ return [
         'pass' => '',
         'charset' => 'utf8mb4',
     ],
-    // Sign-up email: on localhost / 127.0.0.1 the app skips sending and shows the code in the UI.
-    // On a real host, configure SMTP (install vendor + PHPMailer) or working PHP mail().
+    // Sign-up / profile verification: on localhost the app can skip sending and return the code in the API.
+    // If mail.smtp.host is non-empty, OTP emails are sent only via PHPMailer (SMTP) — no PHP mail() fallback.
+    // Leave smtp.host empty only if you rely on the server’s PHP mail() instead.
     'mail' => [
         'from' => 'LUXE <noreply@yourdomain.com>',
         'from_email' => 'noreply@yourdomain.com',

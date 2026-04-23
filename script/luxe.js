@@ -555,21 +555,62 @@ function luxeCartLineDomId(it) {
 const dot = document.getElementById("cursorDot");
 const ring = document.getElementById("cursorRing");
 let mx = 0, my = 0, rx = 0, ry = 0;
+let cursorReady = false;
+let cursorHoverBound = false;
+const CURSOR_TARGET_SELECTOR = "a, button, input, select, label, .product-card, .collection-card, .brand-logo, .tag, .strip-item, .filter-btn, .ctag, .action-btn, .smenu-item, .wishlist-item, .address-card, .order-card, .cart-item, .thumb, .swatch, .size-btn, .review-card, .perk-item, .delivery-card, .ptab, .spec-row, .f-card, .nav-menu-btn, .nav-drawer__close, .btn-share, .product-filters-open-btn, .product-filters__close-btn";
 
-document.addEventListener("mousemove", e => {
-  mx = e.clientX; my = e.clientY;
-  if (dot) { dot.style.left = mx + "px"; dot.style.top = my + "px"; }
-});
-(function animCursor() {
-  rx += (mx - rx) * 0.12; ry += (my - ry) * 0.12;
-  if (ring) { ring.style.left = rx + "px"; ring.style.top = ry + "px"; }
-  requestAnimationFrame(animCursor);
-})();
+if (dot && ring && window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
+  document.addEventListener("pointermove", e => {
+    mx = e.clientX;
+    my = e.clientY;
+    if (!cursorReady) {
+      cursorReady = true;
+      rx = mx;
+      ry = my;
+      dot.classList.add("is-visible");
+      ring.classList.add("is-visible");
+    }
+    dot.style.left = mx + "px";
+    dot.style.top = my + "px";
+  }, { passive: true });
+
+  document.addEventListener("pointerdown", () => ring.classList.add("pressed"), { passive: true });
+  document.addEventListener("pointerup", () => ring.classList.remove("pressed"), { passive: true });
+  document.addEventListener("pointercancel", () => ring.classList.remove("pressed"), { passive: true });
+
+  document.addEventListener("mouseleave", () => {
+    dot.classList.remove("is-visible");
+    ring.classList.remove("is-visible");
+  });
+  document.addEventListener("mouseenter", () => {
+    if (cursorReady) {
+      dot.classList.add("is-visible");
+      ring.classList.add("is-visible");
+    }
+  });
+
+  (function animCursor() {
+    rx += (mx - rx) * 0.18;
+    ry += (my - ry) * 0.18;
+    ring.style.left = rx + "px";
+    ring.style.top = ry + "px";
+    requestAnimationFrame(animCursor);
+  })();
+}
 
 function refreshCursorTargets() {
-  document.querySelectorAll("a, button, input, select, label, .product-card, .collection-card, .brand-logo, .tag, .strip-item, .filter-btn, .ctag, .action-btn, .smenu-item, .wishlist-item, .address-card, .order-card, .cart-item, .thumb, .swatch, .size-btn, .review-card, .perk-item, .delivery-card, .ptab, .spec-row, .f-card, .nav-menu-btn, .nav-drawer__close, .btn-share, .product-filters-open-btn, .product-filters__close-btn").forEach(el => {
-    el.addEventListener("mouseenter", () => ring?.classList.add("hover"));
-    el.addEventListener("mouseleave", () => ring?.classList.remove("hover"));
+  if (!ring || cursorHoverBound) return;
+  cursorHoverBound = true;
+
+  document.addEventListener("mouseover", e => {
+    if (e.target && e.target.closest && e.target.closest(CURSOR_TARGET_SELECTOR)) {
+      ring.classList.add("hover");
+    }
+  });
+  document.addEventListener("mouseout", e => {
+    if (e.target && e.target.closest && e.target.closest(CURSOR_TARGET_SELECTOR)) {
+      ring.classList.remove("hover");
+    }
   });
 }
 
@@ -1666,6 +1707,7 @@ function initThemeToggle() {
       if (!r.ok && data && !data.message) {
         data.message = "Request failed (HTTP " + r.status + ").";
       }
+      data._httpStatus = r.status;
       return data;
     }).then(data => {
       if (!data) return;
@@ -1678,10 +1720,14 @@ function initThemeToggle() {
         if (data.dev_code) {
           showToast((data.dev_note || "Verification code") + " — Code: " + data.dev_code);
         } else {
-          showToast("📧 Check your inbox for the 4-digit code.");
+          showToast("📧 Check your inbox for the 6-digit code.");
         }
       } else {
-        showToast(data.message || "Could not send verification code.");
+        const msg = data.message || "Could not send verification code.";
+        if (data._httpStatus === 409 || data.code === "email_taken") {
+          setError("rg-email-group", "rg-email-err", msg);
+        }
+        showToast(msg);
       }
     }).catch(() => {
       setLoading("regSubmitBtn", "regLoader", false);
@@ -1694,9 +1740,9 @@ function initThemeToggle() {
     const code = (document.getElementById("rg-code")?.value || "").replace(/\D/g, "");
     const group = document.getElementById("rg-code-group");
     const err = document.getElementById("rg-code-err");
-    if (code.length !== 4) {
+    if (code.length !== 6) {
       if (group) group.classList.add("has-error");
-      if (err) err.textContent = "Enter the 4-digit code.";
+      if (err) err.textContent = "Enter the 6-digit code.";
       return;
     }
     if (group) group.classList.remove("has-error");
@@ -3238,6 +3284,24 @@ function initThemeToggle() {
     const st = String(order?.status || "").toLowerCase();
     return ["processing", "confirmed", "shipped"].includes(st);
   }
+  function cancelRequestStatus(order) {
+    const cr = order?.cancelRequest;
+    if (!cr || typeof cr !== "object") return "none";
+    const st = String(cr.status || "").toLowerCase();
+    if (["pending", "approved", "rejected"].includes(st)) return st;
+    return "none";
+  }
+  function canRequestCancel(order) {
+    const st = cancelRequestStatus(order);
+    return st === "none" || st === "rejected";
+  }
+  function cancelRequestReasonText(order) {
+    const cr = order?.cancelRequest;
+    if (!cr || typeof cr !== "object") return "";
+    const sellerReason = String(cr.sellerReason || "").trim();
+    if (sellerReason) return sellerReason;
+    return "Seller rejected this cancellation request.";
+  }
   function escHtml(v) {
     return String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
@@ -3268,12 +3332,21 @@ function initThemeToggle() {
       const returnableItems = (order.items || []).filter(item => canRequestReturn(item));
       const hasAnyReturnInProgress = (order.items || []).some(item => hasReturnInProgress(item));
       const hasAnyReturnCompleted = (order.items || []).some(item => hasReturnCompleted(item));
-      const canCancel = order.status === "processing" || order.status === "confirmed" || order.status === "shipped";
+      const canCancelByOrderStage = order.status === "processing" || order.status === "confirmed" || order.status === "shipped";
+      const cancelStatus = cancelRequestStatus(order);
+      const canCancel = canCancelByOrderStage && canRequestCancel(order);
       const helpBtn = isHelpEligibleOrder(order)
         ? `<button class="action-btn secondary" onclick="openOrderEnquiryForm('${order.id}')">Need Help</button>`
         : "";
       const cancelBtn = canCancel
-        ? `<button class="action-btn secondary" onclick="openOrderCancelForm('${order.id}')">Cancel Order</button>`
+        ? `<button class="action-btn secondary" onclick="openOrderCancelForm('${order.id}')">${cancelStatus === "rejected" ? "Request Cancel Again" : "Cancel Order"}</button>`
+        : (canCancelByOrderStage && cancelStatus === "pending")
+          ? `<button class="action-btn secondary is-disabled" type="button" disabled title="Cancellation request already pending">Cancel Request Pending</button>`
+          : "";
+      const cancelInfoHtml = cancelStatus === "rejected"
+        ? `<div style="margin-top:8px;padding:9px 10px;border:1px solid rgba(239,68,68,.35);border-radius:10px;background:rgba(239,68,68,.08);font-size:.78rem;color:#fecaca">
+            <strong style="color:#fca5a5">Cancel request rejected:</strong> ${escHtml(cancelRequestReasonText(order))}
+          </div>`
         : "";
       const invoiceBtn = order.status === "delivered"
         ? `<a class="action-btn secondary" href="download-invoice.php?order_ref=${encodeURIComponent(order.id)}">Download Invoice</a>`
@@ -3330,6 +3403,7 @@ function initThemeToggle() {
         }).join("")}${extra > 0 ? `<span class="order-more-items">+${extra} more</span>` : ""}</div>
         ${order.status !== "cancelled" ? `<div class="tracking-section"><div class="tracking-label">📍 Item-wise Order Progress</div>${itemProgressHtml}${(order.items || []).length > 3 ? `<div style="font-size:0.76rem;color:var(--text-dim)">+${order.items.length - 3} more item(s)</div>` : ""}</div>` : ""}
         ${returnProgressHtml}
+        ${cancelInfoHtml}
         <div class="order-card-footer"><div class="order-total-info"><span class="order-total-label">Order Total</span><span class="order-total-val">₹${order.total.toLocaleString()}</span></div>
         <div class="order-card-actions">${order.status === "delivered" && reviewableItems.length > 0 ? `<button class="action-btn secondary" onclick="openOrderReviewForm('${order.id}')">Rate & Review</button>` : ""}${helpBtn}${invoiceBtn}${cancelBtn}${returnBtn}<button class="action-btn primary" onclick="viewDetail('${order.id}')">View Details →</button></div></div>
       </div>`;
@@ -3404,7 +3478,15 @@ function initThemeToggle() {
           ${enquiryItemsHtml}
         </div>`
       : "";
-    document.getElementById("detailContent").innerHTML = `<div style="display:flex;flex-direction:column;gap:16px"><div style="background:var(--bg3);border-radius:var(--radius-sm);padding:16px;display:flex;justify-content:space-between;align-items:center"><div><span style="font-size:0.78rem;color:var(--text-dim)">STATUS</span><br/><span class="status-badge status-${order.status}" style="margin-top:6px;display:inline-flex">${capitalize(order.status)}</span></div><div><span style="font-size:0.78rem;color:var(--text-dim)">DATE</span><br/><strong style="color:var(--white)">${order.date}</strong></div><div><span style="font-size:0.78rem;color:var(--text-dim)">PAYMENT</span><br/><strong style="color:var(--white)">${order.payment}</strong></div></div><div><h4 style="font-size:0.85rem;color:var(--text-muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.08em">Items Ordered</h4>${detailItemsHtml}</div>${returnCardHtml}${enquiryCardHtml}<div style="background:var(--bg3);border-radius:var(--radius-sm);padding:16px"><h4 style="font-size:0.85rem;color:var(--text-muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.08em">Delivery Address</h4><p style="color:var(--text-muted);font-size:0.88rem">📍 ${order.address}</p></div><div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-top:1px solid var(--border)"><strong style="color:var(--white)">Order Total</strong><strong style="font-size:1.3rem;color:var(--primary-light)">₹${order.total.toLocaleString()}</strong></div></div>`;
+    const cancelStatus = cancelRequestStatus(order);
+    const cancelCardHtml = cancelStatus !== "none"
+      ? `<div style="background:var(--bg3);border-radius:var(--radius-sm);padding:16px">
+          <h4 style="font-size:0.85rem;color:var(--text-muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.08em">Cancellation Request</h4>
+          <span class="status-badge ${cancelStatus === "pending" ? "status-processing" : (cancelStatus === "approved" ? "status-cancelled" : "status-cancelled")}" style="margin-bottom:8px;display:inline-flex">${cancelStatus === "pending" ? "Pending Seller Review" : (cancelStatus === "approved" ? "Approved" : "Rejected")}</span>
+          ${cancelStatus === "rejected" ? `<p style="font-size:0.82rem;color:#fecaca;margin-top:6px">Reason: ${escHtml(cancelRequestReasonText(order))}</p>` : ""}
+        </div>`
+      : "";
+    document.getElementById("detailContent").innerHTML = `<div style="display:flex;flex-direction:column;gap:16px"><div style="background:var(--bg3);border-radius:var(--radius-sm);padding:16px;display:flex;justify-content:space-between;align-items:center"><div><span style="font-size:0.78rem;color:var(--text-dim)">STATUS</span><br/><span class="status-badge status-${order.status}" style="margin-top:6px;display:inline-flex">${capitalize(order.status)}</span></div><div><span style="font-size:0.78rem;color:var(--text-dim)">DATE</span><br/><strong style="color:var(--white)">${order.date}</strong></div><div><span style="font-size:0.78rem;color:var(--text-dim)">PAYMENT</span><br/><strong style="color:var(--white)">${order.payment}</strong></div></div><div><h4 style="font-size:0.85rem;color:var(--text-muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.08em">Items Ordered</h4>${detailItemsHtml}</div>${cancelCardHtml}${returnCardHtml}${enquiryCardHtml}<div style="background:var(--bg3);border-radius:var(--radius-sm);padding:16px"><h4 style="font-size:0.85rem;color:var(--text-muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.08em">Delivery Address</h4><p style="color:var(--text-muted);font-size:0.88rem">📍 ${order.address}</p></div><div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-top:1px solid var(--border)"><strong style="color:var(--white)">Order Total</strong><strong style="font-size:1.3rem;color:var(--primary-light)">₹${order.total.toLocaleString()}</strong></div></div>`;
     document.getElementById("detailModal").classList.remove("hidden");
   };
   window.closeModal = function() { document.getElementById("detailModal").classList.add("hidden"); };
@@ -3475,6 +3557,15 @@ function initThemeToggle() {
   window.openOrderCancelForm = function(ordId) {
     const order = orders.find(o => o.id === ordId);
     if (!order) return;
+    const cst = cancelRequestStatus(order);
+    if (cst === "pending") {
+      showToast("⏳ Your cancel request is already pending with seller.");
+      return;
+    }
+    if (cst === "approved") {
+      showToast("✅ Cancellation already approved.");
+      return;
+    }
     if (!(order.status === "processing" || order.status === "confirmed" || order.status === "shipped")) {
       showToast("❌ Cancel not allowed after out for delivery.");
       return;
@@ -3552,7 +3643,9 @@ function initThemeToggle() {
   let editing = false;
   if (profileForm) window.toggleEdit = function() {
     editing = !editing;
-    document.querySelectorAll("#profileForm input, #profileForm select").forEach(el => el.disabled = !editing);
+    document.querySelectorAll("#profileForm input:not(#email):not(#phone), #profileForm select").forEach(el => {
+      el.disabled = !editing;
+    });
     document.getElementById("formActions").classList.toggle("hidden", !editing);
     document.getElementById("editToggle").textContent = editing ? "✕ Cancel" : "✏️ Edit";
   };
@@ -3562,13 +3655,11 @@ function initThemeToggle() {
       e.preventDefault();
       const first = document.getElementById("firstName").value.trim();
       const last = document.getElementById("lastName").value.trim();
-      const email = document.getElementById("email").value.trim();
-      const phone = document.getElementById("phone").value.trim();
       const dob = document.getElementById("dob").value.trim();
       const genderEl = document.getElementById("gender");
       const gender = genderEl ? genderEl.value : "";
-      if (!first || !last || !email) {
-        showToast("❌ Please fill first name, last name, and email.");
+      if (!first || !last) {
+        showToast("❌ Please fill first and last name.");
         return;
       }
       const url = typeof window.__API_PROFILE_UPDATE__ === "string"
@@ -3578,7 +3669,7 @@ function initThemeToggle() {
         const r = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ first_name: first, last_name: last, email, phone, dob, gender }),
+          body: JSON.stringify({ first_name: first, last_name: last, dob, gender }),
           credentials: "same-origin",
         });
         const j = await r.json().catch(() => ({}));
@@ -3588,19 +3679,264 @@ function initThemeToggle() {
         }
         document.getElementById("profileName").textContent = `${first} ${last}`;
         document.getElementById("avatarEl").textContent = (first[0] || "?").toUpperCase();
-        document.getElementById("profileEmail").textContent = email;
+        const emailEl = document.getElementById("email");
         const phoneEl = document.getElementById("phone");
+        if (typeof j.email === "string" && emailEl) {
+          emailEl.value = j.email;
+          const pe = document.getElementById("profileEmail");
+          if (pe) pe.textContent = j.email;
+        }
+        if (typeof j.phone === "string" && phoneEl) phoneEl.value = j.phone;
         const dobEl = document.getElementById("dob");
-        if (phoneEl && typeof j.phone === "string") phoneEl.value = j.phone;
         if (dobEl) dobEl.value = j.dob && typeof j.dob === "string" ? j.dob : "";
         if (genderEl) {
           const g = j.gender;
           genderEl.value = g === "male" || g === "female" || g === "other" ? g : "other";
         }
+        const evChip = document.getElementById("emailVerifiedChip");
+        if (evChip && typeof j.email_verified === "boolean") {
+          evChip.textContent = j.email_verified ? "✓ Verified" : "Pending";
+          evChip.classList.toggle("profile-verified-chip--pending", !j.email_verified);
+          evChip.title = j.email_verified ? "Email confirmed" : "Confirm pending";
+        }
+        const pvChip = document.getElementById("phoneVerifiedChip");
+        if (pvChip && typeof j.phone_verified === "boolean") {
+          pvChip.textContent = j.phone_verified ? "✓ Verified" : "Verify";
+          pvChip.classList.toggle("profile-verified-chip--pending", !j.phone_verified);
+          pvChip.title = j.phone_verified ? "Mobile verified" : "Verify mobile";
+        }
         toggleEdit();
         showToast("✅ Profile updated successfully!");
       } catch (_err) {
         showToast("❌ Network error. Try again.");
+      }
+    };
+
+    function profileMaskEmail(em) {
+      const s = (em || "").trim();
+      const at = s.indexOf("@");
+      if (at <= 0) return s || "—";
+      const local = s.slice(0, at);
+      const dom = s.slice(at);
+      const show = local.length <= 2 ? local[0] || "•" : local[0] + "***" + local.slice(-1);
+      return show + dom;
+    }
+
+    function profileSetEmailChip(verified) {
+      const el = document.getElementById("emailVerifiedChip");
+      if (!el) return;
+      el.textContent = verified ? "✓ Verified" : "Pending";
+      el.classList.toggle("profile-verified-chip--pending", !verified);
+      el.title = verified ? "Email confirmed" : "Confirm pending";
+    }
+
+    function profileSetPhoneChip(verified) {
+      const el = document.getElementById("phoneVerifiedChip");
+      if (!el) return;
+      el.textContent = verified ? "✓ Verified" : "Verify";
+      el.classList.toggle("profile-verified-chip--pending", !verified);
+      el.title = verified ? "Mobile verified" : "Verify mobile";
+    }
+
+    window.openEmailChangeModal = function() {
+      const m = document.getElementById("emailChangeModal");
+      if (!m) return;
+      document.getElementById("emailChangeNew").value = "";
+      document.getElementById("emailChangeCode").value = "";
+      document.getElementById("emailChangeStep2").classList.add("hidden");
+      m.classList.remove("hidden");
+      setTimeout(() => document.getElementById("emailChangeNew")?.focus(), 50);
+    };
+    window.closeEmailChangeModal = function() {
+      document.getElementById("emailChangeModal")?.classList.add("hidden");
+    };
+    window.profileEmailSendCode = async function() {
+      const newEmail = (document.getElementById("emailChangeNew")?.value || "").trim();
+      if (!newEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+        showToast("❌ Please enter a valid new email.");
+        return;
+      }
+      const url = window.__API_PROFILE_EMAIL_SEND__ || "actions/profile-email-change-send.php";
+      const btn = document.getElementById("emailChangeSendBtn");
+      if (btn) btn.disabled = true;
+      try {
+        const r = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ new_email: newEmail }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!j.ok) {
+          showToast("❌ " + (j.message || "Could not send the code."));
+          return;
+        }
+        document.getElementById("emailChangeStep2")?.classList.remove("hidden");
+        const hint = document.getElementById("emailChangeHint");
+        if (hint) hint.textContent = "Code sent to " + (j.email_hint || newEmail);
+        if (j.dev_code) showToast((j.dev_note || "Code") + " — " + j.dev_code);
+        else showToast("📧 Check the inbox of your new email.");
+        document.getElementById("emailChangeCode")?.focus();
+      } catch (_e) {
+        showToast("❌ Network error.");
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    };
+    window.profileEmailVerifyCode = async function() {
+      const code = (document.getElementById("emailChangeCode")?.value || "").replace(/\D/g, "");
+      if (code.length !== 6) {
+        showToast("❌ Enter the 6-digit code.");
+        return;
+      }
+      const url = window.__API_PROFILE_EMAIL_VERIFY__ || "actions/profile-email-change-verify.php";
+      const btn = document.getElementById("emailChangeVerifyBtn");
+      if (btn) btn.disabled = true;
+      try {
+        const r = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ code }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!j.ok) {
+          showToast("❌ " + (j.message || "Verification failed."));
+          return;
+        }
+        const em = document.getElementById("email");
+        if (em && j.email) em.value = j.email;
+        const pe = document.getElementById("profileEmail");
+        if (pe && j.email) pe.textContent = j.email;
+        profileSetEmailChip(true);
+        closeEmailChangeModal();
+        showToast("✅ " + (j.message || "Email updated."));
+      } catch (_e) {
+        showToast("❌ Network error.");
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    };
+    window.profileEmailResend = async function() {
+      const url = window.__API_PROFILE_EMAIL_SEND__ || "actions/profile-email-change-send.php";
+      try {
+        const r = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ resend: true }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!j.ok) {
+          showToast("❌ " + (j.message || "Resend fail."));
+          return;
+        }
+        if (j.dev_code) showToast((j.dev_note || "New code") + " — " + j.dev_code);
+        else showToast("📧 A new code has been sent.");
+      } catch (_e) {
+        showToast("❌ Network error.");
+      }
+    };
+
+    window.openPhoneChangeModal = function() {
+      const m = document.getElementById("phoneChangeModal");
+      if (!m) return;
+      const cur = (document.getElementById("phone")?.value || "").trim();
+      document.getElementById("phoneChangeNew").value = cur;
+      document.getElementById("phoneChangeCode").value = "";
+      document.getElementById("phoneChangeStep2").classList.add("hidden");
+      const maskEl = document.getElementById("phoneChangeEmailMask");
+      const accEm = (document.getElementById("email")?.value || "").trim();
+      if (maskEl) maskEl.textContent = profileMaskEmail(accEm);
+      m.classList.remove("hidden");
+      setTimeout(() => document.getElementById("phoneChangeNew")?.focus(), 50);
+    };
+    window.closePhoneChangeModal = function() {
+      document.getElementById("phoneChangeModal")?.classList.add("hidden");
+    };
+    window.profilePhoneSendCode = async function() {
+      const newPhone = (document.getElementById("phoneChangeNew")?.value || "").trim();
+      if (!newPhone) {
+        showToast("❌ Enter a mobile number.");
+        return;
+      }
+      const url = window.__API_PROFILE_PHONE_SEND__ || "actions/profile-phone-change-send.php";
+      const btn = document.getElementById("phoneChangeSendBtn");
+      if (btn) btn.disabled = true;
+      try {
+        const r = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ new_phone: newPhone }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!j.ok) {
+          showToast("❌ " + (j.message || "Could not send the OTP."));
+          return;
+        }
+        document.getElementById("phoneChangeStep2")?.classList.remove("hidden");
+        const hint = document.getElementById("phoneChangeHint");
+        if (hint) hint.textContent = "OTP sent to " + (j.email_hint || "your registered email");
+        if (j.dev_code) showToast((j.dev_note || "Code") + " — " + j.dev_code);
+        else showToast("📧 Check your registered email inbox.");
+        document.getElementById("phoneChangeCode")?.focus();
+      } catch (_e) {
+        showToast("❌ Network error.");
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    };
+    window.profilePhoneVerifyCode = async function() {
+      const code = (document.getElementById("phoneChangeCode")?.value || "").replace(/\D/g, "");
+      if (code.length !== 6) {
+        showToast("❌ Enter the 6-digit OTP.");
+        return;
+      }
+      const url = window.__API_PROFILE_PHONE_VERIFY__ || "actions/profile-phone-change-verify.php";
+      const btn = document.getElementById("phoneChangeVerifyBtn");
+      if (btn) btn.disabled = true;
+      try {
+        const r = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ code }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!j.ok) {
+          showToast("❌ " + (j.message || "Verification failed."));
+          return;
+        }
+        const ph = document.getElementById("phone");
+        if (ph && j.phone) ph.value = j.phone;
+        profileSetPhoneChip(true);
+        closePhoneChangeModal();
+        showToast("✅ " + (j.message || "Mobile number verified."));
+      } catch (_e) {
+        showToast("❌ Network error.");
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    };
+    window.profilePhoneResend = async function() {
+      const url = window.__API_PROFILE_PHONE_SEND__ || "actions/profile-phone-change-send.php";
+      try {
+        const r = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ resend: true }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!j.ok) {
+          showToast("❌ " + (j.message || "Resend fail."));
+          return;
+        }
+        if (j.dev_code) showToast((j.dev_note || "New code") + " — " + j.dev_code);
+        else showToast("📧 A new OTP has been sent.");
+      } catch (_e) {
+        showToast("❌ Network error.");
       }
     };
 

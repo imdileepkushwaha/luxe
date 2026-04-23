@@ -29,8 +29,6 @@ if (!is_array($data)) {
 
 $first = trim((string) ($data['first_name'] ?? ''));
 $last = trim((string) ($data['last_name'] ?? ''));
-$email = trim((string) ($data['email'] ?? ''));
-$phone = trim((string) ($data['phone'] ?? ''));
 $dobRaw = trim((string) ($data['dob'] ?? ''));
 $genderRaw = trim((string) ($data['gender'] ?? ''));
 
@@ -40,21 +38,9 @@ if ($first === '' || $last === '') {
     exit;
 }
 
-if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-    http_response_code(422);
-    echo json_encode(['ok' => false, 'message' => 'A valid email address is required.']);
-    exit;
-}
-
 if (strlen($first) > 100 || strlen($last) > 100) {
     http_response_code(422);
     echo json_encode(['ok' => false, 'message' => 'Name fields are too long.']);
-    exit;
-}
-
-if (strlen($phone) > 40) {
-    http_response_code(422);
-    echo json_encode(['ok' => false, 'message' => 'Phone number is too long (max 40 characters).']);
     exit;
 }
 
@@ -88,26 +74,25 @@ if ($genderRaw !== '') {
 
 try {
     $pdo = db();
+    $st = $pdo->prepare('UPDATE users SET first_name = ?, last_name = ?, dob = ?, gender = ? WHERE id = ?');
+    $st->execute([$first, $last, $dob, $gender, $userId]);
 
-    $dup = $pdo->prepare('SELECT id FROM users WHERE email = ? AND id != ? LIMIT 1');
-    $dup->execute([$email, $userId]);
-    if ($dup->fetch()) {
-        http_response_code(409);
-        echo json_encode(['ok' => false, 'message' => 'That email is already used by another account.']);
-        exit;
-    }
-
-    $st = $pdo->prepare('UPDATE users SET first_name = ?, last_name = ?, email = ?, phone = ?, dob = ?, gender = ? WHERE id = ?');
-    $st->execute([$first, $last, $email, $phone, $dob, $gender, $userId]);
+    $ro = $pdo->prepare(
+        'SELECT email, phone, email_verified_at, phone_verified_at FROM users WHERE id = ? LIMIT 1'
+    );
+    $ro->execute([$userId]);
+    $contact = $ro->fetch() ?: [];
 
     echo json_encode([
         'ok' => true,
         'first_name' => $first,
         'last_name' => $last,
-        'email' => $email,
-        'phone' => $phone,
+        'email' => (string) ($contact['email'] ?? ''),
+        'phone' => (string) ($contact['phone'] ?? ''),
         'dob' => $dob,
         'gender' => $gender,
+        'email_verified' => !empty($contact['email_verified_at']),
+        'phone_verified' => !empty($contact['phone_verified_at']),
     ]);
 } catch (Throwable $e) {
     http_response_code(500);

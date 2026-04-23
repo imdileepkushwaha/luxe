@@ -31,12 +31,21 @@ if ($email === '' || $password === '') {
 
 try {
     $pdo = db();
-    $st = $pdo->prepare('SELECT id, password_hash FROM users WHERE email = ? LIMIT 1');
+    $st = $pdo->prepare('SELECT id, password_hash, email_verified_at FROM users WHERE email = ? LIMIT 1');
     $st->execute([$email]);
     $row = $st->fetch();
     if (!$row || !password_verify($password, $row['password_hash'])) {
         http_response_code(401);
         echo json_encode(['ok' => false, 'message' => 'Invalid email or password.']);
+        exit;
+    }
+    if (empty($row['email_verified_at'])) {
+        http_response_code(403);
+        echo json_encode([
+            'ok' => false,
+            'code' => 'email_not_verified',
+            'message' => 'Please confirm your email first. Finish sign-up using the verification code we sent to your inbox.',
+        ]);
         exit;
     }
     auth_set_user((int) $row['id']);

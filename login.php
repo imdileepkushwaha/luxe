@@ -269,14 +269,13 @@ if (isset($_GET['redirect'])) {
           <div id="registerVerifyStep" class="hidden">
             <div class="form-header">
               <h2>Verify your email</h2>
-              <p>Enter the 4-digit code we sent to <strong id="verifyEmailHint"></strong></p>
+              <p>Enter the 6-digit code we sent to <strong id="verifyEmailHint"></strong></p>
             </div>
             <form id="registerVerifyFormEl" onsubmit="handleRegisterVerify(event)" novalidate>
               <div class="input-group" id="rg-code-group">
                 <label for="rg-code">Verification code</label>
-                <p class="signup-code-hint">अभी के लिए टेस्ट कोड: <strong>1234</strong> — For now use code <strong>1234</strong></p>
                 <div class="input-wrap">
-                  <input type="text" id="rg-code" class="signup-code-input" inputmode="numeric" maxlength="4" pattern="[0-9]*" autocomplete="one-time-code" placeholder="1234" />
+                  <input type="text" id="rg-code" class="signup-code-input" inputmode="numeric" maxlength="6" pattern="[0-9]*" autocomplete="one-time-code" placeholder="Enter 6-digit code" />
                 </div>
                 <span class="error-msg" id="rg-code-err"></span>
               </div>

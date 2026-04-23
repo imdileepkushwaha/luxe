@@ -26,15 +26,15 @@ function luxe_signup_hmac_secret(): string
     return hash('sha256', $s, true);
 }
 
-function luxe_signup_code_hash(string $fourDigitCode): string
+function luxe_signup_code_hash(string $verificationCode): string
 {
-    return hash_hmac('sha256', $fourDigitCode, luxe_signup_hmac_secret(), false);
+    return hash_hmac('sha256', $verificationCode, luxe_signup_hmac_secret(), false);
 }
 
-/** Fixed OTP for testing; switch back to random when real email is ready. */
+/** Generate a random 6-digit OTP for email verification. */
 function luxe_signup_otp_code(): string
 {
-    return '1234';
+    return (string) random_int(100000, 999999);
 }
 
 /**
@@ -83,18 +83,12 @@ function luxe_signup_email_skip_send(): bool
 }
 
 /**
- * Send signup verification email, or skip on localhost / when configured.
- *
- * @return array{ok: bool, dev_code: ?string, dev_note: ?string}
+ * Generic transactional email sender used by OTP and notification emails.
  */
-function luxe_deliver_signup_verification_code(string $to, string $code): array
+function luxe_send_transactional_email(string $to, string $subject, string $html, string $plain): bool
 {
     if (luxe_signup_email_skip_send()) {
-        return [
-            'ok' => true,
-            'dev_code' => $code,
-            'dev_note' => 'Email is not sent on localhost / dev mode. Use the code shown in the message below.',
-        ];
+        return true;
     }
 
     $cfg = luxe_app_config();
@@ -102,67 +96,77 @@ function luxe_deliver_signup_verification_code(string $to, string $code): array
     $smtpCfg = is_array($mailCfg['smtp'] ?? null) ? $mailCfg['smtp'] : [];
     $host = trim((string) ($smtpCfg['host'] ?? ''));
 
-    $subject = 'Your LUXE sign-up code';
-    $safeCode = h($code);
-    $html = '<!DOCTYPE html><html><body style="font-family:system-ui,sans-serif;line-height:1.5;color:#1e1e3a;">'
-        . '<p>Your verification code is:</p>'
-        . '<p style="font-size:28px;font-weight:700;letter-spacing:0.25em;">' . $safeCode . '</p>'
-        . '<p>This code expires in <strong>15 minutes</strong>. If you did not sign up for LUXE, ignore this email.</p>'
-        . '</body></html>';
-    $plain = "Your LUXE verification code is {$code}. It expires in 15 minutes.\n";
-
     if ($host !== '') {
         $autoload = dirname(__DIR__) . '/vendor/autoload.php';
         if (is_file($autoload)) {
             require_once $autoload;
-            if (class_exists(\PHPMailer\PHPMailer\PHPMailer::class)) {
-                try {
-                    [$fromEmail, $fromName] = luxe_mail_from_parts($mailCfg);
-                    $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
-                    $mail->CharSet = \PHPMailer\PHPMailer\PHPMailer::CHARSET_UTF8;
-                    $mail->isSMTP();
-                    $mail->Host = $host;
-                    $mail->Port = (int) ($smtpCfg['port'] ?? 587);
-                    $mail->Timeout = (int) ($smtpCfg['timeout'] ?? 30);
-                    $mail->SMTPDebug = (int) ($smtpCfg['debug'] ?? 0);
-                    $secure = strtolower((string) ($smtpCfg['secure'] ?? 'tls'));
-                    if ($secure === 'ssl' || $secure === 'smtps') {
-                        $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
-                    } elseif ($secure === 'tls' || $secure === 'starttls') {
-                        $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
-                    } else {
-                        $mail->SMTPSecure = '';
-                        $mail->SMTPAutoTLS = false;
-                    }
-                    $user = (string) ($smtpCfg['username'] ?? '');
-                    $pass = (string) ($smtpCfg['password'] ?? '');
-                    if ($user !== '' || $pass !== '') {
-                        $mail->SMTPAuth = true;
-                        $mail->Username = $user;
-                        $mail->Password = $pass;
-                    }
-                    if (!empty($smtpCfg['allow_self_signed'])) {
-                        $mail->SMTPOptions = [
-                            'ssl' => [
-                                'verify_peer' => false,
-                                'verify_peer_name' => false,
-                                'allow_self_signed' => true,
-                            ],
-                        ];
-                    }
-                    $mail->setFrom($fromEmail, $fromName, false);
-                    $mail->addAddress($to);
-                    $mail->isHTML(true);
-                    $mail->Subject = $subject;
-                    $mail->Body = $html;
-                    $mail->AltBody = $plain;
-                    $mail->send();
+        } else {
+            $phpMailerSrc = dirname(__DIR__) . '/vendor/phpmailer/phpmailer/src';
+            $exceptionFile = $phpMailerSrc . '/Exception.php';
+            $smtpFile = $phpMailerSrc . '/SMTP.php';
+            $mailerFile = $phpMailerSrc . '/PHPMailer.php';
+            if (is_file($exceptionFile) && is_file($smtpFile) && is_file($mailerFile)) {
+                require_once $exceptionFile;
+                require_once $smtpFile;
+                require_once $mailerFile;
+            } else {
+                error_log('LUXE mail: PHPMailer files missing (autoload and direct src include both unavailable).');
 
-                    return ['ok' => true, 'dev_code' => null, 'dev_note' => null];
-                } catch (\Throwable $e) {
-                    error_log('LUXE PHPMailer: ' . $e->getMessage());
-                }
+                return false;
             }
+        }
+        if (!class_exists(\PHPMailer\PHPMailer\PHPMailer::class)) {
+            error_log('LUXE mail: PHPMailer class not found after autoload.');
+
+            return false;
+        }
+        try {
+            [$fromEmail, $fromName] = luxe_mail_from_parts($mailCfg);
+            $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
+            $mail->CharSet = \PHPMailer\PHPMailer\PHPMailer::CHARSET_UTF8;
+            $mail->isSMTP();
+            $mail->Host = $host;
+            $mail->Port = (int) ($smtpCfg['port'] ?? 587);
+            $mail->Timeout = (int) ($smtpCfg['timeout'] ?? 30);
+            $mail->SMTPDebug = (int) ($smtpCfg['debug'] ?? 0);
+            $secure = strtolower((string) ($smtpCfg['secure'] ?? 'tls'));
+            if ($secure === 'ssl' || $secure === 'smtps') {
+                $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
+            } elseif ($secure === 'tls' || $secure === 'starttls') {
+                $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+            } else {
+                $mail->SMTPSecure = '';
+                $mail->SMTPAutoTLS = false;
+            }
+            $user = (string) ($smtpCfg['username'] ?? '');
+            $pass = (string) ($smtpCfg['password'] ?? '');
+            if ($user !== '' || $pass !== '') {
+                $mail->SMTPAuth = true;
+                $mail->Username = $user;
+                $mail->Password = $pass;
+            }
+            if (!empty($smtpCfg['allow_self_signed'])) {
+                $mail->SMTPOptions = [
+                    'ssl' => [
+                        'verify_peer' => false,
+                        'verify_peer_name' => false,
+                        'allow_self_signed' => true,
+                    ],
+                ];
+            }
+            $mail->setFrom($fromEmail, $fromName, false);
+            $mail->addAddress($to);
+            $mail->isHTML(true);
+            $mail->Subject = $subject;
+            $mail->Body = $html;
+            $mail->AltBody = $plain;
+            $mail->send();
+
+            return true;
+        } catch (\Throwable $e) {
+            error_log('LUXE PHPMailer: ' . $e->getMessage());
+
+            return false;
         }
     }
 
@@ -177,7 +181,34 @@ function luxe_deliver_signup_verification_code(string $to, string $code): array
         ? @mail($to, $subject, $html, $headers, $extra)
         : @mail($to, $subject, $html, $headers);
 
-    if ($sent) {
+    return (bool) $sent;
+}
+
+/**
+ * Send a 6-digit OTP by email (signup, profile email/phone flows).
+ *
+ * @return array{ok: bool, dev_code: ?string, dev_note: ?string}
+ */
+function luxe_deliver_verification_code_email(string $to, string $subject, string $code, string $footerSentence): array
+{
+    if (luxe_signup_email_skip_send()) {
+        return [
+            'ok' => true,
+            'dev_code' => $code,
+            'dev_note' => 'Email is not sent on localhost / dev mode. Use the code shown in the message below.',
+        ];
+    }
+
+    $safeCode = h($code);
+    $safeFooter = h($footerSentence);
+    $html = '<!DOCTYPE html><html><body style="font-family:system-ui,sans-serif;line-height:1.5;color:#1e1e3a;">'
+        . '<p>Your verification code is:</p>'
+        . '<p style="font-size:28px;font-weight:700;letter-spacing:0.25em;">' . $safeCode . '</p>'
+        . '<p>This code expires in <strong>15 minutes</strong>. ' . $safeFooter . '</p>'
+        . '</body></html>';
+    $plain = "Your LUXE verification code is {$code}. It expires in 15 minutes. {$footerSentence}\n";
+
+    if (luxe_send_transactional_email($to, $subject, $html, $plain)) {
         return ['ok' => true, 'dev_code' => null, 'dev_note' => null];
     }
 
@@ -196,4 +227,19 @@ function luxe_deliver_signup_verification_code(string $to, string $code): array
         'dev_code' => null,
         'dev_note' => null,
     ];
+}
+
+/**
+ * Send signup verification email, or skip on localhost / when configured.
+ *
+ * @return array{ok: bool, dev_code: ?string, dev_note: ?string}
+ */
+function luxe_deliver_signup_verification_code(string $to, string $code): array
+{
+    return luxe_deliver_verification_code_email(
+        $to,
+        'Your LUXE sign-up code',
+        $code,
+        'If you did not sign up for LUXE, ignore this email.'
+    );
 }

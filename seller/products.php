@@ -292,11 +292,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $q = ['msg' => 'deleted'];
                 $lp = (int) ($_POST['list_page'] ?? 0);
                 $lper = (int) ($_POST['list_per_page'] ?? 0);
+                $ldf = strtolower(trim((string) ($_POST['list_date_filter'] ?? 'all')));
                 if ($lp > 0) {
                     $q['page'] = $lp;
                 }
                 if ($lper >= 5 && $lper <= 100) {
                     $q['per_page'] = $lper;
+                }
+                if (in_array($ldf, ['day', 'week', 'month'], true)) {
+                    $q['date_filter'] = $ldf;
                 }
                 header('Location: products.php?' . http_build_query($q));
                 exit;
@@ -305,11 +309,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $q = ['msg' => 'delete_fail'];
         $lp = (int) ($_POST['list_page'] ?? 0);
         $lper = (int) ($_POST['list_per_page'] ?? 0);
+        $ldf = strtolower(trim((string) ($_POST['list_date_filter'] ?? 'all')));
         if ($lp > 0) {
             $q['page'] = $lp;
         }
         if ($lper >= 5 && $lper <= 100) {
             $q['per_page'] = $lper;
+        }
+        if (in_array($ldf, ['day', 'week', 'month'], true)) {
+            $q['date_filter'] = $ldf;
         }
         header('Location: products.php?' . http_build_query($q));
         exit;
@@ -607,8 +615,28 @@ $rejectedCount = (int) ($productKpi['rejected_cnt'] ?? 0);
 $storeLiveCount = (int) ($productKpi['store_live'] ?? 0);
 $lowStockCount = (int) ($productKpi['low_stock'] ?? 0);
 
+$productsDateFilter = strtolower(trim((string) ($_GET['date_filter'] ?? 'all')));
+$productsDateFilterMap = [
+    'all' => ['label' => 'All time', 'sql' => ''],
+    'day' => ['label' => 'Last 24 hours', 'sql' => ' AND p.created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)'],
+    'week' => ['label' => 'Last 7 days', 'sql' => ' AND p.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)'],
+    'month' => ['label' => 'Last 30 days', 'sql' => ' AND p.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)'],
+];
+if (!isset($productsDateFilterMap[$productsDateFilter])) {
+    $productsDateFilter = 'all';
+}
+$productsDateWhereSql = (string) ($productsDateFilterMap[$productsDateFilter]['sql'] ?? '');
+
+$productsCountSt = $pdo->prepare(
+    'SELECT COUNT(*)
+     FROM products p
+     WHERE p.seller_id = ?' . $productsDateWhereSql
+);
+$productsCountSt->execute([(int) $seller['id']]);
+$productsFilteredCount = (int) $productsCountSt->fetchColumn();
+
 ['page' => $productsListPage, 'perPage' => $productsPerPage] = admin_pagination_read(25);
-$productsPageMeta = admin_pagination_resolve($productCount, $productsListPage, $productsPerPage);
+$productsPageMeta = admin_pagination_resolve($productsFilteredCount, $productsListPage, $productsPerPage);
 $productsPage = $productsPageMeta['page'];
 $productsOffset = $productsPageMeta['offset'];
 $productsPerPage = $productsPageMeta['perPage'];
@@ -624,13 +652,20 @@ $productsSt = $pdo->prepare(
          FROM product_variant_inventory
          GROUP BY product_id
      ) v ON v.product_id = p.id
-     WHERE p.seller_id = ?
+     WHERE p.seller_id = ?' . $productsDateWhereSql . '
      ORDER BY p.id DESC
      LIMIT ' . (int) $productsPerPage . ' OFFSET ' . (int) $productsOffset
 );
 $productsSt->execute([(int) $seller['id']]);
 $products = $productsSt->fetchAll();
-$productsFormAction = 'products.php?' . http_build_query(['page' => $productsPage, 'per_page' => $productsPerPage]);
+$productsFormQuery = [
+    'page' => $productsPage,
+    'per_page' => $productsPerPage,
+];
+if ($productsDateFilter !== 'all') {
+    $productsFormQuery['date_filter'] = $productsDateFilter;
+}
+$productsFormAction = 'products.php?' . http_build_query($productsFormQuery);
 $openProductDrawer = $error !== '' || $drawerMode === 'edit';
 
 require __DIR__ . '/partials/shell-top.php';
@@ -701,9 +736,26 @@ require __DIR__ . '/partials/shell-top.php';
             <div class="seller-card-head seller-card-head--inventory seller-products-card-head">
               <div>
                 <h2 class="card-title">Catalogue</h2>
-                <p class="card-subtitle seller-products-card-sub"><?= $productCount === 0 ? 'Add your first product to appear here after approval.' : (int) $productCount . ' product' . ($productCount === 1 ? '' : 's') . ' · ' . (int) $storeLiveCount . ' visible to buyers.' ?></p>
+                <p class="card-subtitle seller-products-card-sub">
+                  <?php if ($productsDateFilter === 'all'): ?>
+                    <?= $productCount === 0 ? 'Add your first product to appear here after approval.' : (int) $productCount . ' product' . ($productCount === 1 ? '' : 's') . ' · ' . (int) $storeLiveCount . ' visible to buyers.' ?>
+                  <?php else: ?>
+                    Showing <strong><?= (int) $productsFilteredCount ?></strong> product<?= $productsFilteredCount === 1 ? '' : 's' ?> for <strong><?= h((string) ($productsDateFilterMap[$productsDateFilter]['label'] ?? 'Selected range')) ?></strong>.
+                  <?php endif; ?>
+                </p>
               </div>
               <div class="seller-inventory-toolbar seller-products-toolbar">
+                <form method="get" class="seller-products-date-filter-form">
+                  <input type="hidden" name="page" value="1">
+                  <input type="hidden" name="per_page" value="<?= (int) $productsPerPage ?>">
+                  <label class="seller-products-date-filter-label" for="sellerProductsDateFilter">Date</label>
+                  <select id="sellerProductsDateFilter" name="date_filter" class="seller-products-date-filter-select" onchange="this.form.submit()">
+                    <option value="all"<?= $productsDateFilter === 'all' ? ' selected' : '' ?>>All time</option>
+                    <option value="day"<?= $productsDateFilter === 'day' ? ' selected' : '' ?>>Last 24 hours</option>
+                    <option value="week"<?= $productsDateFilter === 'week' ? ' selected' : '' ?>>Last 7 days</option>
+                    <option value="month"<?= $productsDateFilter === 'month' ? ' selected' : '' ?>>Last 30 days</option>
+                  </select>
+                </form>
                 <label class="seller-inventory-search-wrap seller-products-search" for="sellerProductsSearch">
                   <span class="seller-inventory-search-icon" aria-hidden="true">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
@@ -842,6 +894,7 @@ require __DIR__ . '/partials/shell-top.php';
                             <input type="hidden" name="product_id" value="<?= (int) $p['id'] ?>">
                             <input type="hidden" name="list_page" value="<?= (int) $productsPage ?>">
                             <input type="hidden" name="list_per_page" value="<?= (int) $productsPerPage ?>">
+                            <input type="hidden" name="list_date_filter" value="<?= h($productsDateFilter) ?>">
                             <button type="submit" class="seller-delete-btn seller-product-actions__btn seller-product-actions__btn--danger">
                             <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5" d="M20.5 6h-17m5.67-2a3.001 3.001 0 0 1 5.66 0m3.544 11.4c-.177 2.654-.266 3.981-1.131 4.79s-2.195.81-4.856.81h-.774c-2.66 0-3.99 0-4.856-.81c-.865-.809-.953-2.136-1.13-4.79l-.46-6.9m13.666 0l-.2 3"></path></svg>
                             </button>
@@ -887,7 +940,7 @@ require __DIR__ . '/partials/shell-top.php';
             </div>
             <?php
             $paginationScript = 'products.php';
-            $paginationTotal = $productCount;
+            $paginationTotal = $productsFilteredCount;
             $paginationPage = $productsPage;
             $paginationPerPage = $productsPerPage;
             $paginationTotalPages = $productsTotalPages;

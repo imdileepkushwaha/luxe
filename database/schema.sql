@@ -12,7 +12,9 @@ CREATE TABLE users (
   dob DATE NULL,
   gender VARCHAR(16) NULL,
   loyalty_points_redeemed INT UNSIGNED NOT NULL DEFAULT 0,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  email_verified_at DATETIME NULL DEFAULT NULL,
+  phone_verified_at DATETIME NULL DEFAULT NULL
 ) ENGINE=InnoDB;
 
 CREATE TABLE admin_users (
@@ -360,6 +362,7 @@ CREATE TABLE user_order_cancel_requests (
   order_ref VARCHAR(32) NOT NULL,
   reason VARCHAR(120) NOT NULL DEFAULT '',
   details VARCHAR(1000) NOT NULL DEFAULT '',
+  seller_note VARCHAR(255) NOT NULL DEFAULT '',
   status VARCHAR(16) NOT NULL DEFAULT 'pending',
   requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   reviewed_at DATETIME NULL,
@@ -409,8 +412,8 @@ CREATE TABLE seller_account_deletion_requests (
 ) ENGINE=InnoDB;
 
 -- Demo: demo@luxe.com / password  (bcrypt below is PHP default test hash for "password")
-INSERT INTO users (email, password_hash, first_name, last_name, phone, dob, gender) VALUES
-('demo@luxe.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Rahul', 'Sharma', '+91 98765 43210', '1995-03-15', 'male');
+INSERT INTO users (email, password_hash, first_name, last_name, phone, dob, gender, email_verified_at, phone_verified_at) VALUES
+('demo@luxe.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Rahul', 'Sharma', '+91 98765 43210', '1995-03-15', 'male', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
 INSERT INTO products (id, name, slug, category, price, original_price, emoji, badge, rating, review_count, brand, image_bg, description) VALUES
 (1, 'AirMax Pro 2026', 'airmax-pro-2026', 'fashion', 8999, 14500, '👟', 'Best Seller', 4.8, 2140, 'Nike × LUXE', '#1a0a2e', 'Premium sneakers'),

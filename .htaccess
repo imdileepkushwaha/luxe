@@ -1,0 +1,13 @@
+DirectoryIndex index.php
+
+RewriteEngine On
+
+# Keep existing files/directories accessible.
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Redirect unknown URLs to custom not-found page.
+RewriteRule ^ page-not-found.php [R=302,L]
+
+ErrorDocument 404 page-not-found.php
