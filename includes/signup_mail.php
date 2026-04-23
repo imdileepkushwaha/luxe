@@ -26,15 +26,15 @@ function luxe_signup_hmac_secret(): string
     return hash('sha256', $s, true);
 }
 
-function luxe_signup_code_hash(string $fourDigitCode): string
+function luxe_signup_code_hash(string $verificationCode): string
 {
-    return hash_hmac('sha256', $fourDigitCode, luxe_signup_hmac_secret(), false);
+    return hash_hmac('sha256', $verificationCode, luxe_signup_hmac_secret(), false);
 }
 
-/** Fixed OTP for testing; switch back to random when real email is ready. */
+/** Generate a random 6-digit OTP for email verification. */
 function luxe_signup_otp_code(): string
 {
-    return '1234';
+    return (string) random_int(100000, 999999);
 }
 
 /**
@@ -83,7 +83,7 @@ function luxe_signup_email_skip_send(): bool
 }
 
 /**
- * Send a 4-digit OTP by email (signup, profile email/phone flows).
+ * Send a 6-digit OTP by email (signup, profile email/phone flows).
  *
  * @return array{ok: bool, dev_code: ?string, dev_note: ?string}
  */
@@ -111,58 +111,79 @@ function luxe_deliver_verification_code_email(string $to, string $subject, strin
         . '</body></html>';
     $plain = "Your LUXE verification code is {$code}. It expires in 15 minutes. {$footerSentence}\n";
 
+    // When mail.smtp.host is set, all verification emails go only through PHPMailer + SMTP (no mail() fallback).
     if ($host !== '') {
         $autoload = dirname(__DIR__) . '/vendor/autoload.php';
         if (is_file($autoload)) {
             require_once $autoload;
-            if (class_exists(\PHPMailer\PHPMailer\PHPMailer::class)) {
-                try {
-                    [$fromEmail, $fromName] = luxe_mail_from_parts($mailCfg);
-                    $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
-                    $mail->CharSet = \PHPMailer\PHPMailer\PHPMailer::CHARSET_UTF8;
-                    $mail->isSMTP();
-                    $mail->Host = $host;
-                    $mail->Port = (int) ($smtpCfg['port'] ?? 587);
-                    $mail->Timeout = (int) ($smtpCfg['timeout'] ?? 30);
-                    $mail->SMTPDebug = (int) ($smtpCfg['debug'] ?? 0);
-                    $secure = strtolower((string) ($smtpCfg['secure'] ?? 'tls'));
-                    if ($secure === 'ssl' || $secure === 'smtps') {
-                        $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
-                    } elseif ($secure === 'tls' || $secure === 'starttls') {
-                        $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
-                    } else {
-                        $mail->SMTPSecure = '';
-                        $mail->SMTPAutoTLS = false;
-                    }
-                    $user = (string) ($smtpCfg['username'] ?? '');
-                    $pass = (string) ($smtpCfg['password'] ?? '');
-                    if ($user !== '' || $pass !== '') {
-                        $mail->SMTPAuth = true;
-                        $mail->Username = $user;
-                        $mail->Password = $pass;
-                    }
-                    if (!empty($smtpCfg['allow_self_signed'])) {
-                        $mail->SMTPOptions = [
-                            'ssl' => [
-                                'verify_peer' => false,
-                                'verify_peer_name' => false,
-                                'allow_self_signed' => true,
-                            ],
-                        ];
-                    }
-                    $mail->setFrom($fromEmail, $fromName, false);
-                    $mail->addAddress($to);
-                    $mail->isHTML(true);
-                    $mail->Subject = $subject;
-                    $mail->Body = $html;
-                    $mail->AltBody = $plain;
-                    $mail->send();
+        } else {
+            // Non-composer fallback: support bundled PHPMailer source files.
+            $phpMailerSrc = dirname(__DIR__) . '/vendor/phpmailer/phpmailer/src';
+            $exceptionFile = $phpMailerSrc . '/Exception.php';
+            $smtpFile = $phpMailerSrc . '/SMTP.php';
+            $mailerFile = $phpMailerSrc . '/PHPMailer.php';
+            if (is_file($exceptionFile) && is_file($smtpFile) && is_file($mailerFile)) {
+                require_once $exceptionFile;
+                require_once $smtpFile;
+                require_once $mailerFile;
+            } else {
+                error_log('LUXE mail: PHPMailer files missing (autoload and direct src include both unavailable).');
 
-                    return ['ok' => true, 'dev_code' => null, 'dev_note' => null];
-                } catch (\Throwable $e) {
-                    error_log('LUXE PHPMailer: ' . $e->getMessage());
-                }
+                return ['ok' => false, 'dev_code' => null, 'dev_note' => null];
             }
+        }
+        if (!class_exists(\PHPMailer\PHPMailer\PHPMailer::class)) {
+            error_log('LUXE mail: PHPMailer class not found after autoload.');
+
+            return ['ok' => false, 'dev_code' => null, 'dev_note' => null];
+        }
+        try {
+            [$fromEmail, $fromName] = luxe_mail_from_parts($mailCfg);
+            $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
+            $mail->CharSet = \PHPMailer\PHPMailer\PHPMailer::CHARSET_UTF8;
+            $mail->isSMTP();
+            $mail->Host = $host;
+            $mail->Port = (int) ($smtpCfg['port'] ?? 587);
+            $mail->Timeout = (int) ($smtpCfg['timeout'] ?? 30);
+            $mail->SMTPDebug = (int) ($smtpCfg['debug'] ?? 0);
+            $secure = strtolower((string) ($smtpCfg['secure'] ?? 'tls'));
+            if ($secure === 'ssl' || $secure === 'smtps') {
+                $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
+            } elseif ($secure === 'tls' || $secure === 'starttls') {
+                $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+            } else {
+                $mail->SMTPSecure = '';
+                $mail->SMTPAutoTLS = false;
+            }
+            $user = (string) ($smtpCfg['username'] ?? '');
+            $pass = (string) ($smtpCfg['password'] ?? '');
+            if ($user !== '' || $pass !== '') {
+                $mail->SMTPAuth = true;
+                $mail->Username = $user;
+                $mail->Password = $pass;
+            }
+            if (!empty($smtpCfg['allow_self_signed'])) {
+                $mail->SMTPOptions = [
+                    'ssl' => [
+                        'verify_peer' => false,
+                        'verify_peer_name' => false,
+                        'allow_self_signed' => true,
+                    ],
+                ];
+            }
+            $mail->setFrom($fromEmail, $fromName, false);
+            $mail->addAddress($to);
+            $mail->isHTML(true);
+            $mail->Subject = $subject;
+            $mail->Body = $html;
+            $mail->AltBody = $plain;
+            $mail->send();
+
+            return ['ok' => true, 'dev_code' => null, 'dev_note' => null];
+        } catch (\Throwable $e) {
+            error_log('LUXE PHPMailer: ' . $e->getMessage());
+
+            return ['ok' => false, 'dev_code' => null, 'dev_note' => null];
         }
     }
 

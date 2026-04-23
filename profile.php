@@ -258,7 +258,7 @@ $phoneVerifiedUi = !empty($user['phone_verified_at']);
                     <?php endif; ?>
                   </div>
                   <button type="button" class="ghost-btn profile-contact-btn" onclick="openEmailChangeModal()">Change or verify email</button>
-                  <p class="profile-contact-note">We send a 4-digit code to the new address. Your email only updates after you confirm the code.</p>
+                  <p class="profile-contact-note">We send a 6-digit code to the new address. Your email only updates after you confirm the code.</p>
                 </div>
                 <div class="form-field profile-contact-field">
                   <label>Phone Number</label>
@@ -572,7 +572,7 @@ $phoneVerifiedUi = !empty($user['phone_verified_at']);
         <h3 id="emailChangeModalTitle">Email change — verify</h3>
         <button type="button" class="modal-close" onclick="closeEmailChangeModal()" aria-label="Close">✕</button>
       </div>
-      <p class="password-modal-lead">Enter your new email, tap <strong>Send code</strong>, then enter the 4-digit code from that inbox to confirm.</p>
+      <p class="password-modal-lead">Enter your new email, tap <strong>Send code</strong>, then enter the 6-digit code from that inbox to confirm.</p>
       <div class="form-field">
         <label for="emailChangeNew">New email</label>
         <input type="email" id="emailChangeNew" autocomplete="email" placeholder="you@example.com" />
@@ -583,8 +583,8 @@ $phoneVerifiedUi = !empty($user['phone_verified_at']);
       <div id="emailChangeStep2" class="hidden" style="margin-top:16px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.12)">
         <p class="password-modal-lead" id="emailChangeHint">A code has been sent.</p>
         <div class="form-field">
-          <label for="emailChangeCode">4-digit code</label>
-          <input type="text" id="emailChangeCode" inputmode="numeric" maxlength="4" pattern="[0-9]*" placeholder="0000" autocomplete="one-time-code" />
+          <label for="emailChangeCode">6-digit code</label>
+          <input type="text" id="emailChangeCode" inputmode="numeric" maxlength="6" pattern="[0-9]*" placeholder="000000" autocomplete="one-time-code" />
         </div>
         <div class="form-actions">
           <button type="button" class="checkout-btn" id="emailChangeVerifyBtn" style="max-width:200px" onclick="profileEmailVerifyCode()">Confirm email</button>
@@ -615,8 +615,8 @@ $phoneVerifiedUi = !empty($user['phone_verified_at']);
       <div id="phoneChangeStep2" class="hidden" style="margin-top:16px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.12)">
         <p class="password-modal-lead" id="phoneChangeHint">Check your email inbox.</p>
         <div class="form-field">
-          <label for="phoneChangeCode">4-digit code</label>
-          <input type="text" id="phoneChangeCode" inputmode="numeric" maxlength="4" pattern="[0-9]*" placeholder="0000" autocomplete="one-time-code" />
+          <label for="phoneChangeCode">6-digit code</label>
+          <input type="text" id="phoneChangeCode" inputmode="numeric" maxlength="6" pattern="[0-9]*" placeholder="000000" autocomplete="one-time-code" />
         </div>
         <div class="form-actions">
           <button type="button" class="checkout-btn" id="phoneChangeVerifyBtn" style="max-width:220px" onclick="profilePhoneVerifyCode()">Confirm mobile</button>

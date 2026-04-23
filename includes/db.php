@@ -256,6 +256,8 @@ function db_ensure_seller_users_table(PDO $pdo): void
                 'kyc_edit_reviewed_at' => 'ALTER TABLE seller_users ADD COLUMN kyc_edit_reviewed_at DATETIME NULL AFTER kyc_edit_reviewed_by',
                 'kyc_edit_rejection_reason' => "ALTER TABLE seller_users ADD COLUMN kyc_edit_rejection_reason VARCHAR(255) NOT NULL DEFAULT '' AFTER kyc_edit_reviewed_at",
                 'kyc_edit_unlocked' => 'ALTER TABLE seller_users ADD COLUMN kyc_edit_unlocked TINYINT(1) NOT NULL DEFAULT 0 AFTER kyc_edit_rejection_reason',
+                'email_verified_at' => 'ALTER TABLE seller_users ADD COLUMN email_verified_at DATETIME NULL DEFAULT NULL AFTER email',
+                'phone_verified_at' => 'ALTER TABLE seller_users ADD COLUMN phone_verified_at DATETIME NULL DEFAULT NULL AFTER phone_number',
             ];
 
             foreach ($requiredCols as $column => $query) {
@@ -288,6 +290,39 @@ function db_ensure_seller_users_table(PDO $pdo): void
                 ]);
             }
         }
+    } catch (Throwable) {
+        // Missing permissions or non-MySQL: rely on manual migrations
+    }
+}
+
+function db_ensure_seller_verification_columns(PDO $pdo): void
+{
+    try {
+        $dbName = (string) $pdo->query('SELECT DATABASE()')->fetchColumn();
+        if ($dbName === '') {
+            return;
+        }
+        $chk = $pdo->prepare(
+            'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+
+        $chk->execute([$dbName, 'seller_users', 'email_verified_at']);
+        if (!$chk->fetchColumn()) {
+            $pdo->exec('ALTER TABLE seller_users ADD COLUMN email_verified_at DATETIME NULL DEFAULT NULL AFTER email');
+        }
+
+        $chk->execute([$dbName, 'seller_users', 'phone_verified_at']);
+        if (!$chk->fetchColumn()) {
+            $pdo->exec('ALTER TABLE seller_users ADD COLUMN phone_verified_at DATETIME NULL DEFAULT NULL AFTER phone_number');
+        }
+
+        // Existing seller accounts keep working without forced reverification.
+        $pdo->exec("UPDATE seller_users SET email_verified_at = COALESCE(email_verified_at, created_at)");
+        $pdo->exec(
+            "UPDATE seller_users SET phone_verified_at = COALESCE(phone_verified_at, created_at)
+             WHERE TRIM(COALESCE(phone_number, '')) <> ''"
+        );
     } catch (Throwable) {
         // Missing permissions or non-MySQL: rely on manual migrations
     }
@@ -1232,6 +1267,7 @@ function db(): PDO
     db_ensure_account_deletion_requests($pdo);
     db_ensure_seller_account_deletion_requests($pdo);
     db_ensure_seller_users_table($pdo);
+    db_ensure_seller_verification_columns($pdo);
     db_ensure_products_seller_column($pdo);
     db_ensure_seller_create_requests_table($pdo);
     db_ensure_product_images_table($pdo);

@@ -1679,7 +1679,7 @@ function initThemeToggle() {
         if (data.dev_code) {
           showToast((data.dev_note || "Verification code") + " — Code: " + data.dev_code);
         } else {
-          showToast("📧 Check your inbox for the 4-digit code.");
+          showToast("📧 Check your inbox for the 6-digit code.");
         }
       } else {
         const msg = data.message || "Could not send verification code.";
@@ -1699,9 +1699,9 @@ function initThemeToggle() {
     const code = (document.getElementById("rg-code")?.value || "").replace(/\D/g, "");
     const group = document.getElementById("rg-code-group");
     const err = document.getElementById("rg-code-err");
-    if (code.length !== 4) {
+    if (code.length !== 6) {
       if (group) group.classList.add("has-error");
-      if (err) err.textContent = "Enter the 4-digit code.";
+      if (err) err.textContent = "Enter the 6-digit code.";
       return;
     }
     if (group) group.classList.remove("has-error");
@@ -3699,8 +3699,8 @@ function initThemeToggle() {
     };
     window.profileEmailVerifyCode = async function() {
       const code = (document.getElementById("emailChangeCode")?.value || "").replace(/\D/g, "");
-      if (code.length !== 4) {
-        showToast("❌ Enter the 4-digit code.");
+      if (code.length !== 6) {
+        showToast("❌ Enter the 6-digit code.");
         return;
       }
       const url = window.__API_PROFILE_EMAIL_VERIFY__ || "actions/profile-email-change-verify.php";
@@ -3803,8 +3803,8 @@ function initThemeToggle() {
     };
     window.profilePhoneVerifyCode = async function() {
       const code = (document.getElementById("phoneChangeCode")?.value || "").replace(/\D/g, "");
-      if (code.length !== 4) {
-        showToast("❌ Enter the 4-digit OTP.");
+      if (code.length !== 6) {
+        showToast("❌ Enter the 6-digit OTP.");
         return;
       }
       const url = window.__API_PROFILE_PHONE_VERIFY__ || "actions/profile-phone-change-verify.php";

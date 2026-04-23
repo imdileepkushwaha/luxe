@@ -28,9 +28,9 @@ if (!is_array($data)) {
 }
 
 $raw = preg_replace('/\D/', '', (string) ($data['code'] ?? ''));
-if (strlen($raw) !== 4) {
+if (strlen($raw) !== 6) {
     http_response_code(422);
-    echo json_encode(['ok' => false, 'message' => 'Enter the 4-digit code.']);
+    echo json_encode(['ok' => false, 'message' => 'Enter the 6-digit code.']);
     exit;
 }
 
