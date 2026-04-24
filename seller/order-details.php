@@ -559,6 +559,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
         }
     } else {
         $upd->execute($updParams);
+        orders_recompute_admin_commission_rupees($pdo, (int) $order['id']);
     }
 
     $customerEmail = trim((string) ($order['customer_email'] ?? ''));

@@ -4,20 +4,103 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/seller_variant_inventory.php';
 
+function products_ensure_hybrid_columns(PDO $pdo): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+    try {
+        $checkStyle = $pdo->query("SHOW COLUMNS FROM products LIKE 'style_group_code'");
+        if (!$checkStyle->fetch(PDO::FETCH_ASSOC)) {
+            $pdo->exec("ALTER TABLE products ADD COLUMN style_group_code VARCHAR(120) NULL AFTER product_type");
+        }
+        $checkPrimary = $pdo->query("SHOW COLUMNS FROM products LIKE 'primary_color'");
+        if (!$checkPrimary->fetch(PDO::FETCH_ASSOC)) {
+            $pdo->exec("ALTER TABLE products ADD COLUMN primary_color VARCHAR(64) NULL AFTER color_options");
+        }
+    } catch (Throwable) {
+        // Keep storefront functional with older schema.
+    }
+}
+
+function products_product_images_has_color_label(PDO $pdo): bool
+{
+    static $checked = false;
+    static $has = false;
+    if ($checked) {
+        return $has;
+    }
+    $checked = true;
+    try {
+        $st = $pdo->query("SHOW COLUMNS FROM product_images LIKE 'color_label'");
+        $has = (bool) $st->fetch(PDO::FETCH_ASSOC);
+    } catch (Throwable) {
+        $has = false;
+    }
+    return $has;
+}
+
+/**
+ * @return array{images:list<string>,images_by_color:array<string,list<string>>}
+ */
+function products_fetch_gallery_with_color_map(PDO $pdo, int $productId, string $mainImagePath): array
+{
+    $images = [];
+    /** @var array<string,list<string>> $imagesByColor */
+    $imagesByColor = [];
+    $supportsColor = products_product_images_has_color_label($pdo);
+    if ($supportsColor) {
+        $imgSt = $pdo->prepare('SELECT image_path, color_label FROM product_images WHERE product_id = ? ORDER BY sort_order ASC, id ASC');
+        $imgSt->execute([$productId]);
+        $rows = $imgSt->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($rows as $row) {
+            $path = trim((string) ($row['image_path'] ?? ''));
+            if ($path === '') {
+                continue;
+            }
+            $images[] = $path;
+            $color = trim((string) ($row['color_label'] ?? ''));
+            if ($color !== '') {
+                $imagesByColor[$color] = $imagesByColor[$color] ?? [];
+                $imagesByColor[$color][] = $path;
+            }
+        }
+    } else {
+        $imgSt = $pdo->prepare('SELECT image_path FROM product_images WHERE product_id = ? ORDER BY sort_order ASC, id ASC');
+        $imgSt->execute([$productId]);
+        $images = $imgSt->fetchAll(PDO::FETCH_COLUMN);
+        $images = array_values(array_filter(array_map('strval', is_array($images) ? $images : []), static fn(string $v): bool => $v !== ''));
+    }
+    if ($mainImagePath !== '') {
+        array_unshift($images, $mainImagePath);
+    }
+    $images = array_values(array_unique($images));
+    foreach ($imagesByColor as $color => $list) {
+        $imagesByColor[$color] = array_values(array_unique(array_map('strval', $list)));
+    }
+    return [
+        'images' => $images,
+        'images_by_color' => $imagesByColor,
+    ];
+}
+
 /**
  * @return list<array{id:int,name:string,category:string,price:int,original:int,emoji:string,badge:string,rating:float,reviews:int,brand:string,slug:string,image_bg:string,image_path:string,requires_variant_pick:bool}>
  */
 function products_fetch_all(PDO $pdo): array
 {
+    products_ensure_hybrid_columns($pdo);
     $st = $pdo->query(
         'SELECT p.id, p.name, p.slug, p.category, p.price, p.original_price AS original, p.emoji, p.badge, p.rating, p.review_count AS reviews, p.brand, p.image_bg, p.image_path,
+                p.stock_qty, p.active,
                 p.size_options, p.color_options,
                 (SELECT COUNT(*) FROM product_variant_inventory pvi WHERE pvi.product_id = p.id AND pvi.active = 1) AS variant_row_count,
                 (SELECT pi.image_path FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.sort_order ASC, pi.id ASC LIMIT 1) AS gallery_first
          FROM products p
          LEFT JOIN seller_users s ON s.id = p.seller_id
-         WHERE p.active = 1
-           AND p.approval_status = \'approved\'
+         WHERE p.approval_status = \'approved\'
            AND p.seller_id IS NOT NULL
            AND s.is_active = 1
            AND NOT EXISTS (
@@ -36,6 +119,7 @@ function products_fetch_all(PDO $pdo): array
         $r['reviews'] = (int) $r['reviews'];
         $r['rating'] = (float) $r['rating'];
         $variantRowCount = (int) ($r['variant_row_count'] ?? 0);
+        $isActive = (int) ($r['active'] ?? 0) === 1;
         $sizes = seller_parse_product_option_csv((string) ($r['size_options'] ?? ''));
         $colors = seller_parse_product_option_csv((string) ($r['color_options'] ?? ''));
         $multiOption =
@@ -44,6 +128,9 @@ function products_fetch_all(PDO $pdo): array
             || (count($sizes) >= 1 && count($colors) >= 1);
         $r['requires_variant_pick'] = $variantRowCount > 0 || $multiOption;
         unset($r['variant_row_count'], $r['size_options'], $r['color_options']);
+        $r['stockQty'] = $isActive ? (int) ($r['stock_qty'] ?? 0) : 0;
+        $r['stock_qty'] = $r['stockQty'];
+        $r['active'] = $isActive ? 1 : 0;
         $main = trim((string) ($r['image_path'] ?? ''));
         $gal = trim((string) ($r['gallery_first'] ?? ''));
         unset($r['gallery_first']);
@@ -58,11 +145,12 @@ function products_fetch_all(PDO $pdo): array
  */
 function products_fetch_by_id(PDO $pdo, int $id, ?int $forSellerOwnerId = null): ?array
 {
+    products_ensure_hybrid_columns($pdo);
     if ($forSellerOwnerId !== null && $forSellerOwnerId > 0) {
         $st = $pdo->prepare(
-            "SELECT p.id, p.seller_id, p.name, p.slug, p.sku, p.category, COALESCE(NULLIF(TRIM(p.product_type), ''), 'general') AS product_type, p.price, p.original_price AS original, p.emoji, p.badge,
-                    p.rating, p.review_count AS reviews, p.brand, p.image_bg, p.image_path, p.stock_qty, p.size_options, p.color_options, p.description,
-                    p.offer_flash_text, p.offer_countdown_seconds, p.offer_bank_text, p.approval_status,
+            "SELECT p.id, p.seller_id, p.name, p.slug, p.sku, p.category, COALESCE(NULLIF(TRIM(p.product_type), ''), 'general') AS product_type, p.style_group_code, p.price, p.original_price AS original, p.emoji, p.badge,
+                    p.rating, p.review_count AS reviews, p.brand, p.image_bg, p.image_path, p.stock_qty, p.size_options, p.color_options, p.primary_color, p.description,
+                    p.offer_flash_text, p.offer_countdown_seconds, p.offer_bank_text, p.approval_status, p.active,
                     COALESCE(NULLIF(TRIM(p.shipping_class), ''), 'standard') AS shipping_class,
                     COALESCE(NULLIF(TRIM(s.full_name), ''), 'LUXE Store') AS seller_name
              FROM products p
@@ -81,15 +169,14 @@ function products_fetch_by_id(PDO $pdo, int $id, ?int $forSellerOwnerId = null):
         $st->execute([$id, $forSellerOwnerId]);
     } else {
         $st = $pdo->prepare(
-            "SELECT p.id, p.seller_id, p.name, p.slug, p.sku, p.category, COALESCE(NULLIF(TRIM(p.product_type), ''), 'general') AS product_type, p.price, p.original_price AS original, p.emoji, p.badge,
-                    p.rating, p.review_count AS reviews, p.brand, p.image_bg, p.image_path, p.stock_qty, p.size_options, p.color_options, p.description,
-                    p.offer_flash_text, p.offer_countdown_seconds, p.offer_bank_text, p.approval_status,
+            "SELECT p.id, p.seller_id, p.name, p.slug, p.sku, p.category, COALESCE(NULLIF(TRIM(p.product_type), ''), 'general') AS product_type, p.style_group_code, p.price, p.original_price AS original, p.emoji, p.badge,
+                    p.rating, p.review_count AS reviews, p.brand, p.image_bg, p.image_path, p.stock_qty, p.size_options, p.color_options, p.primary_color, p.description,
+                    p.offer_flash_text, p.offer_countdown_seconds, p.offer_bank_text, p.approval_status, p.active,
                     COALESCE(NULLIF(TRIM(p.shipping_class), ''), 'standard') AS shipping_class,
                     COALESCE(NULLIF(TRIM(s.full_name), ''), 'LUXE Store') AS seller_name
              FROM products p
              LEFT JOIN seller_users s ON s.id = p.seller_id
-             WHERE p.active = 1
-               AND p.approval_status = 'approved'
+             WHERE p.approval_status = 'approved'
                AND p.id = ?
                AND p.seller_id IS NOT NULL
                AND s.is_active = 1
@@ -113,15 +200,11 @@ function products_fetch_by_id(PDO $pdo, int $id, ?int $forSellerOwnerId = null):
     $r['original'] = (int) $r['original'];
     $r['reviews'] = (int) $r['reviews'];
     $r['rating'] = (float) $r['rating'];
-    $r['stock_qty'] = (int) ($r['stock_qty'] ?? 0);
-    $imgSt = $pdo->prepare('SELECT image_path FROM product_images WHERE product_id = ? ORDER BY sort_order ASC, id ASC');
-    $imgSt->execute([$id]);
-    $images = $imgSt->fetchAll(PDO::FETCH_COLUMN);
-    $images = array_values(array_filter(array_map('strval', is_array($images) ? $images : []), static fn(string $v): bool => $v !== ''));
-    if ((string) ($r['image_path'] ?? '') !== '') {
-        array_unshift($images, (string) $r['image_path']);
-    }
-    $r['images'] = array_values(array_unique($images));
+    $r['active'] = (int) ($r['active'] ?? 0);
+    $r['stock_qty'] = $r['active'] === 1 ? (int) ($r['stock_qty'] ?? 0) : 0;
+    $gallery = products_fetch_gallery_with_color_map($pdo, $id, (string) ($r['image_path'] ?? ''));
+    $r['images'] = $gallery['images'];
+    $r['images_by_color'] = $gallery['images_by_color'];
     return $r;
 }
 
@@ -130,6 +213,7 @@ function products_fetch_by_id(PDO $pdo, int $id, ?int $forSellerOwnerId = null):
  */
 function products_fetch_by_slug(PDO $pdo, string $slug, ?int $forSellerOwnerId = null): ?array
 {
+    products_ensure_hybrid_columns($pdo);
     $slug = trim($slug);
     if ($slug === '') {
         return null;
@@ -137,9 +221,9 @@ function products_fetch_by_slug(PDO $pdo, string $slug, ?int $forSellerOwnerId =
 
     if ($forSellerOwnerId !== null && $forSellerOwnerId > 0) {
         $st = $pdo->prepare(
-            "SELECT p.id, p.seller_id, p.name, p.slug, p.sku, p.category, COALESCE(NULLIF(TRIM(p.product_type), ''), 'general') AS product_type, p.price, p.original_price AS original, p.emoji, p.badge,
-                    p.rating, p.review_count AS reviews, p.brand, p.image_bg, p.image_path, p.stock_qty, p.size_options, p.color_options, p.description,
-                    p.offer_flash_text, p.offer_countdown_seconds, p.offer_bank_text, p.approval_status,
+            "SELECT p.id, p.seller_id, p.name, p.slug, p.sku, p.category, COALESCE(NULLIF(TRIM(p.product_type), ''), 'general') AS product_type, p.style_group_code, p.price, p.original_price AS original, p.emoji, p.badge,
+                    p.rating, p.review_count AS reviews, p.brand, p.image_bg, p.image_path, p.stock_qty, p.size_options, p.color_options, p.primary_color, p.description,
+                    p.offer_flash_text, p.offer_countdown_seconds, p.offer_bank_text, p.approval_status, p.active,
                     COALESCE(NULLIF(TRIM(p.shipping_class), ''), 'standard') AS shipping_class,
                     COALESCE(NULLIF(TRIM(s.full_name), ''), 'LUXE Store') AS seller_name
              FROM products p
@@ -158,14 +242,13 @@ function products_fetch_by_slug(PDO $pdo, string $slug, ?int $forSellerOwnerId =
         $st->execute([$slug, $forSellerOwnerId]);
     } else {
         $st = $pdo->prepare(
-            "SELECT p.id, p.seller_id, p.name, p.slug, p.sku, p.category, COALESCE(NULLIF(TRIM(p.product_type), ''), 'general') AS product_type, p.price, p.original_price AS original, p.emoji, p.badge,
-                    p.rating, p.review_count AS reviews, p.brand, p.image_bg, p.image_path, p.stock_qty, p.size_options, p.color_options, p.description,
-                    p.offer_flash_text, p.offer_countdown_seconds, p.offer_bank_text, p.approval_status,
+            "SELECT p.id, p.seller_id, p.name, p.slug, p.sku, p.category, COALESCE(NULLIF(TRIM(p.product_type), ''), 'general') AS product_type, p.style_group_code, p.price, p.original_price AS original, p.emoji, p.badge,
+                    p.rating, p.review_count AS reviews, p.brand, p.image_bg, p.image_path, p.stock_qty, p.size_options, p.color_options, p.primary_color, p.description,
+                    p.offer_flash_text, p.offer_countdown_seconds, p.offer_bank_text, p.approval_status, p.active,
                     COALESCE(NULLIF(TRIM(s.full_name), ''), 'LUXE Store') AS seller_name
              FROM products p
              LEFT JOIN seller_users s ON s.id = p.seller_id
-             WHERE p.active = 1
-               AND p.approval_status = 'approved'
+             WHERE p.approval_status = 'approved'
                AND p.slug = ?
                AND p.seller_id IS NOT NULL
                AND s.is_active = 1
@@ -190,15 +273,11 @@ function products_fetch_by_slug(PDO $pdo, string $slug, ?int $forSellerOwnerId =
     $r['original'] = (int) $r['original'];
     $r['reviews'] = (int) $r['reviews'];
     $r['rating'] = (float) $r['rating'];
-    $r['stock_qty'] = (int) ($r['stock_qty'] ?? 0);
-    $imgSt = $pdo->prepare('SELECT image_path FROM product_images WHERE product_id = ? ORDER BY sort_order ASC, id ASC');
-    $imgSt->execute([$id]);
-    $images = $imgSt->fetchAll(PDO::FETCH_COLUMN);
-    $images = array_values(array_filter(array_map('strval', is_array($images) ? $images : []), static fn(string $v): bool => $v !== ''));
-    if ((string) ($r['image_path'] ?? '') !== '') {
-        array_unshift($images, (string) $r['image_path']);
-    }
-    $r['images'] = array_values(array_unique($images));
+    $r['active'] = (int) ($r['active'] ?? 0);
+    $r['stock_qty'] = $r['active'] === 1 ? (int) ($r['stock_qty'] ?? 0) : 0;
+    $gallery = products_fetch_gallery_with_color_map($pdo, $id, (string) ($r['image_path'] ?? ''));
+    $r['images'] = $gallery['images'];
+    $r['images_by_color'] = $gallery['images_by_color'];
 
     return $r;
 }
@@ -208,9 +287,10 @@ function products_fetch_by_slug(PDO $pdo, string $slug, ?int $forSellerOwnerId =
  */
 function products_fetch_by_id_for_admin(PDO $pdo, int $id): ?array
 {
+    products_ensure_hybrid_columns($pdo);
     $st = $pdo->prepare(
-        "SELECT p.id, p.seller_id, p.name, p.slug, p.sku, p.category, COALESCE(NULLIF(TRIM(p.product_type), ''), 'general') AS product_type, p.price, p.original_price AS original, p.emoji, p.badge,
-                p.rating, p.review_count AS reviews, p.brand, p.image_bg, p.image_path, p.stock_qty, p.size_options, p.color_options, p.description,
+        "SELECT p.id, p.seller_id, p.name, p.slug, p.sku, p.category, COALESCE(NULLIF(TRIM(p.product_type), ''), 'general') AS product_type, p.style_group_code, p.price, p.original_price AS original, p.emoji, p.badge,
+                p.rating, p.review_count AS reviews, p.brand, p.image_bg, p.image_path, p.stock_qty, p.size_options, p.color_options, p.primary_color, p.description,
                 p.offer_flash_text, p.offer_countdown_seconds, p.offer_bank_text, p.approval_status,
                 COALESCE(NULLIF(TRIM(p.shipping_class), ''), 'standard') AS shipping_class,
                 COALESCE(NULLIF(TRIM(s.full_name), ''), 'LUXE Store') AS seller_name
@@ -232,14 +312,9 @@ function products_fetch_by_id_for_admin(PDO $pdo, int $id): ?array
     $r['reviews'] = (int) $r['reviews'];
     $r['rating'] = (float) $r['rating'];
     $r['stock_qty'] = (int) ($r['stock_qty'] ?? 0);
-    $imgSt = $pdo->prepare('SELECT image_path FROM product_images WHERE product_id = ? ORDER BY sort_order ASC, id ASC');
-    $imgSt->execute([$id]);
-    $images = $imgSt->fetchAll(PDO::FETCH_COLUMN);
-    $images = array_values(array_filter(array_map('strval', is_array($images) ? $images : []), static fn(string $v): bool => $v !== ''));
-    if ((string) ($r['image_path'] ?? '') !== '') {
-        array_unshift($images, (string) $r['image_path']);
-    }
-    $r['images'] = array_values(array_unique($images));
+    $gallery = products_fetch_gallery_with_color_map($pdo, $id, (string) ($r['image_path'] ?? ''));
+    $r['images'] = $gallery['images'];
+    $r['images_by_color'] = $gallery['images_by_color'];
     return $r;
 }
 
@@ -247,15 +322,14 @@ function products_fetch_by_id_for_admin(PDO $pdo, int $id): ?array
 function products_fetch_related(PDO $pdo, int $excludeId, string $category, int $limit = 4): array
 {
     $st = $pdo->prepare(
-        'SELECT p.id, p.name, p.slug, p.category, p.emoji, p.price, p.original_price AS original, p.badge, p.image_bg, p.image_path,
+        'SELECT p.id, p.name, p.slug, p.category, p.emoji, p.price, p.original_price AS original, p.badge, p.image_bg, p.image_path, p.active, p.stock_qty,
                 p.rating, p.review_count AS reviews,
                 p.size_options, p.color_options,
                 (SELECT COUNT(*) FROM product_variant_inventory pvi WHERE pvi.product_id = p.id AND pvi.active = 1) AS variant_row_count,
                 (SELECT pi.image_path FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.sort_order ASC, pi.id ASC LIMIT 1) AS gallery_first
          FROM products p
          LEFT JOIN seller_users s ON s.id = p.seller_id
-         WHERE p.active = 1
-           AND p.approval_status = \'approved\'
+         WHERE p.approval_status = \'approved\'
            AND p.id != ?
            AND p.category = ?
            AND p.seller_id IS NOT NULL
@@ -277,6 +351,9 @@ function products_fetch_related(PDO $pdo, int $excludeId, string $category, int 
         $r['original'] = (int) $r['original'];
         $r['reviews'] = (int) ($r['reviews'] ?? 0);
         $r['rating'] = (float) ($r['rating'] ?? 0);
+        $isActive = (int) ($r['active'] ?? 0) === 1;
+        $r['active'] = $isActive ? 1 : 0;
+        $r['stock_qty'] = $isActive ? (int) ($r['stock_qty'] ?? 0) : 0;
         $variantRowCount = (int) ($r['variant_row_count'] ?? 0);
         $sizes = seller_parse_product_option_csv((string) ($r['size_options'] ?? ''));
         $colors = seller_parse_product_option_csv((string) ($r['color_options'] ?? ''));
@@ -342,12 +419,11 @@ function products_fetch_by_seller_for_store(PDO $pdo, int $sellerId): array
         return [];
     }
     $st = $pdo->prepare(
-        'SELECT p.id, p.name, p.slug, p.category, p.price, p.original_price AS original, p.emoji, p.badge, p.rating, p.review_count AS reviews, p.brand, p.image_bg, p.image_path,
+        'SELECT p.id, p.name, p.slug, p.category, p.price, p.original_price AS original, p.emoji, p.badge, p.rating, p.review_count AS reviews, p.brand, p.image_bg, p.image_path, p.active, p.stock_qty,
                 (SELECT pi.image_path FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.sort_order ASC, pi.id ASC LIMIT 1) AS gallery_first
          FROM products p
          INNER JOIN seller_users s ON s.id = p.seller_id
          WHERE p.seller_id = ?
-           AND p.active = 1
            AND p.approval_status = \'approved\'
            AND s.is_active = 1
            AND NOT EXISTS (
@@ -366,6 +442,9 @@ function products_fetch_by_seller_for_store(PDO $pdo, int $sellerId): array
         $r['original'] = (int) $r['original'];
         $r['reviews'] = (int) $r['reviews'];
         $r['rating'] = (float) $r['rating'];
+        $isActive = (int) ($r['active'] ?? 0) === 1;
+        $r['active'] = $isActive ? 1 : 0;
+        $r['stock_qty'] = $isActive ? (int) ($r['stock_qty'] ?? 0) : 0;
         $main = trim((string) ($r['image_path'] ?? ''));
         $gal = trim((string) ($r['gallery_first'] ?? ''));
         unset($r['gallery_first']);

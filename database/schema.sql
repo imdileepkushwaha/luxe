@@ -33,6 +33,7 @@ CREATE TABLE site_settings (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO site_settings (setting_key, setting_value) VALUES ('platform_fee_rupees', '3');
+INSERT INTO site_settings (setting_key, setting_value) VALUES ('admin_seller_commission_percent', '1');
 
 CREATE TABLE platform_payment_gateway_config (
   id TINYINT UNSIGNED PRIMARY KEY,
@@ -131,6 +132,8 @@ CREATE TABLE products (
   slug VARCHAR(255) NOT NULL UNIQUE,
   sku VARCHAR(80) NULL,
   category VARCHAR(64) NOT NULL,
+  product_type VARCHAR(64) NOT NULL DEFAULT 'general',
+  style_group_code VARCHAR(120) NULL,
   price INT UNSIGNED NOT NULL,
   original_price INT UNSIGNED NOT NULL,
   emoji VARCHAR(16) NOT NULL DEFAULT '📦',
@@ -142,6 +145,7 @@ CREATE TABLE products (
   image_path VARCHAR(255) NULL,
   size_options VARCHAR(255) NOT NULL DEFAULT '',
   color_options VARCHAR(255) NOT NULL DEFAULT '',
+  primary_color VARCHAR(64) NULL,
   stock_qty INT UNSIGNED NOT NULL DEFAULT 0,
   description TEXT NULL,
   offer_flash_text VARCHAR(150) NOT NULL DEFAULT '',
@@ -165,6 +169,7 @@ CREATE TABLE product_images (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   product_id INT UNSIGNED NOT NULL,
   image_path VARCHAR(255) NOT NULL,
+  color_label VARCHAR(64) NULL,
   sort_order SMALLINT UNSIGNED NOT NULL DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   KEY idx_product_images_product (product_id, sort_order, id),
@@ -285,6 +290,7 @@ CREATE TABLE orders (
   status VARCHAR(32) NOT NULL DEFAULT 'processing',
   total_amount INT UNSIGNED NOT NULL,
   platform_fee_rupees INT UNSIGNED NOT NULL DEFAULT 0,
+  admin_commission_rupees INT UNSIGNED NOT NULL DEFAULT 0,
   payment_method VARCHAR(128) NOT NULL DEFAULT '',
   shipping_address VARCHAR(512) NOT NULL DEFAULT '',
   delivered_at DATETIME NULL DEFAULT NULL,

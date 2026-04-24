@@ -187,8 +187,8 @@ function seller_handle_product_images_upload(array $files, int $sellerId): array
 
     $paths = [];
     foreach ($names as $idx => $name) {
-        /* Main image + up to 6 gallery = 7 files from add-product wizard */
-        if (count($paths) >= 7) {
+        /* Color-wise uploads allow more files; per-color max is validated separately. */
+        if (count($paths) >= 60) {
             break;
         }
 
@@ -248,13 +248,137 @@ function seller_handle_product_images_upload(array $files, int $sellerId): array
     return ['ok' => true, 'paths' => $paths];
 }
 
+function seller_product_images_has_color_label(PDO $pdo): bool
+{
+    static $checked = false;
+    static $has = false;
+    if ($checked) {
+        return $has;
+    }
+    $checked = true;
+    try {
+        $st = $pdo->query("SHOW COLUMNS FROM product_images LIKE 'color_label'");
+        $has = (bool) $st->fetch(PDO::FETCH_ASSOC);
+        if (!$has) {
+            $pdo->exec("ALTER TABLE product_images ADD COLUMN color_label VARCHAR(64) NULL AFTER image_path");
+            $has = true;
+        }
+    } catch (Throwable) {
+        $has = false;
+    }
+    return $has;
+}
+
+/**
+ * @return array<int,string> zero-based upload-index => color label
+ */
+function seller_parse_image_color_map_from_post(string $rawJson, array $allowedColors): array
+{
+    $rawJson = trim($rawJson);
+    if ($rawJson === '') {
+        return [];
+    }
+    $decoded = json_decode($rawJson, true);
+    if (!is_array($decoded)) {
+        return [];
+    }
+    $allowedMap = [];
+    foreach ($allowedColors as $color) {
+        $c = trim((string) $color);
+        if ($c === '') {
+            continue;
+        }
+        $allowedMap[mb_strtolower($c)] = $c;
+    }
+    $out = [];
+    foreach ($decoded as $k => $v) {
+        $idx = (int) $k;
+        if ($idx < 0 || $idx > 99) {
+            continue;
+        }
+        $colorRaw = trim((string) $v);
+        if ($colorRaw === '') {
+            continue;
+        }
+        if (mb_strtolower($colorRaw) === 'all') {
+            continue;
+        }
+        $key = mb_strtolower($colorRaw);
+        if (!isset($allowedMap[$key])) {
+            continue;
+        }
+        $out[$idx] = $allowedMap[$key];
+    }
+    return $out;
+}
+
+/**
+ * @param list<string> $uploadedPaths
+ * @param array<int,string> $imageColorMap
+ * @return string empty => valid
+ */
+function seller_validate_colorwise_image_limits(array $uploadedPaths, array $imageColorMap): string
+{
+    if ($uploadedPaths === []) {
+        return '';
+    }
+    $bucketCounts = [];
+    foreach ($uploadedPaths as $i => $_path) {
+        $mapped = trim((string) ($imageColorMap[(int) $i] ?? ''));
+        $bucket = $mapped !== '' ? mb_strtolower($mapped) : '__all__';
+        $bucketCounts[$bucket] = (int) ($bucketCounts[$bucket] ?? 0) + 1;
+    }
+    foreach ($bucketCounts as $bucket => $count) {
+        if ($count <= 6) {
+            continue;
+        }
+        if ($bucket === '__all__') {
+            return 'All colors bucket me max 6 images allowed hain. Extra images ko specific color assign karein.';
+        }
+        return 'Color-wise max 6 images allowed hain. "' . ucfirst($bucket) . '" ke liye 6 se zyada images hain.';
+    }
+    return '';
+}
+
+function seller_products_ensure_hybrid_columns(PDO $pdo): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+    try {
+        $checkStyle = $pdo->query("SHOW COLUMNS FROM products LIKE 'style_group_code'");
+        $hasStyle = (bool) $checkStyle->fetch(PDO::FETCH_ASSOC);
+        if (!$hasStyle) {
+            $pdo->exec("ALTER TABLE products ADD COLUMN style_group_code VARCHAR(120) NULL AFTER product_type");
+        }
+        $checkPrimary = $pdo->query("SHOW COLUMNS FROM products LIKE 'primary_color'");
+        $hasPrimary = (bool) $checkPrimary->fetch(PDO::FETCH_ASSOC);
+        if (!$hasPrimary) {
+            $pdo->exec("ALTER TABLE products ADD COLUMN primary_color VARCHAR(64) NULL AFTER color_options");
+        }
+    } catch (Throwable) {
+        // Keep old flow functional if schema migration fails.
+    }
+}
+
+function seller_make_style_group_code(string $name, string $category, string $productType): string
+{
+    $seed = strtolower(trim($category)) . '-' . strtolower(trim($productType)) . '-' . strtolower(trim($name));
+    $slug = seller_make_slug($seed);
+    return substr($slug === '' ? 'style-group' : $slug, 0, 110);
+}
+
+seller_products_ensure_hybrid_columns($pdo);
+
 $error = '';
 $toastMessage = '';
 $toastIsError = false;
 $drawerMode = 'add';
 $editingProduct = null;
 $productByIdSt = $pdo->prepare(
-    'SELECT id, name, sku, category, product_type, price, original_price, emoji, badge, brand, size_options, color_options, stock_qty, description, image_path,
+    'SELECT id, name, sku, category, product_type, style_group_code, price, original_price, emoji, badge, brand, size_options, color_options, primary_color, stock_qty, description, image_path,
             gender,
             offer_flash_text, offer_countdown_seconds, offer_bank_text, shipping_class,
             manufacturer_generic_name, manufacturer_country, manufacturer_name_address, packer_name_address,
@@ -278,10 +402,71 @@ if ($msg === 'added') {
 } elseif ($msg === 'delete_fail') {
     $toastMessage = 'Product delete nahi ho paya.';
     $toastIsError = true;
+} elseif ($msg === 'activated') {
+    $toastMessage = 'Product active ho gaya. Listing buyers ko normal dikhegi.';
+} elseif ($msg === 'deactivated') {
+    $toastMessage = 'Product inactive ho gaya. Buyers ko Out of stock dikhega.';
+} elseif ($msg === 'status_fail') {
+    $toastMessage = 'Status update nahi ho paya. Sirf approved listing ko active/inactive kar sakte hain.';
+    $toastIsError = true;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = (string) ($_POST['action'] ?? 'add_product');
+
+    if ($action === 'toggle_product_active') {
+        $productId = (int) ($_POST['product_id'] ?? 0);
+        $nextActive = (int) ($_POST['next_active'] ?? 0) === 1 ? 1 : 0;
+        if ($productId > 0) {
+            $rowSt = $pdo->prepare(
+                'SELECT approval_status
+                 FROM products
+                 WHERE id = ? AND seller_id = ?
+                 LIMIT 1'
+            );
+            $rowSt->execute([$productId, (int) $seller['id']]);
+            $row = $rowSt->fetch(PDO::FETCH_ASSOC);
+            if ($row && strtolower(trim((string) ($row['approval_status'] ?? ''))) === 'approved') {
+                $upd = $pdo->prepare(
+                    'UPDATE products
+                     SET active = ?
+                     WHERE id = ? AND seller_id = ?
+                     LIMIT 1'
+                );
+                $upd->execute([$nextActive, $productId, (int) $seller['id']]);
+                $q = ['msg' => $nextActive === 1 ? 'activated' : 'deactivated'];
+                $lp = (int) ($_POST['list_page'] ?? 0);
+                $lper = (int) ($_POST['list_per_page'] ?? 0);
+                $ldf = strtolower(trim((string) ($_POST['list_date_filter'] ?? 'all')));
+                if ($lp > 0) {
+                    $q['page'] = $lp;
+                }
+                if ($lper >= 5 && $lper <= 100) {
+                    $q['per_page'] = $lper;
+                }
+                if (in_array($ldf, ['day', 'week', 'month'], true)) {
+                    $q['date_filter'] = $ldf;
+                }
+                header('Location: products.php?' . http_build_query($q));
+                exit;
+            }
+        }
+        $q = ['msg' => 'status_fail'];
+        $lp = (int) ($_POST['list_page'] ?? 0);
+        $lper = (int) ($_POST['list_per_page'] ?? 0);
+        $ldf = strtolower(trim((string) ($_POST['list_date_filter'] ?? 'all')));
+        if ($lp > 0) {
+            $q['page'] = $lp;
+        }
+        if ($lper >= 5 && $lper <= 100) {
+            $q['per_page'] = $lper;
+        }
+        if (in_array($ldf, ['day', 'week', 'month'], true)) {
+            $q['date_filter'] = $ldf;
+        }
+        header('Location: products.php?' . http_build_query($q));
+        exit;
+    }
 
     if ($action === 'delete_product') {
         $productId = (int) ($_POST['product_id'] ?? 0);
@@ -362,6 +547,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $selectedColors = is_array($_POST['color_options'] ?? null) ? array_values(array_map('strval', $_POST['color_options'])) : [];
         $sizeOptions = seller_normalize_options_from_post($_POST['size_options'] ?? [], $sizeCatalog);
         $colorOptions = seller_normalize_options_from_post($_POST['color_options'] ?? [], $colorCatalog);
+        $imageColorMap = seller_parse_image_color_map_from_post((string) ($_POST['image_color_map'] ?? ''), $selectedColors);
         $description = trim((string) ($_POST['description'] ?? ''));
         $offerFlashText = trim((string) ($_POST['offer_flash_text'] ?? ''));
         $offerCountdownInput = trim((string) ($_POST['offer_countdown'] ?? ''));
@@ -379,6 +565,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ? (string) ($editingProduct['product_type'] ?? '')
             : '';
         $productType = seller_normalize_product_type($category, (string) ($_POST['product_type'] ?? $productTypePrev));
+        $styleGroupInput = trim((string) ($_POST['style_group_code'] ?? ''));
+        $styleGroupCode = $styleGroupInput !== '' ? seller_make_slug($styleGroupInput) : seller_make_style_group_code($name, $category, $productType);
+        $primaryColorInput = trim((string) ($_POST['primary_color'] ?? ''));
+        $primaryColor = '';
+        if ($primaryColorInput !== '') {
+            foreach ($selectedColors as $col) {
+                if (strcasecmp($col, $primaryColorInput) === 0) {
+                    $primaryColor = $col;
+                    break;
+                }
+            }
+        }
+        if ($primaryColor === '' && $selectedColors !== []) {
+            $primaryColor = (string) $selectedColors[0];
+        }
         $genderPrev = ($drawerMode === 'edit' && $editingProduct)
             ? (string) ($editingProduct['gender'] ?? 'unisex')
             : 'unisex';
@@ -410,6 +611,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $upload = seller_handle_product_images_upload($_FILES['images'] ?? [], (int) $seller['id']);
             if (!$upload['ok']) {
                 $error = (string) ($upload['error'] ?? 'Images upload failed.');
+            } else {
+                $uploadedPathsCheck = is_array($upload['paths'] ?? null) ? $upload['paths'] : [];
+                $imgLimitErr = seller_validate_colorwise_image_limits($uploadedPathsCheck, $imageColorMap);
+                if ($imgLimitErr !== '') {
+                    $error = $imgLimitErr;
+                }
             }
         }
 
@@ -419,47 +626,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $sku = $skuInput !== '' ? $skuInput : seller_generate_unique_sku($pdo, $name, $category);
             $ins = $pdo->prepare(
                 'INSERT INTO products
-                    (seller_id, name, slug, sku, category, product_type, gender, price, original_price, emoji, badge, rating, review_count, brand, image_bg, image_path, size_options, color_options, stock_qty, description,
+                    (seller_id, name, slug, sku, category, product_type, style_group_code, gender, price, original_price, emoji, badge, rating, review_count, brand, image_bg, image_path, size_options, color_options, primary_color, stock_qty, description,
                      offer_flash_text, offer_countdown_seconds, offer_bank_text, shipping_class,
                      manufacturer_generic_name, manufacturer_country, manufacturer_name_address, packer_name_address,
                      active, approval_status)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 4.5, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, \'pending\')'
+                 VALUES (:seller_id, :name, :slug, :sku, :category, :product_type, :style_group_code, :gender, :price, :original_price, :emoji, :badge, 4.5, 0, :brand, :image_bg, :image_path, :size_options, :color_options, :primary_color, :stock_qty, :description, :offer_flash_text, :offer_countdown_seconds, :offer_bank_text, :shipping_class, :manufacturer_generic_name, :manufacturer_country, :manufacturer_name_address, :packer_name_address, 1, \'pending\')'
             );
             $uploadedPaths = is_array($upload['paths'] ?? null) ? $upload['paths'] : [];
             $mainImagePath = $uploadedPaths[0] ?? null;
             $ins->execute([
-                (int) $seller['id'],
-                $name,
-                $slug,
-                $sku,
-                $category,
-                $productType,
-                $gender,
-                $price,
-                $originalPrice,
-                $emoji === '' ? '📦' : $emoji,
-                $badge,
-                $brand === '' ? 'LUXE' : $brand,
-                '#1a0a2e',
-                $mainImagePath,
-                $sizeOptions,
-                $colorOptions,
-                max(0, $stockQty),
-                $description,
-                $offerFlashText,
-                max(0, $offerCountdownSeconds),
-                $offerBankText,
-                $shippingClass,
-                $manufacturerGenericName,
-                $manufacturerCountry,
-                $manufacturerNameAddress,
-                $packerNameAddress,
+                ':seller_id' => (int) $seller['id'],
+                ':name' => $name,
+                ':slug' => $slug,
+                ':sku' => $sku,
+                ':category' => $category,
+                ':product_type' => $productType,
+                ':style_group_code' => $styleGroupCode,
+                ':gender' => $gender,
+                ':price' => $price,
+                ':original_price' => $originalPrice,
+                ':emoji' => $emoji === '' ? '📦' : $emoji,
+                ':badge' => $badge,
+                ':brand' => $brand === '' ? 'LUXE' : $brand,
+                ':image_bg' => '#1a0a2e',
+                ':image_path' => $mainImagePath,
+                ':size_options' => $sizeOptions,
+                ':color_options' => $colorOptions,
+                ':primary_color' => $primaryColor !== '' ? $primaryColor : null,
+                ':stock_qty' => max(0, $stockQty),
+                ':description' => $description,
+                ':offer_flash_text' => $offerFlashText,
+                ':offer_countdown_seconds' => max(0, $offerCountdownSeconds),
+                ':offer_bank_text' => $offerBankText,
+                ':shipping_class' => $shippingClass,
+                ':manufacturer_generic_name' => $manufacturerGenericName,
+                ':manufacturer_country' => $manufacturerCountry,
+                ':manufacturer_name_address' => $manufacturerNameAddress,
+                ':packer_name_address' => $packerNameAddress,
             ]);
             $productId = (int) $pdo->lastInsertId();
             if ($uploadedPaths !== [] && $productId > 0) {
-                $imgIns = $pdo->prepare('INSERT INTO product_images (product_id, image_path, sort_order) VALUES (?, ?, ?)');
+                $supportsColorImageMap = seller_product_images_has_color_label($pdo);
+                $imgIns = $supportsColorImageMap
+                    ? $pdo->prepare('INSERT INTO product_images (product_id, image_path, color_label, sort_order) VALUES (?, ?, ?, ?)')
+                    : $pdo->prepare('INSERT INTO product_images (product_id, image_path, sort_order) VALUES (?, ?, ?)');
                 foreach ($uploadedPaths as $i => $path) {
-                    $imgIns->execute([$productId, $path, $i]);
+                    $mappedColor = trim((string) ($imageColorMap[(int) $i] ?? ''));
+                    if ($supportsColorImageMap) {
+                        $imgIns->execute([$productId, $path, $mappedColor !== '' ? $mappedColor : null, $i]);
+                    } else {
+                        $imgIns->execute([$productId, $path, $i]);
+                    }
                 }
             }
             if ($productId > 0) {
@@ -479,12 +696,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $existingSku = strtoupper(trim((string) ($editingProduct['sku'] ?? '')));
                 $sku = $existingSku !== '' ? $existingSku : seller_generate_unique_sku($pdo, $name, $category, $productId);
                 $uploadedPaths = is_array($upload['paths'] ?? null) ? $upload['paths'] : [];
+                $removeImageIdsRaw = is_array($_POST['remove_image_ids'] ?? null) ? $_POST['remove_image_ids'] : [];
+                $removeImageIds = array_values(array_unique(array_filter(array_map(static fn($v): int => (int) $v, $removeImageIdsRaw), static fn(int $v): bool => $v > 0)));
                 $mainImagePath = $uploadedPaths[0] ?? null;
 
                 if ($mainImagePath !== null) {
                     $upd = $pdo->prepare(
                         'UPDATE products
-                         SET name = ?, slug = ?, sku = ?, category = ?, product_type = ?, gender = ?, price = ?, original_price = ?, emoji = ?, badge = ?, brand = ?, image_path = ?, size_options = ?, color_options = ?, stock_qty = ?, description = ?
+                         SET name = ?, slug = ?, sku = ?, category = ?, product_type = ?, style_group_code = ?, gender = ?, price = ?, original_price = ?, emoji = ?, badge = ?, brand = ?, image_path = ?, size_options = ?, color_options = ?, primary_color = ?, stock_qty = ?, description = ?
                             , offer_flash_text = ?, offer_countdown_seconds = ?, offer_bank_text = ?, shipping_class = ?
                             , manufacturer_generic_name = ?, manufacturer_country = ?, manufacturer_name_address = ?, packer_name_address = ?
                             , approval_status = CASE WHEN approval_status = \'approved\' THEN \'approved\' ELSE \'pending\' END
@@ -497,6 +716,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $sku,
                         $category,
                         $productType,
+                        $styleGroupCode,
                         $gender,
                         $price,
                         $originalPrice,
@@ -506,6 +726,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $mainImagePath,
                         $sizeOptions,
                         $colorOptions,
+                        $primaryColor !== '' ? $primaryColor : null,
                         max(0, $stockQty),
                         $description,
                         $offerFlashText,
@@ -522,7 +743,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 } else {
                     $upd = $pdo->prepare(
                         'UPDATE products
-                         SET name = ?, slug = ?, sku = ?, category = ?, product_type = ?, gender = ?, price = ?, original_price = ?, emoji = ?, badge = ?, brand = ?, size_options = ?, color_options = ?, stock_qty = ?, description = ?
+                         SET name = ?, slug = ?, sku = ?, category = ?, product_type = ?, style_group_code = ?, gender = ?, price = ?, original_price = ?, emoji = ?, badge = ?, brand = ?, size_options = ?, color_options = ?, primary_color = ?, stock_qty = ?, description = ?
                             , offer_flash_text = ?, offer_countdown_seconds = ?, offer_bank_text = ?, shipping_class = ?
                             , manufacturer_generic_name = ?, manufacturer_country = ?, manufacturer_name_address = ?, packer_name_address = ?
                             , approval_status = CASE WHEN approval_status = \'approved\' THEN \'approved\' ELSE \'pending\' END
@@ -535,6 +756,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $sku,
                         $category,
                         $productType,
+                        $styleGroupCode,
                         $gender,
                         $price,
                         $originalPrice,
@@ -543,6 +765,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $brand === '' ? 'LUXE' : $brand,
                         $sizeOptions,
                         $colorOptions,
+                        $primaryColor !== '' ? $primaryColor : null,
                         max(0, $stockQty),
                         $description,
                         $offerFlashText,
@@ -560,9 +783,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 if ($uploadedPaths !== []) {
                     $pdo->prepare('DELETE FROM product_images WHERE product_id = ?')->execute([$productId]);
-                    $imgIns = $pdo->prepare('INSERT INTO product_images (product_id, image_path, sort_order) VALUES (?, ?, ?)');
+                    $supportsColorImageMap = seller_product_images_has_color_label($pdo);
+                    $imgIns = $supportsColorImageMap
+                        ? $pdo->prepare('INSERT INTO product_images (product_id, image_path, color_label, sort_order) VALUES (?, ?, ?, ?)')
+                        : $pdo->prepare('INSERT INTO product_images (product_id, image_path, sort_order) VALUES (?, ?, ?)');
                     foreach ($uploadedPaths as $i => $path) {
-                        $imgIns->execute([$productId, $path, $i]);
+                        $mappedColor = trim((string) ($imageColorMap[(int) $i] ?? ''));
+                        if ($supportsColorImageMap) {
+                            $imgIns->execute([$productId, $path, $mappedColor !== '' ? $mappedColor : null, $i]);
+                        } else {
+                            $imgIns->execute([$productId, $path, $i]);
+                        }
+                    }
+                } elseif ($removeImageIds !== []) {
+                    $imgRowsSt = $pdo->prepare('SELECT id, image_path FROM product_images WHERE product_id = ?');
+                    $imgRowsSt->execute([$productId]);
+                    $imgRows = $imgRowsSt->fetchAll(PDO::FETCH_ASSOC);
+                    $existingImgIds = [];
+                    foreach ($imgRows as $imgRow) {
+                        $iid = (int) ($imgRow['id'] ?? 0);
+                        if ($iid <= 0) {
+                            continue;
+                        }
+                        $existingImgIds[$iid] = true;
+                    }
+                    $safeDeleteIds = array_values(array_filter($removeImageIds, static fn(int $iid): bool => isset($existingImgIds[$iid])));
+                    if ($safeDeleteIds !== []) {
+                        $placeholders = implode(',', array_fill(0, count($safeDeleteIds), '?'));
+                        $delParams = array_merge([$productId], $safeDeleteIds);
+                        $delSt = $pdo->prepare('DELETE FROM product_images WHERE product_id = ? AND id IN (' . $placeholders . ')');
+                        $delSt->execute($delParams);
+                        // Always re-sync main image from remaining gallery after explicit removals.
+                        $nextMainSt = $pdo->prepare('SELECT image_path FROM product_images WHERE product_id = ? ORDER BY sort_order ASC, id ASC LIMIT 1');
+                        $nextMainSt->execute([$productId]);
+                        $nextMain = trim((string) ($nextMainSt->fetchColumn() ?: ''));
+                        $pdo->prepare('UPDATE products SET image_path = ? WHERE id = ? AND seller_id = ? LIMIT 1')
+                            ->execute([$nextMain !== '' ? $nextMain : null, $productId, (int) $seller['id']]);
                     }
                 }
                 $vCntSt = $pdo->prepare('SELECT COUNT(*) FROM product_variant_inventory WHERE product_id = ?');
@@ -784,6 +1040,7 @@ require __DIR__ . '/partials/shell-top.php';
                     <th>Price</th>
                     <th>Stock</th>
                     <th>Listing</th>
+                    <th>Status</th>
                     <th class="seller-products-th--actions">Actions</th>
                   </tr>
                 </thead>
@@ -791,7 +1048,8 @@ require __DIR__ . '/partials/shell-top.php';
                   <?php foreach ($products as $p): ?>
                     <?php
                     $pid = (int) ($p['id'] ?? 0);
-                    $displayStockQty = (int) ($p['display_stock_qty'] ?? $p['stock_qty'] ?? 0);
+                    $isActiveListing = (int) ($p['active'] ?? 0) === 1;
+                    $displayStockQty = $isActiveListing ? (int) ($p['display_stock_qty'] ?? $p['stock_qty'] ?? 0) : 0;
                     $apRaw = strtolower(trim((string) ($p['approval_status'] ?? 'approved')));
                     $productsSearchBlob = mb_strtolower(
                         (string) $pid . ' '
@@ -805,7 +1063,7 @@ require __DIR__ . '/partials/shell-top.php';
                         . (string) (int) ($p['price'] ?? 0) . ' '
                         . (string) (int) ($p['original_price'] ?? 0) . ' '
                         . (string) $displayStockQty . ' '
-                        . ((int) ($p['active'] ?? 0) === 1 ? 'active' : 'inactive') . ' '
+                        . ($isActiveListing ? 'active' : 'inactive') . ' '
                         . $apRaw . ' '
                         . trim((string) ($p['size_options'] ?? '')) . ' '
                         . trim((string) ($p['color_options'] ?? ''))
@@ -865,11 +1123,6 @@ require __DIR__ . '/partials/shell-top.php';
                       </td>
                       <td>
                         <div class="seller-product-listing-stack">
-                          <?php if ((int) $p['active'] === 1): ?>
-                            <span class="seller-status-chip seller-status-chip--delivered">Active</span>
-                          <?php else: ?>
-                            <span class="seller-status-chip seller-status-chip--inactive">Inactive</span>
-                          <?php endif; ?>
                           <?php
                         $ap = $apRaw;
                         if ($ap === 'approved'): ?>
@@ -878,6 +1131,31 @@ require __DIR__ . '/partials/shell-top.php';
                             <span class="seller-status-chip seller-status-chip--pending">Pending</span>
                           <?php else: ?>
                             <span class="seller-status-chip seller-status-chip--rejected">Rejected</span>
+                          <?php endif; ?>
+                        </div>
+                      </td>
+                      <td>
+                        <div class="seller-product-listing-stack">
+                          <?php if ($apRaw === 'approved'): ?>
+                            <form method="post" action="<?= h($productsFormAction) ?>" class="seller-product-status-form">
+                              <input type="hidden" name="action" value="toggle_product_active">
+                              <input type="hidden" name="product_id" value="<?= (int) $p['id'] ?>">
+                              <input type="hidden" name="next_active" value="<?= $isActiveListing ? '0' : '1' ?>">
+                              <input type="hidden" name="list_page" value="<?= (int) $productsPage ?>">
+                              <input type="hidden" name="list_per_page" value="<?= (int) $productsPerPage ?>">
+                              <input type="hidden" name="list_date_filter" value="<?= h($productsDateFilter) ?>">
+                              <label class="seller-toggle-switch" title="<?= $isActiveListing ? 'Deactivate listing' : 'Activate listing' ?>">
+                                <input
+                                  type="checkbox"
+                                  <?= $isActiveListing ? 'checked' : '' ?>
+                                  aria-label="<?= $isActiveListing ? 'Deactivate listing' : 'Activate listing' ?>"
+                                  onchange="this.form.querySelector('input[name=next_active]').value=this.checked?'1':'0';this.form.submit();"
+                                >
+                                <span class="seller-toggle-switch__track" aria-hidden="true"></span>
+                              </label>
+                            </form>
+                          <?php else: ?>
+                            <span class="seller-stock-low-hint">Approve hone ke baad</span>
                           <?php endif; ?>
                         </div>
                       </td>
@@ -905,7 +1183,7 @@ require __DIR__ . '/partials/shell-top.php';
                   <?php endforeach; ?>
                   <?php if ($products === []): ?>
                     <tr class="seller-products-empty-placeholder">
-                      <td colspan="8">
+                      <td colspan="9">
                         <div class="seller-products-empty">
                           <div class="seller-products-empty__icon" aria-hidden="true">
                             <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg>
@@ -922,7 +1200,7 @@ require __DIR__ . '/partials/shell-top.php';
                     </tr>
                   <?php else: ?>
                     <tr id="sellerProductsNoMatchRow" class="seller-products-no-match-row" style="display:none">
-                      <td colspan="8" class="seller-products-no-match-cell">
+                      <td colspan="9" class="seller-products-no-match-cell">
                         <div class="seller-products-no-match-inner">
                           <span class="seller-products-no-match-icon" aria-hidden="true">
                             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
@@ -1186,6 +1464,7 @@ require __DIR__ . '/partials/shell-top.php';
                   <div class="seller-product-form-field">
                     <label for="images">Product images <span class="seller-product-form-optional">(optional)</span></label>
                     <input id="images" class="seller-product-form-file" type="file" name="images[]" accept=".jpg,.jpeg,.png,.webp,.gif,image/*" multiple <?= $canAddProducts ? '' : 'disabled' ?>>
+                    <input type="hidden" id="image_color_map" name="image_color_map" value="">
                     <p class="seller-help seller-product-form-hint">
                       Gallery order upload order jaisi rahegi.
                       <?php if ($drawerMode === 'edit'): ?>
@@ -1193,6 +1472,7 @@ require __DIR__ . '/partials/shell-top.php';
                       <?php endif; ?>
                       <span id="productImagesPickCount" class="seller-product-form-file-count" hidden></span>
                     </p>
+                    <div id="imageColorMapWrap" class="seller-help seller-product-form-hint" hidden></div>
                   </div>
                 </div>
               </section>
@@ -1348,16 +1628,76 @@ require __DIR__ . '/partials/shell-top.php';
           (function () {
             var imagesInput = document.getElementById('images');
             var countEl = document.getElementById('productImagesPickCount');
-            if (!imagesInput || !countEl) return;
-            imagesInput.addEventListener('change', function () {
+            var colorSelect = document.getElementById('color_options');
+            var mappingWrap = document.getElementById('imageColorMapWrap');
+            var mappingInput = document.getElementById('image_color_map');
+            if (!imagesInput || !countEl || !colorSelect || !mappingWrap || !mappingInput) return;
+
+            function getSelectedColors() {
+              var opts = Array.prototype.slice.call(colorSelect.options || []);
+              return opts.filter(function (o) { return o.selected; }).map(function (o) { return String(o.value || '').trim(); }).filter(Boolean);
+            }
+
+            function renderMappingUi() {
               var n = imagesInput.files ? imagesInput.files.length : 0;
               if (n === 0) {
                 countEl.textContent = '';
                 countEl.setAttribute('hidden', '');
+                mappingWrap.setAttribute('hidden', '');
+                mappingWrap.innerHTML = '';
+                mappingInput.value = '';
                 return;
               }
+
               countEl.removeAttribute('hidden');
               countEl.textContent = ' \u2014 ' + n + ' file' + (n === 1 ? '' : 's') + ' selected';
+
+              var colors = getSelectedColors();
+              if (colors.length === 0) {
+                mappingWrap.removeAttribute('hidden');
+                mappingWrap.innerHTML = '<strong>Tip:</strong> Agar color-wise images chahiye to pehle color options select karein.';
+                mappingInput.value = '';
+                return;
+              }
+
+              var html = '<strong>Color-wise image mapping</strong><br><small>Har image ko color assign karo. "All colors" ka matlab common gallery image.</small><div style="display:grid;gap:8px;margin-top:8px">';
+              for (var i = 0; i < n; i++) {
+                var fileName = imagesInput.files[i] ? imagesInput.files[i].name : ('Image ' + (i + 1));
+                html += '<label style="display:flex;justify-content:space-between;align-items:center;gap:10px;"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px;">' + fileName.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</span>';
+                html += '<select data-image-map-index="' + i + '"><option value="">All colors</option>';
+                colors.forEach(function (color) {
+                  var safe = color.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                  html += '<option value="' + safe + '">' + safe + '</option>';
+                });
+                html += '</select></label>';
+              }
+              html += '</div>';
+              mappingWrap.removeAttribute('hidden');
+              mappingWrap.innerHTML = html;
+              syncMapValue();
+            }
+
+            function syncMapValue() {
+              var map = {};
+              var selects = mappingWrap.querySelectorAll('select[data-image-map-index]');
+              selects.forEach(function (sel) {
+                var idx = Number(sel.getAttribute('data-image-map-index') || '-1');
+                if (idx < 0) return;
+                var color = String(sel.value || '').trim();
+                if (color !== '') {
+                  map[idx] = color;
+                }
+              });
+              mappingInput.value = JSON.stringify(map);
+            }
+
+            imagesInput.addEventListener('change', renderMappingUi);
+            colorSelect.addEventListener('change', renderMappingUi);
+            mappingWrap.addEventListener('change', function (event) {
+              var target = event.target;
+              if (target && target.matches && target.matches('select[data-image-map-index]')) {
+                syncMapValue();
+              }
             });
           })();
         </script>

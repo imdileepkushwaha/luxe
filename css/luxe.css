@@ -3483,6 +3483,13 @@ section {
     display: block;
     flex-shrink: 0;
 }
+.add-cart-btn.is-disabled,
+.add-cart-btn:disabled {
+    background: rgba(148, 163, 184, 0.35);
+    color: rgba(248, 250, 252, 0.92);
+    opacity: 0.75;
+    transform: none;
+}
 .view-product-btn {
     display: inline-flex;
     align-items: center;
@@ -8715,6 +8722,24 @@ html[data-theme="light"] .desc-text .desc-body blockquote {
     background: rgba(239, 68, 68, 0.15);
     color: #ef4444;
     border: 1px solid rgba(239, 68, 68, 0.3);
+}
+.return-rejected-ui {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.14), rgba(190, 24, 93, 0.1));
+}
+.return-rejected-ui__badge {
+    align-self: flex-start;
+    box-shadow: 0 6px 16px rgba(239, 68, 68, 0.2);
+}
+.return-rejected-ui__hint {
+    font-size: 0.78rem;
+    color: #fca5a5;
+    line-height: 1.4;
 }
 
 .order-items-row {

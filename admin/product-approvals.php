@@ -49,7 +49,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'approve_product') {
         $upd = $pdo->prepare(
             "UPDATE products
-             SET approval_status = 'approved'
+             SET approval_status = 'approved',
+                 active = 1
              WHERE id = ?
                AND seller_id IS NOT NULL
              LIMIT 1"
@@ -422,23 +423,31 @@ require __DIR__ . '/partials/shell-top.php';
                       <td class="admin-table__td-muted"><?= h(admin_pa_fmt_created($row['created_at'] ?? null)) ?></td>
                       <td>
                         <div class="admin-pa-actions">
-                          <a class="admin-btn admin-btn--primary admin-pa-actions__btn" href="../product.php?id=<?= $pid ?>" target="_blank" rel="noopener">Preview</a>
+                          <a class="admin-btn admin-btn--primary admin-pa-actions__btn admin-pa-actions__btn--icon" href="../product.php?id=<?= $pid ?>" target="_blank" rel="noopener" title="Preview" aria-label="Preview product">
+                          <svg class="seller-details-icon" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" d="M9 4.46A9.8 9.8 0 0 1 12 4c4.182 0 7.028 2.5 8.725 4.704C21.575 9.81 22 10.361 22 12c0 1.64-.425 2.191-1.275 3.296C19.028 17.5 16.182 20 12 20s-7.028-2.5-8.725-4.704C2.425 14.192 2 13.639 2 12c0-1.64.425-2.191 1.275-3.296A14.5 14.5 0 0 1 5 6.821"></path><path d="M15 12a3 3 0 1 1-6 0a3 3 0 0 1 6 0Z"></path></g></svg>
+                          </a>
                           <?php if ($tab === 'pending'): ?>
                             <form method="post" class="admin-pa-actions__form" onsubmit="return confirm('Is product ko approve karke live karwana hai?');">
                               <input type="hidden" name="action" value="approve_product">
                               <input type="hidden" name="product_id" value="<?= $pid ?>">
-                              <button type="submit" class="admin-btn admin-btn--outline admin-pa-actions__btn">Approve</button>
+                              <button type="submit" class="admin-btn admin-btn--outline admin-pa-actions__btn admin-pa-actions__btn--icon" title="Approve" aria-label="Approve product">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+                              </button>
                             </form>
                             <form method="post" class="admin-pa-actions__form" onsubmit="return confirm('Reject kar dena hai? Seller dubara edit kar sakta hai.');">
                               <input type="hidden" name="action" value="reject_product">
                               <input type="hidden" name="product_id" value="<?= $pid ?>">
-                              <button type="submit" class="admin-btn admin-pa-actions__btn admin-pa-actions__btn--reject">Reject</button>
+                              <button type="submit" class="admin-btn admin-pa-actions__btn admin-pa-actions__btn--reject admin-pa-actions__btn--icon" title="Reject" aria-label="Reject product">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                              </button>
                             </form>
                           <?php elseif ($st === 'rejected'): ?>
                             <form method="post" class="admin-pa-actions__form" onsubmit="return confirm('Ab is product ko approve karna hai?');">
                               <input type="hidden" name="action" value="approve_product">
                               <input type="hidden" name="product_id" value="<?= $pid ?>">
-                              <button type="submit" class="admin-btn admin-btn--outline admin-pa-actions__btn">Approve</button>
+                              <button type="submit" class="admin-btn admin-btn--outline admin-pa-actions__btn admin-pa-actions__btn--icon" title="Approve" aria-label="Approve product">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+                              </button>
                             </form>
                           <?php endif; ?>
                         </div>

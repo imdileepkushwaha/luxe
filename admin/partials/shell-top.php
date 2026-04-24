@@ -88,11 +88,11 @@ $adminNotifyItems = [
         </a>
         <a class="admin-nav__link<?= $activeNav === 'earnings' ? ' admin-nav__link--active' : '' ?>" href="earnings.php">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-          Platform earnings
+          Admin Earnings
         </a>
         <a class="admin-nav__link<?= $activeNav === 'product_approvals' ? ' admin-nav__link--active' : '' ?>" href="product-approvals.php">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
-          Product approvals
+          Product Approvals
         </a>
 
         <div class="admin-nav__label">Seller</div>
@@ -105,14 +105,14 @@ $adminNotifyItems = [
               <circle cx="4" cy="12" r="1"/>
               <circle cx="4" cy="18" r="1"/>
             </svg>
-            Seller list
+            Seller List
           </a>
         <a class="admin-nav__link<?= $activeNav === 'seller_kyc' ? ' admin-nav__sublink--active' : '' ?>" href="seller-kyc.php">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M12 2l7 4v6c0 5-3.5 9.74-7 10-3.5-.26-7-5-7-10V6l7-4z"/>
               <path d="M9.5 12.5l1.8 1.8 3.2-3.2"/>
             </svg>
-            KYC requests
+            KYC Kequests
           </a>
         <a class="admin-nav__link<?= $activeNav === 'seller_withdrawals' ? ' admin-nav__sublink--active' : '' ?>" href="seller-withdrawals.php">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -124,7 +124,7 @@ $adminNotifyItems = [
           </a>
         <a class="admin-nav__link<?= $activeNav === 'deletions' ? ' admin-nav__link--active' : '' ?>" href="account-deletions.php">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-          Deletion requests
+          Deletion Requests
         </a>
         <div class="admin-nav__label">Account</div>
         <a class="admin-nav__link" href="logout.php">

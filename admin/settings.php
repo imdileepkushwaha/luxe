@@ -72,9 +72,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $platformFee = max(0, (int) ($_POST['platform_fee_rupees'] ?? 0));
         $freeShipMin = max(0, (int) ($_POST['cart_free_shipping_min_rupees'] ?? 0));
         $belowMinShip = max(0, (int) ($_POST['cart_below_min_shipping_fee_rupees'] ?? 0));
+        $adminCutPct = (float) str_replace(',', '.', trim((string) ($_POST['admin_seller_commission_percent'] ?? '0')));
+        if ($adminCutPct < 0) {
+            $adminCutPct = 0.0;
+        }
+        if ($adminCutPct > 100) {
+            $adminCutPct = 100.0;
+        }
         site_setting_set($pdo, 'platform_fee_rupees', (string) $platformFee);
         site_setting_set($pdo, 'cart_free_shipping_min_rupees', (string) $freeShipMin);
         site_setting_set($pdo, 'cart_below_min_shipping_fee_rupees', (string) $belowMinShip);
+        site_setting_set($pdo, 'admin_seller_commission_percent', (string) $adminCutPct);
         header('Location: settings.php?msg=site_saved&tab=store');
         exit;
     }
@@ -166,6 +174,7 @@ $adminDetail = $detailSt->fetch(PDO::FETCH_ASSOC) ?: [];
 $platformFee = site_platform_fee_rupees($pdo);
 $freeShipMin = site_cart_free_shipping_min_rupees($pdo);
 $belowMinShip = site_cart_below_min_shipping_fee_rupees($pdo);
+$adminSellerCommissionPct = site_admin_seller_commission_percent($pdo);
 
 $pgwConfig = platform_payment_gateway_load($pdo);
 $pgwConfig['gateway'] = in_array((string) ($pgwConfig['gateway'] ?? ''), $pgwAllowedGateways, true)
@@ -347,13 +356,18 @@ require __DIR__ . '/partials/shell-top.php';
             <div class="admin-settings-crms-panel admin-settings-crms-panel--store">
               <section class="admin-settings-crms-section" aria-labelledby="settings-store-title">
                 <h2 class="admin-settings-crms-section__title" id="settings-store-title">Store defaults</h2>
-                <p class="admin-settings-crms-section__hint">Checkout and cart rules from <code class="admin-inline-code">site_settings</code>. Seller shipping overrides still apply from the seller panel.</p>
+                <p class="admin-settings-crms-section__hint">Checkout and cart rules from <code class="admin-inline-code">site_settings</code>. Seller shipping overrides still apply from the seller panel. Admin seller commission is recorded on each order for internal earnings only — shoppers do not see it on cart or checkout.</p>
                 <form method="post" class="admin-settings-form admin-settings-crms-form">
                   <input type="hidden" name="action" value="save_site_defaults">
                   <div class="admin-form-grid-3">
                     <label class="admin-field">
                       <span class="admin-field__label">Platform fee (₹ / order)</span>
                       <input class="admin-input" type="number" name="platform_fee_rupees" required min="0" step="1" value="<?= (int) $platformFee ?>">
+                    </label>
+                    <label class="admin-field">
+                      <span class="admin-field__label">Admin cut on seller sales (%)</span>
+                      <span class="admin-field__hint">Merchandise subtotal × %, stored per order; not shown to buyers.</span>
+                      <input class="admin-input" type="number" name="admin_seller_commission_percent" required min="0" max="100" step="0.01" value="<?= h(number_format((float) $adminSellerCommissionPct, 2, '.', '')) ?>">
                     </label>
                     <label class="admin-field">
                       <span class="admin-field__label">Free shipping — min. cart (₹)</span>

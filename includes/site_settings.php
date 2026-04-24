@@ -28,6 +28,33 @@ function site_platform_fee_rupees(PDO $pdo): int
     return max(0, (int) site_setting_get($pdo, 'platform_fee_rupees', '3'));
 }
 
+/** Percent (0–100) of merchandise subtotal kept as admin commission on marketplace orders; not shown to shoppers. */
+function site_admin_seller_commission_percent(PDO $pdo): float
+{
+    $raw = trim(site_setting_get($pdo, 'admin_seller_commission_percent', '1'));
+    if ($raw === '') {
+        return 0.0;
+    }
+    $v = (float) $raw;
+    if ($v < 0) {
+        return 0.0;
+    }
+    if ($v > 100) {
+        return 100.0;
+    }
+
+    return $v;
+}
+
+function order_admin_commission_rupees_from_subtotal(int $merchandiseSubtotalRupees, float $percent): int
+{
+    if ($merchandiseSubtotalRupees <= 0 || $percent <= 0) {
+        return 0;
+    }
+
+    return (int) round($merchandiseSubtotalRupees * ($percent / 100.0));
+}
+
 function site_cart_free_shipping_min_rupees(PDO $pdo): int
 {
     return max(0, (int) site_setting_get($pdo, 'cart_free_shipping_min_rupees', '1000'));

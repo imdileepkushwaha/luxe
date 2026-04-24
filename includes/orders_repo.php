@@ -572,4 +572,113 @@ function orders_restore_stock_after_return_completed(PDO $pdo, int $returnReques
         return;
     }
     orders_restore_stock_for_return_line($pdo, $oi);
+    orders_recompute_admin_commission_rupees($pdo, $orderId);
+}
+
+/**
+ * Recompute admin commission for every order that has at least one non-rejected return row.
+ * Call after backfill rule changes or to repair rows where commission was stored on full merchandise.
+ *
+ * @return int Number of orders processed
+ */
+function orders_recompute_admin_commission_all_orders_with_returns(PDO $pdo): int
+{
+    try {
+        $st = $pdo->query(
+            "SELECT DISTINCT o.id
+             FROM orders o
+             INNER JOIN user_return_requests ur ON (
+                 ur.order_id = o.id
+                 OR (COALESCE(ur.order_id, 0) = 0 AND ur.order_ref <> '' AND ur.order_ref = o.order_ref)
+             )
+             WHERE LOWER(TRIM(COALESCE(ur.status, ''))) <> 'rejected'"
+        );
+        if (!$st) {
+            return 0;
+        }
+        $n = 0;
+        while (($id = $st->fetchColumn()) !== false) {
+            $oid = (int) $id;
+            if ($oid > 0) {
+                orders_recompute_admin_commission_rupees($pdo, $oid);
+                $n++;
+            }
+        }
+
+        return $n;
+    } catch (Throwable) {
+        return 0;
+    }
+}
+
+/**
+ * Sync orders.admin_commission_rupees: zero when the order is cancelled; otherwise current site %
+ * on merchandise subtotal minus any line with a non-rejected return (pending through refunded).
+ */
+function orders_recompute_admin_commission_rupees(PDO $pdo, int $orderId): void
+{
+    if ($orderId <= 0) {
+        return;
+    }
+    require_once __DIR__ . '/site_settings.php';
+
+    $st = $pdo->prepare('SELECT LOWER(TRIM(COALESCE(status, \'\'))) FROM orders WHERE id = ? LIMIT 1');
+    $st->execute([$orderId]);
+    $orderStatus = (string) $st->fetchColumn();
+    if ($orderStatus === 'cancelled') {
+        $z = $pdo->prepare('UPDATE orders SET admin_commission_rupees = 0 WHERE id = ? LIMIT 1');
+        $z->execute([$orderId]);
+
+        return;
+    }
+
+    $orefSt = $pdo->prepare('SELECT TRIM(COALESCE(order_ref, \'\')) FROM orders WHERE id = ? LIMIT 1');
+    $orefSt->execute([$orderId]);
+    $orderRef = trim((string) $orefSt->fetchColumn());
+
+    $mSt = $pdo->prepare('SELECT COALESCE(SUM(price * qty), 0) FROM order_items WHERE order_id = ?');
+    $mSt->execute([$orderId]);
+    $merchTotal = (int) $mSt->fetchColumn();
+    if ($merchTotal <= 0) {
+        $z = $pdo->prepare('UPDATE orders SET admin_commission_rupees = 0 WHERE id = ? LIMIT 1');
+        $z->execute([$orderId]);
+
+        return;
+    }
+
+    $returnExcludedMerch = 0;
+    try {
+        $urSt = $pdo->prepare(
+            "SELECT ur.order_item_id, ur.refund_amount
+             FROM user_return_requests ur
+             WHERE (ur.order_id = ? OR (COALESCE(ur.order_id, 0) = 0 AND ? <> '' AND ur.order_ref = ?))
+               AND LOWER(TRIM(COALESCE(ur.status, ''))) <> 'rejected'"
+        );
+        $urSt->execute([$orderId, $orderRef, $orderRef]);
+        $perLine = [];
+        $orphanRefund = 0;
+        while ($ur = $urSt->fetch(PDO::FETCH_ASSOC)) {
+            $oiid = (int) ($ur['order_item_id'] ?? 0);
+            if ($oiid > 0) {
+                $lvSt = $pdo->prepare('SELECT COALESCE(price * qty, 0) FROM order_items WHERE id = ? AND order_id = ? LIMIT 1');
+                $lvSt->execute([$oiid, $orderId]);
+                $lv = (int) $lvSt->fetchColumn();
+                $perLine[$oiid] = max($perLine[$oiid] ?? 0, $lv);
+            } else {
+                $orphanRefund += max(0, (int) ($ur['refund_amount'] ?? 0));
+            }
+        }
+        $returnExcludedMerch = array_sum($perLine) + $orphanRefund;
+    } catch (Throwable) {
+        $returnExcludedMerch = 0;
+    }
+
+    if ($returnExcludedMerch > $merchTotal) {
+        $returnExcludedMerch = $merchTotal;
+    }
+    $netMerch = max(0, $merchTotal - $returnExcludedMerch);
+    $pct = site_admin_seller_commission_percent($pdo);
+    $comm = order_admin_commission_rupees_from_subtotal($netMerch, $pct);
+    $upd = $pdo->prepare('UPDATE orders SET admin_commission_rupees = ? WHERE id = ? LIMIT 1');
+    $upd->execute([$comm, $orderId]);
 }

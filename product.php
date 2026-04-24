@@ -31,7 +31,16 @@ if (!$product) {
 }
 $canonicalProductUrl = luxe_product_url((int) ($product['id'] ?? 0), (string) ($product['slug'] ?? ''));
 $currentUrlBySlug = $slug !== '' ? luxe_product_url((int) ($product['id'] ?? 0), $slug) : '';
-if ($canonicalProductUrl !== '' && ($slug === '' || $currentUrlBySlug !== $canonicalProductUrl)) {
+/**
+ * Keep admin preview links stable for pending/rejected listings.
+ * Admin opens product.php?id=... from approvals page; forcing slug redirect can drop admin-only visibility.
+ */
+$skipCanonicalForAdminPreview = $adminSessionId > 0 && $id > 0 && $slug === '';
+if (
+    !$skipCanonicalForAdminPreview
+    && $canonicalProductUrl !== ''
+    && ($slug === '' || $currentUrlBySlug !== $canonicalProductUrl)
+) {
     header('Location: ' . $canonicalProductUrl, true, 301);
     exit;
 }
@@ -259,6 +268,71 @@ usort($colorOptions, static function (string $a, string $b): int {
     return strnatcasecmp($a, $b);
 });
 
+/** @var array<string,array{url:string,product_id:int}> */
+$colorLinkedProducts = [];
+$styleGroupCode = trim((string) ($product['style_group_code'] ?? ''));
+$sellerIdForColorLinks = (int) ($product['seller_id'] ?? 0);
+if ($sellerIdForColorLinks > 0) {
+    $selfId = (int) ($product['id'] ?? 0);
+    if ($styleGroupCode !== '') {
+        $siblingsSt = $pdo->prepare(
+            "SELECT id, slug, primary_color, color_options
+             FROM products
+             WHERE seller_id = ?
+               AND style_group_code = ?
+               AND (id = ? OR (active = 1 AND approval_status = 'approved'))
+             ORDER BY id ASC"
+        );
+        $siblingsSt->execute([$sellerIdForColorLinks, $styleGroupCode, $selfId]);
+    } else {
+        $siblingsSt = $pdo->prepare(
+            "SELECT id, slug, primary_color, color_options
+             FROM products
+             WHERE seller_id = ?
+               AND LOWER(TRIM(category)) = ?
+               AND LOWER(TRIM(COALESCE(product_type, ''))) = ?
+               AND LOWER(TRIM(name)) = ?
+               AND (id = ? OR (active = 1 AND approval_status = 'approved'))
+             ORDER BY id ASC"
+        );
+        $siblingsSt->execute([
+            $sellerIdForColorLinks,
+            strtolower(trim((string) ($product['category'] ?? ''))),
+            strtolower(trim((string) ($product['product_type'] ?? ''))),
+            strtolower(trim((string) ($product['name'] ?? ''))),
+            $selfId,
+        ]);
+    }
+    foreach ($siblingsSt->fetchAll(PDO::FETCH_ASSOC) as $sib) {
+        $sid = (int) ($sib['id'] ?? 0);
+        if ($sid <= 0) {
+            continue;
+        }
+        $slugVal = trim((string) ($sib['slug'] ?? ''));
+        $url = luxe_product_url($sid, $slugVal);
+        $primary = trim((string) ($sib['primary_color'] ?? ''));
+        if ($primary === '') {
+            $csv = product_parse_options_csv((string) ($sib['color_options'] ?? ''));
+            $primary = $csv[0] ?? '';
+        }
+        if ($primary === '') {
+            continue;
+        }
+        $lk = mb_strtolower($primary);
+        if (!isset($colorLinkedProducts[$lk])) {
+            $colorLinkedProducts[$lk] = ['url' => $url, 'product_id' => $sid];
+        }
+        if (!in_array($primary, $colorOptions, true)) {
+            $colorOptions[] = $primary;
+        }
+    }
+    if ($colorOptions !== []) {
+        usort($colorOptions, static function (string $a, string $b): int {
+            return strnatcasecmp($a, $b);
+        });
+    }
+}
+
 /*
  * Variant rows use size|color keys. Sellers often leave color_label empty while CSV still lists colors,
  * or store a color while the storefront has no color swatches — both break size|color lookups.
@@ -362,6 +436,13 @@ if ($hasVariantInventory) {
         $totalInventoryUnits += max(0, (int) $unitQty);
     }
 }
+if ((int) ($product['active'] ?? 1) !== 1) {
+    $variantStockMap = [];
+    $hasVariantInventory = false;
+    $initialSpecStockQty = 0;
+    $totalInventoryUnits = 0;
+    $product['stock_qty'] = 0;
+}
 
 $shippingSettings = [
     'handling_time_days' => 2,
@@ -462,11 +543,18 @@ if (is_array($_SESSION['cart'] ?? null)) {
     }
 }
 $approvalStatus = strtolower(trim((string) ($product['approval_status'] ?? 'approved')));
+$isActiveListing = (int) ($product['active'] ?? 1) === 1;
+$inactivePublicView = !$isActiveListing
+    && $sellerSessionId <= 0
+    && $adminSessionId <= 0;
 $sellerPreviewOnly = $approvalStatus !== 'approved'
     && (
         ($sellerSessionId > 0 && $sellerSessionId === (int) ($product['seller_id'] ?? 0))
         || $adminSessionId > 0
     );
+if ($inactivePublicView) {
+    $sellerPreviewOnly = true;
+}
 
 /** @var list<array{k:string,q:int}> Stable list for JS — avoids JSON object-key quirks for size|color keys. */
 $variantStockEntries = [];
@@ -481,6 +569,7 @@ $pageProduct = [
     'brand' => $product['brand'],
     'sellerName' => $product['seller_name'] ?? 'LUXE Store',
     'images' => $product['images'] ?? [],
+    'imagesByColor' => $product['images_by_color'] ?? [],
     'stockQty' => (int) ($product['stock_qty'] ?? 0),
     'price' => $product['price'],
     'original' => $product['original'],
@@ -490,6 +579,8 @@ $pageProduct = [
     'reviews' => $displayReviewCount,
     'badge' => $product['badge'] ?? '',
     'category' => $product['category'],
+    'styleGroupCode' => (string) ($product['style_group_code'] ?? ''),
+    'primaryColor' => (string) ($product['primary_color'] ?? ''),
     'sizes' => $sizeOptions,
     'colors' => $colorOptions,
     'hasColorOptions' => $colorOptions !== [],
@@ -568,6 +659,8 @@ $pageProduct = [
         <div class="seller-preview-banner" role="status">
           <?php if ($adminSessionId > 0): ?>
             <strong>Admin preview</strong> — Yeh listing abhi public catalog me live nahi hai. Approve karne ke liye <a href="admin/product-approvals.php" style="color:inherit;text-decoration:underline">Product approvals</a> kholein.
+          <?php elseif (!$isActiveListing): ?>
+            <strong>Seller turned this listing off</strong> — Product abhi inactive hai, isliye buyers ko Out of stock dikh raha hai.
           <?php elseif ($approvalStatus === 'pending'): ?>
             <strong>Seller preview</strong> — Yeh product admin approval ke baad hi buyers ko dikhega. Abhi cart / checkout available nahi hai.
           <?php else: ?>
@@ -686,7 +779,12 @@ $pageProduct = [
               <div class="color-swatches">
                 <?php if ($colorOptions !== []): ?>
                   <?php foreach ($colorOptions as $idx => $color): ?>
-                    <button class="swatch<?= $idx === $activeColorIdx ? ' active' : '' ?>" type="button" style="background:<?= h(product_swatch_style_for_color($color, $idx)) ?>" data-color="<?= h($color) ?>" onclick="selectColor(this)" title="<?= h($color) ?>"></button>
+                    <?php
+                    $lk = mb_strtolower(trim($color));
+                    $linked = $colorLinkedProducts[$lk] ?? null;
+                    $linkedUrl = is_array($linked) ? (string) ($linked['url'] ?? '') : '';
+                    ?>
+                    <button class="swatch<?= $idx === $activeColorIdx ? ' active' : '' ?>" type="button" style="background:<?= h(product_swatch_style_for_color($color, $idx)) ?>" data-color="<?= h($color) ?>"<?= $linkedUrl !== '' ? ' data-product-url="' . h($linkedUrl) . '"' : '' ?> onclick="selectColor(this)" title="<?= h($color) ?>"></button>
                   <?php endforeach; ?>
                 <?php else: ?>
                   <button class="swatch active" type="button" style="background:linear-gradient(135deg,#8b5cf6,#ec4899)" data-color="Default" onclick="selectColor(this)"></button>

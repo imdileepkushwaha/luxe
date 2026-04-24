@@ -166,6 +166,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $uid !== null) {
                                     $refundAmount,
                                     $refundMode,
                                 ]);
+                                orders_recompute_admin_commission_rupees($pdo, $orderId);
 
                                 $flashMessage = 'Return request submitted successfully.';
                                 $flashType = 'success';

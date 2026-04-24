@@ -29,7 +29,18 @@ $totalPages = $pMeta['totalPages'];
 
 $ordersSt = $pdo->prepare(
     "SELECT o.id, o.order_ref, o.status, o.total_amount, o.payment_method, o.shipping_address, o.created_at,
-            u.first_name, u.last_name, u.email
+            u.first_name, u.last_name, u.email,
+            CASE
+              WHEN LOWER(TRIM(COALESCE(o.status, ''))) = 'delivered'
+                   AND EXISTS (
+                     SELECT 1 FROM user_return_requests ur
+                     WHERE LOWER(TRIM(COALESCE(ur.status, ''))) <> 'rejected'
+                       AND (ur.order_id = o.id
+                            OR (COALESCE(ur.order_id, 0) = 0 AND o.order_ref <> '' AND ur.order_ref = o.order_ref))
+                   )
+              THEN 'return'
+              ELSE o.status
+            END AS admin_orders_row_status
      FROM orders o
      LEFT JOIN users u ON u.id = o.user_id
      ORDER BY o.id DESC
@@ -44,6 +55,7 @@ function admin_order_status_class_orders(string $status): string
 {
     return match (strtolower($status)) {
         'delivered' => 'admin-status admin-status--delivered',
+        'return' => 'admin-status admin-status--open',
         'shipped' => 'admin-status admin-status--shipped',
         'processing' => 'admin-status admin-status--processing',
         'cancelled' => 'admin-status admin-status--cancelled',
@@ -78,7 +90,7 @@ function admin_orders_search_haystack(array $o, string $cust, string $emailDisp)
         $cust,
         (string) ($o['email'] ?? ''),
         $emailDisp !== '—' ? $emailDisp : '',
-        (string) ($o['status'] ?? ''),
+        (string) ($o['admin_orders_row_status'] ?? $o['status'] ?? ''),
         (string) ($o['total_amount'] ?? ''),
         (string) ($o['payment_method'] ?? ''),
         (string) ($o['shipping_address'] ?? ''),
@@ -211,6 +223,7 @@ require __DIR__ . '/partials/shell-top.php';
                     if ($emailDisp === '') {
                         $emailDisp = '—';
                     }
+                    $rowStatus = (string) ($o['admin_orders_row_status'] ?? $o['status'] ?? '');
                     $hay = admin_orders_search_haystack($o, $cust, $emailDisp);
                     ?>
                     <tr class="admin-orders-row" data-orders-search="<?= h($hay) ?>">
@@ -222,7 +235,7 @@ require __DIR__ . '/partials/shell-top.php';
                         </div>
                       </td>
                       <td class="admin-table__cell-email"><span class="admin-orders-email"><?= h($emailDisp) ?></span></td>
-                      <td><span class="<?= admin_order_status_class_orders((string) $o['status']) ?>"><?= h((string) $o['status']) ?></span></td>
+                      <td><span class="<?= admin_order_status_class_orders($rowStatus) ?>"><?= h($rowStatus) ?></span></td>
                       <td class="admin-table__td-money">₹<?= number_format((int) $o['total_amount']) ?></td>
                       <td><span class="admin-badge admin-badge--muted"><?= h((string) $o['payment_method']) ?></span></td>
                       <td class="admin-table__cell-shipping"><span class="admin-orders-ship"><?= h((string) $o['shipping_address']) ?></span></td>

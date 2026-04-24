@@ -163,6 +163,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
                        AND status IN ('processing', 'confirmed', 'shipped', 'out')"
                 );
                 $updLines->execute([$orderId]);
+                orders_recompute_admin_commission_rupees($pdo, $orderId);
                 $mailMeta = seller_orders_customer_mail_meta($pdo, $orderId);
                 if (is_array($mailMeta) && $mailMeta['email'] !== '') {
                     luxe_send_order_update_email($mailMeta['email'], $mailMeta['customer_name'], $mailMeta['order_ref'], 'cancelled');
