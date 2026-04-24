@@ -25,14 +25,14 @@
 /* Platform admin (admin/) — indigo/slate identity; distinct from seller merchant UI */
 /* Surfaces (--admin-bg, card strip) must not override html.admin-theme-dark; only in light: */
 body.admin-app--platform {
-  --admin-accent: #4338ca;
-  --admin-accent-hover: #3730a3;
+  --admin-accent: #F44336;
+  --admin-accent-hover: #e23124;
   --admin-accent-soft: color-mix(in srgb, var(--admin-accent) 14%, transparent);
 }
 
 html:not(.admin-theme-dark) body.admin-app--platform {
-  --admin-bg: #f3f4fa;
-  --admin-card-cap-bg: #eceef7;
+  --admin-bg: #ffffff;
+  --admin-card-cap-bg: #f0f0f0;
 }
 
 body.admin-app--platform .admin-sidebar {
@@ -5205,8 +5205,8 @@ html.admin-theme-dark {
 
 /* Dark + platform admin: indigo accent */
 html.admin-theme-dark body.admin-app--platform {
-  --admin-accent: #a5b4fc;
-  --admin-accent-hover: #c7d2fe;
+  --admin-accent: #F44336;
+  --admin-accent-hover: #e23124;
   --admin-accent-soft: color-mix(in srgb, var(--admin-accent) 22%, transparent);
 }
 

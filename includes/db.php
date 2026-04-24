@@ -1097,6 +1097,29 @@ function db_ensure_orders_platform_fee_column(PDO $pdo): void
     }
 }
 
+function db_ensure_orders_admin_commission_column(PDO $pdo): void
+{
+    try {
+        $dbName = (string) $pdo->query('SELECT DATABASE()')->fetchColumn();
+        if ($dbName === '') {
+            return;
+        }
+        $chk = $pdo->prepare(
+            'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $chk->execute([$dbName, 'orders', 'admin_commission_rupees']);
+        if ($chk->fetchColumn()) {
+            return;
+        }
+        $pdo->exec(
+            'ALTER TABLE orders ADD COLUMN admin_commission_rupees INT UNSIGNED NOT NULL DEFAULT 0 AFTER platform_fee_rupees'
+        );
+    } catch (Throwable) {
+        // Missing permissions or non-MySQL
+    }
+}
+
 function db_ensure_orders_delivered_at_column(PDO $pdo): void
 {
     try {
@@ -1248,6 +1271,11 @@ function db_ensure_site_settings_table(PDO $pdo): void
             $ins = $pdo->prepare('INSERT INTO site_settings (setting_key, setting_value) VALUES (?, ?)');
             $ins->execute(['cart_below_min_shipping_fee_rupees', '50']);
         }
+        $st->execute(['admin_seller_commission_percent']);
+        if (!$st->fetch()) {
+            $ins = $pdo->prepare('INSERT INTO site_settings (setting_key, setting_value) VALUES (?, ?)');
+            $ins->execute(['admin_seller_commission_percent', '1']);
+        }
     } catch (Throwable) {
         // Missing permissions: rely on manual migrations
     }
@@ -1307,6 +1335,7 @@ function db(): PDO
     db_ensure_user_order_enquiries_table($pdo);
     db_ensure_site_settings_table($pdo);
     db_ensure_orders_platform_fee_column($pdo);
+    db_ensure_orders_admin_commission_column($pdo);
     db_ensure_orders_delivered_at_column($pdo);
     db_ensure_orders_status_time_columns($pdo);
     db_ensure_order_items_status_columns($pdo);

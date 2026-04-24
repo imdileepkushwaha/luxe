@@ -408,3 +408,53 @@ function orders_backfill_platform_fee_on_orders(PDO $pdo): int
 
     return $updated;
 }
+
+/**
+ * Set orders.admin_commission_rupees where still 0, using merchandise subtotal × current
+ * admin_seller_commission_percent (same formula as checkout). Idempotent for already-filled rows.
+ *
+ * @return int Number of rows MySQL reports as affected (best-effort)
+ */
+function orders_backfill_admin_commission_on_orders(PDO $pdo): int
+{
+    try {
+        $pdo->exec(
+            "UPDATE orders SET admin_commission_rupees = 0
+             WHERE LOWER(TRIM(COALESCE(status, ''))) = 'cancelled'
+               AND COALESCE(admin_commission_rupees, 0) <> 0"
+        );
+    } catch (Throwable) {
+        // ignore
+    }
+
+    require_once __DIR__ . '/orders_repo.php';
+    orders_recompute_admin_commission_all_orders_with_returns($pdo);
+
+    $pct = site_admin_seller_commission_percent($pdo);
+    if ($pct <= 0) {
+        return 0;
+    }
+
+    $upd = $pdo->prepare(
+        "UPDATE orders o
+         INNER JOIN (
+             SELECT order_id, SUM(price * qty) AS merch
+             FROM order_items
+             GROUP BY order_id
+         ) om ON om.order_id = o.id
+         SET o.admin_commission_rupees = ROUND(om.merch * ? / 100, 0)
+         WHERE COALESCE(o.admin_commission_rupees, 0) = 0
+           AND om.merch > 0
+           AND LOWER(TRIM(COALESCE(o.status, ''))) <> 'cancelled'
+           AND NOT EXISTS (
+               SELECT 1
+               FROM user_return_requests ur
+               WHERE (ur.order_id = o.id
+                      OR (COALESCE(ur.order_id, 0) = 0 AND ur.order_ref <> '' AND ur.order_ref = o.order_ref))
+                 AND LOWER(TRIM(COALESCE(ur.status, ''))) <> 'rejected'
+           )"
+    );
+    $upd->execute([$pct]);
+
+    return $upd->rowCount();
+}

@@ -214,6 +214,10 @@ try {
     }
 
     $platformFee = site_platform_fee_rupees($pdo);
+    $adminCommission = order_admin_commission_rupees_from_subtotal(
+        $safeTotal,
+        site_admin_seller_commission_percent($pdo)
+    );
     $deliveryTotal = cart_compute_delivery_total($pdo, $linesForShipping);
     $speedFees = cart_speed_fee_totals_for_lines($pdo, $linesForShipping);
     if ($deliverySpeed === 'express') {
@@ -226,11 +230,11 @@ try {
 
     $updO = $pdo->prepare(
         'UPDATE orders
-         SET total_amount = ?, platform_fee_rupees = ?
+         SET total_amount = ?, platform_fee_rupees = ?, admin_commission_rupees = ?
          WHERE id = ?
          LIMIT 1'
     );
-    $updO->execute([$orderTotal, $platformFee, $orderId]);
+    $updO->execute([$orderTotal, $platformFee, $adminCommission, $orderId]);
 
     $_SESSION['cart'] = [];
     unset($_SESSION['checkout']);

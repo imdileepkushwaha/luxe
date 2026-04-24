@@ -33,6 +33,7 @@ CREATE TABLE site_settings (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO site_settings (setting_key, setting_value) VALUES ('platform_fee_rupees', '3');
+INSERT INTO site_settings (setting_key, setting_value) VALUES ('admin_seller_commission_percent', '1');
 
 CREATE TABLE platform_payment_gateway_config (
   id TINYINT UNSIGNED PRIMARY KEY,
@@ -285,6 +286,7 @@ CREATE TABLE orders (
   status VARCHAR(32) NOT NULL DEFAULT 'processing',
   total_amount INT UNSIGNED NOT NULL,
   platform_fee_rupees INT UNSIGNED NOT NULL DEFAULT 0,
+  admin_commission_rupees INT UNSIGNED NOT NULL DEFAULT 0,
   payment_method VARCHAR(128) NOT NULL DEFAULT '',
   shipping_address VARCHAR(512) NOT NULL DEFAULT '',
   delivered_at DATETIME NULL DEFAULT NULL,

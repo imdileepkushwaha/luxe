@@ -6,8 +6,60 @@ require_once __DIR__ . '/_pagination.php';
 require_once __DIR__ . '/../includes/site_settings.php';
 require_once __DIR__ . '/../includes/cart_session.php';
 
+/**
+ * Trim trailing zeros for commission % labels (e.g. 1, 1.5).
+ */
+function admin_earnings_fmt_commission_pct(float $p): string
+{
+    if ($p <= 0) {
+        return '0';
+    }
+    if (abs($p - round($p)) < 0.000001) {
+        return (string) (int) round($p);
+    }
+
+    return rtrim(rtrim(number_format($p, 2, '.', ''), '0'), '.');
+}
+
+/**
+ * Merchandise value (₹) on lines that have a non-rejected return — subtract from full line total for eligible net.
+ */
+function admin_earnings_return_excluded_merch_rupees(PDO $pdo, int $orderId, string $orderRef): int
+{
+    if ($orderId <= 0) {
+        return 0;
+    }
+    try {
+        $st = $pdo->prepare(
+            "SELECT COALESCE(SUM(t.line_val), 0)
+             FROM (
+                 SELECT MAX(oi.price * oi.qty) AS line_val
+                 FROM user_return_requests ur
+                 INNER JOIN order_items oi ON oi.id = ur.order_item_id AND oi.order_id = ?
+                 WHERE (ur.order_id = ?
+                        OR (COALESCE(ur.order_id, 0) = 0 AND ? <> '' AND ur.order_ref = ?))
+                   AND LOWER(TRIM(COALESCE(ur.status, ''))) <> 'rejected'
+                 GROUP BY ur.order_item_id
+             ) t"
+        );
+        $st->execute([$orderId, $orderId, $orderRef, $orderRef]);
+
+        return (int) $st->fetchColumn();
+    } catch (Throwable) {
+        return 0;
+    }
+}
+
 $pdo = db();
 $admin = admin_require_login($pdo);
+
+try {
+    if (site_admin_seller_commission_percent($pdo) > 0) {
+        orders_backfill_admin_commission_on_orders($pdo);
+    }
+} catch (Throwable) {
+    // Missing column or DB permissions — page still loads; KPI stays on stored rows only.
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') === 'backfill_platform_fees') {
     $n = orders_backfill_platform_fee_on_orders($pdo);
@@ -27,15 +79,19 @@ if (isset($_SESSION['admin_earnings_flash']) && is_array($_SESSION['admin_earnin
     unset($_SESSION['admin_earnings_flash']);
 }
 
-$pageTitle = 'Platform earnings';
+$pageTitle = 'Platform Earnings';
 $activeNav = 'earnings';
 
 $feePerOrderRupees = site_platform_fee_rupees($pdo);
+$adminCommissionPercent = site_admin_seller_commission_percent($pdo);
+$pctLabel = admin_earnings_fmt_commission_pct($adminCommissionPercent);
 
 $totalFeesStmt = $pdo->query('SELECT COALESCE(SUM(platform_fee_rupees), 0) FROM orders');
 $totalPlatformFees = (int) $totalFeesStmt->fetchColumn();
 
-$ordersWithFeeStmt = $pdo->query('SELECT COUNT(*) FROM orders WHERE platform_fee_rupees > 0');
+$ordersWithFeeStmt = $pdo->query(
+    'SELECT COUNT(*) FROM orders WHERE platform_fee_rupees > 0 OR admin_commission_rupees > 0'
+);
 $ordersWithFeeCount = (int) $ordersWithFeeStmt->fetchColumn();
 
 $ordersMissingFeeStmt = $pdo->query('SELECT COUNT(*) FROM orders WHERE platform_fee_rupees = 0');
@@ -58,11 +114,28 @@ if ($ordersWithFeeCount === 0) {
     $rows = [];
 } else {
     $rowsSt = $pdo->prepare(
-        "SELECT o.id, o.order_ref, o.status, o.total_amount, o.platform_fee_rupees, o.payment_method, o.created_at,
-                u.first_name, u.last_name, u.email
+        "SELECT o.id, o.order_ref, o.status, o.total_amount, o.platform_fee_rupees, o.admin_commission_rupees, o.payment_method, o.created_at,
+                u.first_name, u.last_name, u.email,
+                COALESCE(oim.merch, 0) AS earnings_order_merch,
+                CASE
+                  WHEN LOWER(TRIM(COALESCE(o.status, ''))) = 'delivered'
+                       AND EXISTS (
+                         SELECT 1 FROM user_return_requests ur
+                         WHERE LOWER(TRIM(COALESCE(ur.status, ''))) <> 'rejected'
+                           AND (ur.order_id = o.id
+                                OR (COALESCE(ur.order_id, 0) = 0 AND ur.order_ref = o.order_ref))
+                       )
+                  THEN 'return'
+                  ELSE o.status
+                END AS earnings_row_status
          FROM orders o
          LEFT JOIN users u ON u.id = o.user_id
-         WHERE o.platform_fee_rupees > 0
+         LEFT JOIN (
+             SELECT order_id, SUM(price * qty) AS merch
+             FROM order_items
+             GROUP BY order_id
+         ) oim ON oim.order_id = o.id
+         WHERE o.platform_fee_rupees > 0 OR o.admin_commission_rupees > 0
          ORDER BY o.id DESC
          LIMIT ? OFFSET ?"
     );
@@ -70,7 +143,44 @@ if ($ordersWithFeeCount === 0) {
     $rowsSt->bindValue(2, $offset, PDO::PARAM_INT);
     $rowsSt->execute();
     $rows = $rowsSt->fetchAll();
+
+    foreach ($rows as &$er) {
+        $oid = (int) ($er['id'] ?? 0);
+        $oref = trim((string) ($er['order_ref'] ?? ''));
+        $full = (int) ($er['earnings_order_merch'] ?? 0);
+        $excl = admin_earnings_return_excluded_merch_rupees($pdo, $oid, $oref);
+        $er['earnings_net_merch'] = max(0, $full - $excl);
+    }
+    unset($er);
+
+    require_once __DIR__ . '/../includes/orders_repo.php';
+    foreach ($rows as &$er) {
+        $oid = (int) ($er['id'] ?? 0);
+        if ($oid <= 0) {
+            continue;
+        }
+        $net = (int) ($er['earnings_net_merch'] ?? 0);
+        $expectedFromSqlNet = order_admin_commission_rupees_from_subtotal($net, $adminCommissionPercent);
+        $stored = (int) ($er['admin_commission_rupees'] ?? 0);
+        // SQL net can differ slightly from PHP recompute (e.g. legacy return rows); only resync on clear drift.
+        if (abs($stored - $expectedFromSqlNet) > 1) {
+            orders_recompute_admin_commission_rupees($pdo, $oid);
+            $cst = $pdo->prepare('SELECT COALESCE(admin_commission_rupees, 0) FROM orders WHERE id = ? LIMIT 1');
+            $cst->execute([$oid]);
+            $er['admin_commission_rupees'] = (int) $cst->fetchColumn();
+        }
+    }
+    unset($er);
 }
+
+$totalCommissionStmt = $pdo->query('SELECT COALESCE(SUM(admin_commission_rupees), 0) FROM orders');
+$totalAdminCommission = (int) $totalCommissionStmt->fetchColumn();
+
+$monthCommissionStmt = $pdo->query(
+    "SELECT COALESCE(SUM(admin_commission_rupees), 0) FROM orders
+     WHERE YEAR(created_at) = YEAR(CURDATE()) AND MONTH(created_at) = MONTH(CURDATE())"
+);
+$commissionThisMonth = (int) $monthCommissionStmt->fetchColumn();
 
 /**
  * @param mixed $raw
@@ -103,9 +213,13 @@ function admin_earnings_search_haystack(array $o, string $cust, string $email): 
         $ln,
         trim($fn . ' ' . $ln),
         $email,
+        (string) ($o['earnings_row_status'] ?? $o['status'] ?? ''),
         (string) ($o['status'] ?? ''),
         (string) ($o['total_amount'] ?? ''),
         (string) ($o['platform_fee_rupees'] ?? ''),
+        (string) ($o['admin_commission_rupees'] ?? ''),
+        (string) ($o['earnings_order_merch'] ?? ''),
+        (string) ($o['earnings_net_merch'] ?? ''),
         (string) ($o['payment_method'] ?? ''),
         (string) ($o['created_at'] ?? ''),
     ];
@@ -128,6 +242,7 @@ function admin_order_status_class_earnings(string $status): string
 {
     return match (strtolower($status)) {
         'delivered' => 'admin-status admin-status--delivered',
+        'return' => 'admin-status admin-status--open',
         'shipped' => 'admin-status admin-status--shipped',
         'processing' => 'admin-status admin-status--processing',
         'cancelled' => 'admin-status admin-status--cancelled',
@@ -149,12 +264,12 @@ require __DIR__ . '/partials/shell-top.php';
           <div class="admin-page-head__intro">
             <span class="admin-page-head__eyebrow">Finance</span>
             <h1>Platform earnings</h1>
-            <p class="admin-page-head__lede">Per-order platform fee revenue, recorded on each completed checkout.</p>
+            <p class="admin-page-head__lede">Platform fee per order plus seller sales commission (percentage from Settings). Neither commission nor its % is shown to shoppers.</p>
           </div>
           <div class="admin-page-head__actions">
-            <span class="admin-earnings-fee-pill" title="Fee per order (Settings → platform fee)">
+            <span class="admin-earnings-fee-pill" title="Settings → Store">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-              Current fee: ₹<?= number_format($feePerOrderRupees) ?> / order
+              Fee: ₹<?= number_format($feePerOrderRupees) ?>/order · Seller cut: <?= h($pctLabel) ?>%
             </span>
             <a class="admin-btn admin-btn--outline" href="orders.php">All orders</a>
             <a class="admin-btn admin-btn--outline" href="settings.php">Settings</a>
@@ -164,9 +279,9 @@ require __DIR__ . '/partials/shell-top.php';
         <div class="admin-grid admin-grid--stats admin-grid--stats--flow admin-earnings-kpi-grid" aria-label="Earnings summary">
           <div class="admin-card admin-stat admin-stat--stripe-violet admin-earnings-kpi">
             <div>
-              <div class="admin-stat__label admin-earnings-kpi__label">Total collected</div>
+              <div class="admin-stat__label admin-earnings-kpi__label">Platform fees (all time)</div>
               <div class="admin-stat__value">₹<?= number_format($totalPlatformFees) ?></div>
-              <div class="admin-stat__delta admin-stat__delta--muted">All time · stored on each order</div>
+              <div class="admin-stat__delta admin-stat__delta--muted">Per-order fee stored on each order</div>
             </div>
             <div class="admin-stat__icon admin-stat__icon--purple" aria-hidden="true">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
@@ -174,19 +289,39 @@ require __DIR__ . '/partials/shell-top.php';
           </div>
           <div class="admin-card admin-stat admin-stat--stripe-blue admin-earnings-kpi">
             <div>
-              <div class="admin-stat__label admin-earnings-kpi__label">This month</div>
-              <div class="admin-stat__value">₹<?= number_format($feesThisMonth) ?></div>
-              <div class="admin-stat__delta admin-stat__delta--muted">Fees by order date (calendar month)</div>
+              <div class="admin-stat__label admin-earnings-kpi__label">Seller commission (all time)</div>
+              <div class="admin-stat__value">₹<?= number_format($totalAdminCommission) ?></div>
+              <div class="admin-stat__delta admin-stat__delta--muted">At <?= h($pctLabel) ?>% of merchandise subtotal (eligible lines; returns/cancels excluded in stored amount)</div>
             </div>
             <div class="admin-stat__icon admin-stat__icon--blue" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            </div>
+          </div>
+          <div class="admin-card admin-stat admin-stat--stripe-green admin-earnings-kpi">
+            <div>
+              <div class="admin-stat__label admin-earnings-kpi__label">This month · fees</div>
+              <div class="admin-stat__value">₹<?= number_format($feesThisMonth) ?></div>
+              <div class="admin-stat__delta admin-stat__delta--muted">Platform fee by order date</div>
+            </div>
+            <div class="admin-stat__icon admin-stat__icon--green" aria-hidden="true">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
             </div>
           </div>
           <div class="admin-card admin-stat admin-stat--stripe-green admin-earnings-kpi">
             <div>
-              <div class="admin-stat__label admin-earnings-kpi__label">Orders with fee</div>
+              <div class="admin-stat__label admin-earnings-kpi__label">This month · commission</div>
+              <div class="admin-stat__value">₹<?= number_format($commissionThisMonth) ?></div>
+              <div class="admin-stat__delta admin-stat__delta--muted">Same <?= h($pctLabel) ?>% rate on net merchandise</div>
+            </div>
+            <div class="admin-stat__icon admin-stat__icon--green" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            </div>
+          </div>
+          <div class="admin-card admin-stat admin-stat--stripe-green admin-earnings-kpi">
+            <div>
+              <div class="admin-stat__label admin-earnings-kpi__label">Orders with earnings row</div>
               <div class="admin-stat__value"><?= number_format($ordersWithFeeCount) ?></div>
-              <div class="admin-stat__delta admin-stat__delta--muted">Checkouts where fee &gt; 0</div>
+              <div class="admin-stat__delta admin-stat__delta--muted">Fee &gt; 0 or commission &gt; 0</div>
             </div>
             <div class="admin-stat__icon admin-stat__icon--green" aria-hidden="true">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/></svg>
@@ -232,9 +367,9 @@ require __DIR__ . '/partials/shell-top.php';
           <div class="card-header admin-earnings-table-header">
             <div class="admin-earnings-table-head">
               <div class="admin-earnings-table-head-text">
-                <h2 class="card-title">Fee by order</h2>
+                <h2 class="card-title">Revenue by order</h2>
                 <p class="card-subtitle admin-earnings-table-sub">
-                  <?= number_format($ordersWithFeeCount) ?> order<?= $ordersWithFeeCount === 1 ? '' : 's' ?> with a recorded fee · Search filters this page only. Use pagination for older rows.
+                  <?= number_format($ordersWithFeeCount) ?> order<?= $ordersWithFeeCount === 1 ? '' : 's' ?> with platform fee and/or admin commission · Search filters this page only. Use pagination for older rows.
                 </p>
               </div>
               <?php if ($ordersWithFeeCount > 0): ?>
@@ -256,7 +391,7 @@ require __DIR__ . '/partials/shell-top.php';
           </div>
           <div class="card-body card-body--flush">
             <?php if ($ordersWithFeeCount === 0): ?>
-              <p class="admin-empty-hint admin-empty-hint--boxed">No orders with a recorded platform fee yet.</p>
+              <p class="admin-empty-hint admin-empty-hint--boxed">No orders with platform fee or admin commission recorded yet.</p>
             <?php else: ?>
             <div class="admin-table-wrap">
               <table class="admin-table">
@@ -268,6 +403,7 @@ require __DIR__ . '/partials/shell-top.php';
                     <th class="admin-table__th-narrow">Status</th>
                     <th class="admin-table__th-money">Order total</th>
                     <th class="admin-table__th-money">Platform fee</th>
+                    <th class="admin-table__th-money">Admin commission</th>
                     <th class="admin-table__th-narrow">Payment</th>
                     <th>Placed</th>
                   </tr>
@@ -291,6 +427,7 @@ require __DIR__ . '/partials/shell-top.php';
                     $email = (string) ($o['email'] ?? '');
                     $emailDisp = $email !== '' ? $email : '—';
                     $hay = admin_earnings_search_haystack($o, $cust, $email);
+                    $rowStatus = (string) ($o['earnings_row_status'] ?? $o['status'] ?? '');
                     ?>
                     <tr class="admin-earnings-row" data-earnings-search="<?= h($hay) ?>">
                       <td><strong><?= h((string) $o['order_ref']) ?></strong></td>
@@ -301,15 +438,16 @@ require __DIR__ . '/partials/shell-top.php';
                         </div>
                       </td>
                       <td class="admin-table__cell-email"><span class="admin-earnings-email" title="<?= h($emailDisp) ?>"><?= h($emailDisp) ?></span></td>
-                      <td><span class="<?= admin_order_status_class_earnings((string) $o['status']) ?>"><?= h((string) $o['status']) ?></span></td>
+                      <td><span class="<?= admin_order_status_class_earnings($rowStatus) ?>"><?= h($rowStatus) ?></span></td>
                       <td class="admin-table__td-money">₹<?= number_format((int) $o['total_amount']) ?></td>
                       <td class="admin-table__td-money">₹<?= number_format((int) $o['platform_fee_rupees']) ?></td>
+                      <td class="admin-table__td-money">₹<?= number_format((int) ($o['admin_commission_rupees'] ?? 0)) ?></td>
                       <td><span class="admin-badge admin-badge--muted"><?= h((string) $o['payment_method']) ?></span></td>
                       <td class="admin-table__td-muted"><?= h(admin_earnings_fmt_created($o['created_at'] ?? null)) ?></td>
                     </tr>
                   <?php endforeach; ?>
                   <tr id="adminEarningsNoMatchRow" class="admin-earnings-no-match-row">
-                    <td colspan="8">
+                    <td colspan="9">
                       <div class="admin-earnings-no-match">
                         <strong class="admin-earnings-no-match__title">No matches</strong>
                         <p class="admin-earnings-no-match__text">Try another keyword — ref, name, email, status, or amount (this page only).</p>
