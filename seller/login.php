@@ -17,6 +17,11 @@ $msg = (string) ($_GET['msg'] ?? '');
 if ($msg === 'deleted') {
     $info = 'Seller account delete ho gaya. Agar dobara access chahiye to new create request bhejein.';
 }
+if (isset($_SESSION['seller_login_notice'])) {
+    $info = trim((string) $_SESSION['seller_login_notice']);
+    unset($_SESSION['seller_login_notice']);
+}
+$infoIsError = stripos($info, 'deactivated') !== false;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim((string) ($_POST['email'] ?? ''));
@@ -29,8 +34,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $st->execute([$email]);
         $row = $st->fetch();
 
-        if (!$row || (int) $row['is_active'] !== 1 || !password_verify($password, (string) $row['password_hash'])) {
+        if (!$row) {
             $error = 'Invalid credentials.';
+        } elseif (!password_verify($password, (string) $row['password_hash'])) {
+            $error = 'Invalid credentials.';
+        } elseif ((int) ($row['is_active'] ?? 0) !== 1) {
+            seller_logout();
+            $info = 'Your Seller Panel is Deactivated. For any query, contact admin.';
         } else {
             seller_set((int) $row['id']);
             header('Location: index.php');
@@ -67,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <div class="err"><?= h($error) ?></div>
     <?php endif; ?>
     <?php if ($info !== ''): ?>
-      <div class="admin-del-flash admin-del-flash--ok" style="margin-bottom:12px"><?= h($info) ?></div>
+      <div class="admin-del-flash<?= $infoIsError ? ' admin-del-flash--err' : ' admin-del-flash--ok' ?>" style="margin-bottom:12px"><?= h($info) ?></div>
     <?php endif; ?>
 
     <form method="post">

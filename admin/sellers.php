@@ -14,6 +14,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = (string) ($_POST['action'] ?? '');
     $sellerId = (int) ($_POST['seller_id'] ?? 0);
 
+    if ($sellerId > 0 && $action === 'toggle_seller_active') {
+        $nextState = (int) ($_POST['next_state'] ?? -1);
+        if (!in_array($nextState, [0, 1], true)) {
+            $_SESSION['seller_admin_flash'] = ['ok' => false, 'text' => 'Invalid seller status update request.'];
+            header('Location: sellers.php');
+            exit;
+        }
+
+        $sellerSt = $pdo->prepare('SELECT id, full_name, email, is_active FROM seller_users WHERE id = ? LIMIT 1');
+        $sellerSt->execute([$sellerId]);
+        $sellerRow = $sellerSt->fetch(PDO::FETCH_ASSOC);
+        if (!$sellerRow) {
+            $_SESSION['seller_admin_flash'] = ['ok' => false, 'text' => 'Seller account not found.'];
+            header('Location: sellers.php');
+            exit;
+        }
+
+        try {
+            $pdo->beginTransaction();
+
+            $setSeller = $pdo->prepare('UPDATE seller_users SET is_active = ? WHERE id = ? LIMIT 1');
+            $setSeller->execute([$nextState, $sellerId]);
+
+            $setProducts = $pdo->prepare('UPDATE products SET active = ? WHERE seller_id = ?');
+            $setProducts->execute([$nextState, $sellerId]);
+
+            $pdo->commit();
+        } catch (Throwable) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            $_SESSION['seller_admin_flash'] = ['ok' => false, 'text' => 'Seller status update failed. Please try again.'];
+            header('Location: sellers.php');
+            exit;
+        }
+
+        $sellerName = trim((string) ($sellerRow['full_name'] ?? ''));
+        if ($sellerName === '') {
+            $sellerName = (string) ($sellerRow['email'] ?? ('Seller #' . $sellerId));
+        }
+        if ($nextState === 0) {
+            $_SESSION['seller_admin_flash'] = ['ok' => true, 'text' => 'Seller deactivated: ' . $sellerName . '. Products are now out of stock.'];
+        } else {
+            $_SESSION['seller_admin_flash'] = ['ok' => true, 'text' => 'Seller activated: ' . $sellerName . '. Product stock visibility restored.'];
+        }
+        header('Location: sellers.php');
+        exit;
+    }
+
     if ($sellerId > 0 && $action === 'delete_seller') {
         $sellerSt = $pdo->prepare('SELECT id, full_name, email FROM seller_users WHERE id = ? LIMIT 1');
         $sellerSt->execute([$sellerId]);
@@ -257,6 +306,7 @@ require __DIR__ . '/partials/shell-top.php';
                     <th class="admin-table__th-narrow">Products</th>
                     <th class="admin-table__th-narrow">Orders</th>
                     <th class="admin-table__th-narrow">Status</th>
+                    <th class="admin-table__th-narrow">Access</th>
                     <th>Created</th>
                     <th class="admin-table__th-narrow">Actions</th>
                   </tr>
@@ -301,15 +351,44 @@ require __DIR__ . '/partials/shell-top.php';
                           <span class="admin-status admin-status--cancelled">Inactive</span>
                         <?php endif; ?>
                       </td>
+                      <td>
+                        <?php
+                        $isActiveSeller = (int) ($sellerRow['is_active'] ?? 0) === 1;
+                        $isDeletedSeller = $deletionStatus === 'approved';
+                        $nextState = $isActiveSeller ? 0 : 1;
+                        ?>
+                        <?php if ($isDeletedSeller): ?>
+                          <span class="admin-sellers-toggle-note">Disabled</span>
+                        <?php else: ?>
+                          <form method="post" class="admin-sellers-toggle-form">
+                            <input type="hidden" name="action" value="toggle_seller_active">
+                            <input type="hidden" name="seller_id" value="<?= (int) $sellerRow['id'] ?>">
+                            <input type="hidden" name="next_state" value="<?= $nextState ?>">
+                            <label class="admin-sellers-switch" title="<?= $isActiveSeller ? 'Deactivate seller' : 'Activate seller' ?>">
+                              <input
+                                type="checkbox"
+                                <?= $isActiveSeller ? 'checked' : '' ?>
+                                onchange="if(!confirm(this.checked ? 'Seller activate karna hai? Products ka stock wapas visible ho jayega.' : 'Seller deactivate karna hai? Seller ke saare products out of stock ho jayenge.')){ this.checked = !this.checked; return; } this.form.submit();"
+                              >
+                              <span class="admin-sellers-switch__slider" aria-hidden="true"></span>
+                              <span class="admin-sellers-switch__label"><?= $isActiveSeller ? 'Active' : 'Inactive' ?></span>
+                            </label>
+                          </form>
+                        <?php endif; ?>
+                      </td>
                       <td class="admin-table__td-muted"><?= h(admin_sellers_fmt_created($sellerRow['created_at'] ?? null)) ?></td>
                       <td>
                         <div class="admin-sellers-actions">
-                          <a href="seller-view.php?id=<?= (int) $sellerRow['id'] ?>" class="admin-btn admin-btn--primary admin-sellers-actions__btn">View</a>
+                          <a href="seller-view.php?id=<?= (int) $sellerRow['id'] ?>" class="admin-btn admin-btn--primary admin-sellers-actions__btn admin-sellers-actions__btn--icon" aria-label="View seller" title="View seller">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" d="M9 4.46A9.8 9.8 0 0 1 12 4c4.182 0 7.028 2.5 8.725 4.704C21.575 9.81 22 10.361 22 12c0 1.64-.425 2.191-1.275 3.296C19.028 17.5 16.182 20 12 20s-7.028-2.5-8.725-4.704C2.425 14.192 2 13.639 2 12c0-1.64.425-2.191 1.275-3.296A14.5 14.5 0 0 1 5 6.821"></path><path d="M15 12a3 3 0 1 1-6 0a3 3 0 0 1 6 0Z"></path></g></svg>
+                          </a>
                           <?php if ($deletionStatus !== 'approved'): ?>
                             <form method="post" class="admin-sellers-actions__form" onsubmit="return confirm('Seller account delete karna hai? Is seller ke products unlink ho jayenge.');">
                               <input type="hidden" name="action" value="delete_seller">
                               <input type="hidden" name="seller_id" value="<?= (int) $sellerRow['id'] ?>">
-                              <button type="submit" class="admin-btn admin-sellers-actions__btn admin-sellers-actions__btn--delete">Delete</button>
+                              <button type="submit" class="admin-btn admin-sellers-actions__btn admin-sellers-actions__btn--delete admin-sellers-actions__btn--icon" aria-label="Delete seller" title="Delete seller">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5" d="M20.5 6h-17m5.67-2a3.001 3.001 0 0 1 5.66 0m3.544 11.4c-.177 2.654-.266 3.981-1.131 4.79s-2.195.81-4.856.81h-.774c-2.66 0-3.99 0-4.856-.81c-.865-.809-.953-2.136-1.13-4.79l-.46-6.9m13.666 0l-.2 3"></path></svg>
+                              </button>
                             </form>
                           <?php endif; ?>
                         </div>
@@ -317,7 +396,7 @@ require __DIR__ . '/partials/shell-top.php';
                     </tr>
                   <?php endforeach; ?>
                   <tr id="adminSellersNoMatchRow" class="admin-sellers-no-match-row">
-                    <td colspan="8">
+                    <td colspan="9">
                       <div class="admin-sellers-no-match">
                         <strong class="admin-sellers-no-match__title">No matches</strong>
                         <p class="admin-sellers-no-match__text">Try another keyword — name, email, ID, or categories (this page only).</p>

@@ -402,10 +402,71 @@ if ($msg === 'added') {
 } elseif ($msg === 'delete_fail') {
     $toastMessage = 'Product delete nahi ho paya.';
     $toastIsError = true;
+} elseif ($msg === 'activated') {
+    $toastMessage = 'Product active ho gaya. Listing buyers ko normal dikhegi.';
+} elseif ($msg === 'deactivated') {
+    $toastMessage = 'Product inactive ho gaya. Buyers ko Out of stock dikhega.';
+} elseif ($msg === 'status_fail') {
+    $toastMessage = 'Status update nahi ho paya. Sirf approved listing ko active/inactive kar sakte hain.';
+    $toastIsError = true;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = (string) ($_POST['action'] ?? 'add_product');
+
+    if ($action === 'toggle_product_active') {
+        $productId = (int) ($_POST['product_id'] ?? 0);
+        $nextActive = (int) ($_POST['next_active'] ?? 0) === 1 ? 1 : 0;
+        if ($productId > 0) {
+            $rowSt = $pdo->prepare(
+                'SELECT approval_status
+                 FROM products
+                 WHERE id = ? AND seller_id = ?
+                 LIMIT 1'
+            );
+            $rowSt->execute([$productId, (int) $seller['id']]);
+            $row = $rowSt->fetch(PDO::FETCH_ASSOC);
+            if ($row && strtolower(trim((string) ($row['approval_status'] ?? ''))) === 'approved') {
+                $upd = $pdo->prepare(
+                    'UPDATE products
+                     SET active = ?
+                     WHERE id = ? AND seller_id = ?
+                     LIMIT 1'
+                );
+                $upd->execute([$nextActive, $productId, (int) $seller['id']]);
+                $q = ['msg' => $nextActive === 1 ? 'activated' : 'deactivated'];
+                $lp = (int) ($_POST['list_page'] ?? 0);
+                $lper = (int) ($_POST['list_per_page'] ?? 0);
+                $ldf = strtolower(trim((string) ($_POST['list_date_filter'] ?? 'all')));
+                if ($lp > 0) {
+                    $q['page'] = $lp;
+                }
+                if ($lper >= 5 && $lper <= 100) {
+                    $q['per_page'] = $lper;
+                }
+                if (in_array($ldf, ['day', 'week', 'month'], true)) {
+                    $q['date_filter'] = $ldf;
+                }
+                header('Location: products.php?' . http_build_query($q));
+                exit;
+            }
+        }
+        $q = ['msg' => 'status_fail'];
+        $lp = (int) ($_POST['list_page'] ?? 0);
+        $lper = (int) ($_POST['list_per_page'] ?? 0);
+        $ldf = strtolower(trim((string) ($_POST['list_date_filter'] ?? 'all')));
+        if ($lp > 0) {
+            $q['page'] = $lp;
+        }
+        if ($lper >= 5 && $lper <= 100) {
+            $q['per_page'] = $lper;
+        }
+        if (in_array($ldf, ['day', 'week', 'month'], true)) {
+            $q['date_filter'] = $ldf;
+        }
+        header('Location: products.php?' . http_build_query($q));
+        exit;
+    }
 
     if ($action === 'delete_product') {
         $productId = (int) ($_POST['product_id'] ?? 0);
@@ -979,6 +1040,7 @@ require __DIR__ . '/partials/shell-top.php';
                     <th>Price</th>
                     <th>Stock</th>
                     <th>Listing</th>
+                    <th>Status</th>
                     <th class="seller-products-th--actions">Actions</th>
                   </tr>
                 </thead>
@@ -986,7 +1048,8 @@ require __DIR__ . '/partials/shell-top.php';
                   <?php foreach ($products as $p): ?>
                     <?php
                     $pid = (int) ($p['id'] ?? 0);
-                    $displayStockQty = (int) ($p['display_stock_qty'] ?? $p['stock_qty'] ?? 0);
+                    $isActiveListing = (int) ($p['active'] ?? 0) === 1;
+                    $displayStockQty = $isActiveListing ? (int) ($p['display_stock_qty'] ?? $p['stock_qty'] ?? 0) : 0;
                     $apRaw = strtolower(trim((string) ($p['approval_status'] ?? 'approved')));
                     $productsSearchBlob = mb_strtolower(
                         (string) $pid . ' '
@@ -1000,7 +1063,7 @@ require __DIR__ . '/partials/shell-top.php';
                         . (string) (int) ($p['price'] ?? 0) . ' '
                         . (string) (int) ($p['original_price'] ?? 0) . ' '
                         . (string) $displayStockQty . ' '
-                        . ((int) ($p['active'] ?? 0) === 1 ? 'active' : 'inactive') . ' '
+                        . ($isActiveListing ? 'active' : 'inactive') . ' '
                         . $apRaw . ' '
                         . trim((string) ($p['size_options'] ?? '')) . ' '
                         . trim((string) ($p['color_options'] ?? ''))
@@ -1060,11 +1123,6 @@ require __DIR__ . '/partials/shell-top.php';
                       </td>
                       <td>
                         <div class="seller-product-listing-stack">
-                          <?php if ((int) $p['active'] === 1): ?>
-                            <span class="seller-status-chip seller-status-chip--delivered">Active</span>
-                          <?php else: ?>
-                            <span class="seller-status-chip seller-status-chip--inactive">Inactive</span>
-                          <?php endif; ?>
                           <?php
                         $ap = $apRaw;
                         if ($ap === 'approved'): ?>
@@ -1073,6 +1131,31 @@ require __DIR__ . '/partials/shell-top.php';
                             <span class="seller-status-chip seller-status-chip--pending">Pending</span>
                           <?php else: ?>
                             <span class="seller-status-chip seller-status-chip--rejected">Rejected</span>
+                          <?php endif; ?>
+                        </div>
+                      </td>
+                      <td>
+                        <div class="seller-product-listing-stack">
+                          <?php if ($apRaw === 'approved'): ?>
+                            <form method="post" action="<?= h($productsFormAction) ?>" class="seller-product-status-form">
+                              <input type="hidden" name="action" value="toggle_product_active">
+                              <input type="hidden" name="product_id" value="<?= (int) $p['id'] ?>">
+                              <input type="hidden" name="next_active" value="<?= $isActiveListing ? '0' : '1' ?>">
+                              <input type="hidden" name="list_page" value="<?= (int) $productsPage ?>">
+                              <input type="hidden" name="list_per_page" value="<?= (int) $productsPerPage ?>">
+                              <input type="hidden" name="list_date_filter" value="<?= h($productsDateFilter) ?>">
+                              <label class="seller-toggle-switch" title="<?= $isActiveListing ? 'Deactivate listing' : 'Activate listing' ?>">
+                                <input
+                                  type="checkbox"
+                                  <?= $isActiveListing ? 'checked' : '' ?>
+                                  aria-label="<?= $isActiveListing ? 'Deactivate listing' : 'Activate listing' ?>"
+                                  onchange="this.form.querySelector('input[name=next_active]').value=this.checked?'1':'0';this.form.submit();"
+                                >
+                                <span class="seller-toggle-switch__track" aria-hidden="true"></span>
+                              </label>
+                            </form>
+                          <?php else: ?>
+                            <span class="seller-stock-low-hint">Approve hone ke baad</span>
                           <?php endif; ?>
                         </div>
                       </td>
@@ -1100,7 +1183,7 @@ require __DIR__ . '/partials/shell-top.php';
                   <?php endforeach; ?>
                   <?php if ($products === []): ?>
                     <tr class="seller-products-empty-placeholder">
-                      <td colspan="8">
+                      <td colspan="9">
                         <div class="seller-products-empty">
                           <div class="seller-products-empty__icon" aria-hidden="true">
                             <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg>
@@ -1117,7 +1200,7 @@ require __DIR__ . '/partials/shell-top.php';
                     </tr>
                   <?php else: ?>
                     <tr id="sellerProductsNoMatchRow" class="seller-products-no-match-row" style="display:none">
-                      <td colspan="8" class="seller-products-no-match-cell">
+                      <td colspan="9" class="seller-products-no-match-cell">
                         <div class="seller-products-no-match-inner">
                           <span class="seller-products-no-match-icon" aria-hidden="true">
                             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>

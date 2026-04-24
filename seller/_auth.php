@@ -18,6 +18,11 @@ function seller_logout(): void
     unset($_SESSION['seller_id']);
 }
 
+function seller_set_login_notice(string $message): void
+{
+    $_SESSION['seller_login_notice'] = $message;
+}
+
 /**
  * @return list<string>
  */
@@ -47,6 +52,9 @@ function seller_user(PDO $pdo): ?array
     $row = $st->fetch();
 
     if (!$row || (int) $row['is_active'] !== 1) {
+        if ($row && (int) ($row['is_active'] ?? 0) !== 1) {
+            seller_set_login_notice('Your Seller Panel is Deactivated. For any query, contact admin.');
+        }
         seller_logout();
         return null;
     }

@@ -470,11 +470,15 @@ function luxeCreateTrendingStyleProductCard(p, index, opts) {
   const nameEsc = luxeEscapeHtml(String(p.name || ""));
   const origPrice = p.original != null ? p.original : p.price;
   const needsOpts = luxeProductRequiresVariantPick(p);
+  const listStockQty = Math.max(0, Number(p.stock_qty ?? p.stockQty ?? 0) || 0);
+  const isOutOfStockListing = listStockQty <= 0;
   const useIconButton = needsOpts || relatedSection;
-  const addCartBtnInner = useIconButton
+  const addCartBtnInner = isOutOfStockListing
+    ? "Out of stock"
+    : (useIconButton
     ? luxeCartIconSvg()
-    : "Add to Cart";
-  const addCartBtnClass = "add-cart-btn" + (useIconButton ? " add-cart-btn--icon-only" : "");
+    : "Add to Cart");
+  const addCartBtnClass = "add-cart-btn" + (useIconButton ? " add-cart-btn--icon-only" : "") + (isOutOfStockListing ? " is-disabled" : "");
   const addCartAria = needsOpts
     ? "Add to cart — open product to choose size or colour"
     : "Add to cart";
@@ -500,7 +504,7 @@ function luxeCreateTrendingStyleProductCard(p, index, opts) {
           </div>
           <div class="product-card-actions">
             <a href="${luxeProductUrl(p)}" class="view-product-btn">View Details</a>
-            <button type="button" class="${addCartBtnClass}" data-id="${Number(p.id)}" data-needs-options="${needsOpts ? "1" : "0"}" aria-label="${luxeEscapeHtml(addCartAria)}">${addCartBtnInner}</button>
+            <button type="button" class="${addCartBtnClass}" data-id="${Number(p.id)}" data-needs-options="${needsOpts ? "1" : "0"}" aria-label="${luxeEscapeHtml(addCartAria)}" ${isOutOfStockListing ? "disabled" : ""}>${addCartBtnInner}</button>
           </div>
         </div>
       `;
@@ -521,6 +525,10 @@ function luxeCreateTrendingStyleProductCard(p, index, opts) {
   if (addBtn) {
     addBtn.addEventListener("click", function(e) {
       e.stopPropagation();
+      if (isOutOfStockListing) {
+        showToast("❌ This product is out of stock.");
+        return;
+      }
       if (luxeProductRequiresVariantPick(p)) {
         showToast("Size / colour chunne ke liye product page khul raha hai…");
         window.location.href = luxeProductUrl(p);

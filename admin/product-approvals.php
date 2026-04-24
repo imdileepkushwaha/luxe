@@ -49,7 +49,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'approve_product') {
         $upd = $pdo->prepare(
             "UPDATE products
-             SET approval_status = 'approved'
+             SET approval_status = 'approved',
+                 active = 1
              WHERE id = ?
                AND seller_id IS NOT NULL
              LIMIT 1"

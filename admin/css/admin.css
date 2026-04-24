@@ -1159,10 +1159,6 @@ a.admin-user-dropdown__item:hover {
   gap: 16px;
 }
 
-.admin-form-stack--narrow {
-  /* max-width: 440px; */
-}
-
 .admin-field {
   display: flex;
   flex-direction: column;
@@ -2090,7 +2086,7 @@ html.admin-theme-dark .admin-pgw-step__n {
 .admin-sellers-cats {
   display: block;
   max-width: 220px;
-  font-size: 0.86rem;
+  font-size: 0.75rem;
   line-height: 1.4;
   color: var(--admin-text);
   word-break: break-word;
@@ -2098,7 +2094,7 @@ html.admin-theme-dark .admin-pgw-step__n {
 
 .admin-sellers-actions {
   display: flex;
-  flex-direction: column;
+  /* flex-direction: column; */
   align-items: stretch;
   gap: 8px;
   min-width: 112px;
@@ -2108,22 +2104,107 @@ html.admin-theme-dark .admin-pgw-step__n {
   margin: 0;
 }
 
+.admin-sellers-toggle-form {
+  margin: 0;
+}
+
+.admin-sellers-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.admin-sellers-switch input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
+.admin-sellers-switch__slider {
+  position: relative;
+  width: 42px;
+  height: 24px;
+  border-radius: 999px;
+  background: #cbd5e1;
+  transition: background-color 0.2s ease;
+}
+
+.admin-sellers-switch__slider::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.25);
+  transition: transform 0.2s ease;
+}
+
+.admin-sellers-switch input:checked + .admin-sellers-switch__slider {
+  background: #22c55e;
+}
+
+.admin-sellers-switch input:checked + .admin-sellers-switch__slider::after {
+  transform: translateX(18px);
+}
+
+.admin-sellers-switch input:focus-visible + .admin-sellers-switch__slider {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.admin-sellers-switch__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--admin-text);
+}
+
+.admin-sellers-toggle-note {
+  display: inline-block;
+  font-size: 0.75rem;
+  color: var(--admin-text-muted);
+}
+
 .admin-sellers-actions__btn {
   width: 100%;
   justify-content: center;
   padding: 8px 12px !important;
   font-size: 0.82rem !important;
+  border: 1px solid #cbd5e1 !important;
+  background: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+.admin-sellers-actions__btn:hover {
+  border-color: #94a3b8 !important;
+  background: #f1f5f9 !important;
+}
+
+.admin-sellers-actions__btn--icon {
+  width: 40px;
+  height: 34px;
+  min-width: 40px;
+  padding: 0 !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .admin-sellers-actions__btn--delete {
-  border: 1px solid #fca5a5 !important;
-  background: #fff !important;
-  color: #b91c1c !important;
+  border: 1px solid #fecaca !important;
+  background: #fff1f2 !important;
+  color: #be123c !important;
 }
 
 .admin-sellers-actions__btn--delete:hover {
-  background: #fef2f2 !important;
-  border-color: #f87171 !important;
+  border-color: #fda4af !important;
+  background: #ffe4e6 !important;
 }
 
 .admin-sellers-no-match-row {
@@ -3855,7 +3936,7 @@ html.admin-theme-dark .admin-pgw-step__n {
 .admin-table td {
   text-align: left;
   padding: 10px 12px;
-  font-size: 0.88rem;
+  font-size: 0.75rem;
   border-bottom: 1px solid var(--admin-border);
 }
 
@@ -5538,14 +5619,41 @@ html.admin-theme-dark .admin-deletions-seller-actions__btn--reject:hover {
   background: rgba(220, 38, 38, 0.2) !important;
 }
 
+html.admin-theme-dark .admin-sellers-actions__btn {
+  background: #0b1220 !important;
+  border-color: rgba(243, 243, 243, 0.08) !important;
+  color: #e2e8f0 !important;
+}
+
+html.admin-theme-dark .admin-sellers-actions__btn:hover {
+  background: #111b2c !important;
+  border-color: rgba(243, 243, 243, 0.16) !important;
+}
+
 html.admin-theme-dark .admin-sellers-actions__btn--delete {
-  background: rgba(220, 38, 38, 0.12) !important;
-  border-color: rgba(248, 113, 113, 0.45) !important;
-  color: #fecaca !important;
+  background: rgba(190, 24, 93, 0.18) !important;
+  border-color: rgba(244, 114, 182, 0.5) !important;
+  color: #fecdd3 !important;
 }
 
 html.admin-theme-dark .admin-sellers-actions__btn--delete:hover {
-  background: rgba(220, 38, 38, 0.2) !important;
+  background: rgba(190, 24, 93, 0.24) !important;
+}
+
+html.admin-theme-dark .admin-sellers-switch__slider {
+  background: #334155;
+}
+
+html.admin-theme-dark .admin-sellers-switch input:checked + .admin-sellers-switch__slider {
+  background: #16a34a;
+}
+
+html.admin-theme-dark .admin-sellers-switch__slider::after {
+  background: #f8fafc;
+}
+
+html.admin-theme-dark .admin-sellers-toggle-note {
+  color: #94a3b8;
 }
 
 html.admin-theme-dark .admin-kyc-page .admin-avatar-sm {

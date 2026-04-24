@@ -436,6 +436,13 @@ if ($hasVariantInventory) {
         $totalInventoryUnits += max(0, (int) $unitQty);
     }
 }
+if ((int) ($product['active'] ?? 1) !== 1) {
+    $variantStockMap = [];
+    $hasVariantInventory = false;
+    $initialSpecStockQty = 0;
+    $totalInventoryUnits = 0;
+    $product['stock_qty'] = 0;
+}
 
 $shippingSettings = [
     'handling_time_days' => 2,
@@ -536,11 +543,18 @@ if (is_array($_SESSION['cart'] ?? null)) {
     }
 }
 $approvalStatus = strtolower(trim((string) ($product['approval_status'] ?? 'approved')));
+$isActiveListing = (int) ($product['active'] ?? 1) === 1;
+$inactivePublicView = !$isActiveListing
+    && $sellerSessionId <= 0
+    && $adminSessionId <= 0;
 $sellerPreviewOnly = $approvalStatus !== 'approved'
     && (
         ($sellerSessionId > 0 && $sellerSessionId === (int) ($product['seller_id'] ?? 0))
         || $adminSessionId > 0
     );
+if ($inactivePublicView) {
+    $sellerPreviewOnly = true;
+}
 
 /** @var list<array{k:string,q:int}> Stable list for JS — avoids JSON object-key quirks for size|color keys. */
 $variantStockEntries = [];
@@ -645,6 +659,8 @@ $pageProduct = [
         <div class="seller-preview-banner" role="status">
           <?php if ($adminSessionId > 0): ?>
             <strong>Admin preview</strong> — Yeh listing abhi public catalog me live nahi hai. Approve karne ke liye <a href="admin/product-approvals.php" style="color:inherit;text-decoration:underline">Product approvals</a> kholein.
+          <?php elseif (!$isActiveListing): ?>
+            <strong>Seller turned this listing off</strong> — Product abhi inactive hai, isliye buyers ko Out of stock dikh raha hai.
           <?php elseif ($approvalStatus === 'pending'): ?>
             <strong>Seller preview</strong> — Yeh product admin approval ke baad hi buyers ko dikhega. Abhi cart / checkout available nahi hai.
           <?php else: ?>
