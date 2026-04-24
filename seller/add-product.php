@@ -19,12 +19,35 @@ $editProduct = null;
 $isEditMode = false;
 $selectedSizesWizard = [];
 $selectedColorsWizard = [];
-$editGalleryPaths = [];
+$editGalleryItems = [];
 $shippingClassWizard = 'standard';
 $editPublishStatusLabel = '';
 $editPublishAtDisplay = '';
 
 $activeNav = 'products';
+
+function seller_add_product_ensure_hybrid_columns(PDO $pdo): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+    try {
+        $checkStyle = $pdo->query("SHOW COLUMNS FROM products LIKE 'style_group_code'");
+        if (!$checkStyle->fetch(PDO::FETCH_ASSOC)) {
+            $pdo->exec("ALTER TABLE products ADD COLUMN style_group_code VARCHAR(120) NULL AFTER product_type");
+        }
+        $checkPrimary = $pdo->query("SHOW COLUMNS FROM products LIKE 'primary_color'");
+        if (!$checkPrimary->fetch(PDO::FETCH_ASSOC)) {
+            $pdo->exec("ALTER TABLE products ADD COLUMN primary_color VARCHAR(64) NULL AFTER color_options");
+        }
+    } catch (Throwable) {
+        // Non-blocking fallback for older schema.
+    }
+}
+
+seller_add_product_ensure_hybrid_columns($pdo);
 
 $kycCompleted = (int) ($seller['kyc_completed'] ?? 0) === 1;
 $kycFinalApproved = (int) ($seller['kyc_final_approved'] ?? 0) === 1;
@@ -75,6 +98,7 @@ foreach ($colorsByCategory as $k => $arr) {
 if ($editProductId > 0) {
     $editSt = $pdo->prepare(
         'SELECT id, name, sku, category, product_type, gender, price, original_price, emoji, badge, brand, size_options, color_options, stock_qty, description,
+                style_group_code, primary_color,
                 offer_flash_text, offer_countdown_seconds, offer_bank_text, shipping_class,
                 manufacturer_generic_name, manufacturer_country, manufacturer_name_address, packer_name_address,
                 active, approval_status, image_path, created_at
@@ -91,12 +115,21 @@ if ($editProductId > 0) {
     $isEditMode = true;
     $selectedSizesWizard = seller_parse_saved_options((string) ($editProduct['size_options'] ?? ''), $sizeCatalogWizard);
     $selectedColorsWizard = seller_parse_saved_options((string) ($editProduct['color_options'] ?? ''), $colorCatalogFull);
-    $imgSt = $pdo->prepare('SELECT image_path FROM product_images WHERE product_id = ? ORDER BY sort_order ASC, id ASC');
+    $imgSt = $pdo->prepare('SELECT id, image_path FROM product_images WHERE product_id = ? ORDER BY sort_order ASC, id ASC');
     $imgSt->execute([$editProductId]);
-    $editGalleryPaths = array_values(array_filter(array_map('strval', $imgSt->fetchAll(PDO::FETCH_COLUMN) ?: []), static fn (string $v): bool => $v !== ''));
+    foreach ($imgSt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $path = trim((string) ($row['image_path'] ?? ''));
+        if ($path === '') {
+            continue;
+        }
+        $editGalleryItems[] = [
+            'id' => (int) ($row['id'] ?? 0),
+            'path' => $path,
+        ];
+    }
     $mainImg = trim((string) ($editProduct['image_path'] ?? ''));
-    if ($editGalleryPaths === [] && $mainImg !== '') {
-        $editGalleryPaths = [$mainImg];
+    if ($editGalleryItems === [] && $mainImg !== '') {
+        $editGalleryItems[] = ['id' => 0, 'path' => $mainImg];
     }
     $sc = strtolower(trim((string) ($editProduct['shipping_class'] ?? 'standard')));
     $shippingClassWizard = in_array($sc, ['standard', 'express', 'free'], true) ? $sc : 'standard';
@@ -238,6 +271,9 @@ require __DIR__ . '/partials/shell-top.php';
               <form class="seller-wizard-form" id="sellerAddProductWizard" method="post" action="products.php" enctype="multipart/form-data" novalidate>
                 <input type="hidden" name="return_to" value="add_wizard">
                 <input type="hidden" name="action" value="<?= $isEditMode ? 'edit_product' : 'add_product' ?>">
+                <input type="hidden" name="image_color_map" id="wizard_image_color_map" value="">
+                <input type="hidden" name="style_group_code" id="wizard_style_group_code" value="<?= $isEditMode ? h((string) ($editProduct['style_group_code'] ?? '')) : '' ?>">
+                <input type="hidden" name="primary_color" id="wizard_primary_color" value="<?= $isEditMode ? h((string) ($editProduct['primary_color'] ?? '')) : '' ?>">
                 <?php if ($isEditMode): ?>
                   <input type="hidden" name="product_id" value="<?= (int) ($editProduct['id'] ?? 0) ?>">
                   <input type="hidden" name="emoji" value="<?= h((string) ($editProduct['emoji'] ?? '📦')) ?>">
@@ -341,18 +377,37 @@ require __DIR__ . '/partials/shell-top.php';
                       <div class="seller-wizard-dropzone seller-wizard-dropzone--wide" id="wizard_drop_gallery" role="button" tabindex="0" aria-label="Upload gallery images">
                         <input type="file" id="wizard_file_gallery" class="seller-wizard-dropzone__input" accept=".jpg,.jpeg,.png,.webp,.gif,image/*" multiple aria-hidden="true" <?= $canAddProducts ? '' : 'disabled' ?>>
                         <span class="seller-wizard-dropzone__title">Drag files here</span>
-                        <span class="seller-wizard-dropzone__hint">Add Product Gallery Images (max 6)</span>
+                        <span class="seller-wizard-dropzone__hint">Add Product Gallery Images (max 6 per color)</span>
                       </div>
-                      <p class="seller-form-field__hint">Gallery mein maximum 6 images — main product image alag hai.</p>
-                      <p class="seller-form-field__error" id="wizard_gallery_error" hidden>Maximum 6 gallery images — baaki hata di gayi.</p>
+                      <p class="seller-form-field__hint">Har selected color ke liye max 6 images. Main product image alag hai.</p>
+                      <p class="seller-form-field__error" id="wizard_gallery_error" hidden>Color-wise max limit exceed hui — extra images auto-trim ho gayi.</p>
                     </div>
                   </div>
-                  <?php if ($isEditMode && $editGalleryPaths !== []): ?>
+                  <?php if ($isEditMode && $editGalleryItems !== []): ?>
                     <div class="seller-wizard-current-images">
-                      <p class="seller-form-field__hint">Abhi ki photos — nayi upload tabhi replace karti hai jab aap files chunen.</p>
+                      <div class="seller-wizard-current-images__head">
+                        <p class="seller-form-field__hint">Abhi ki photos — remove tick karke galat image hata sakte ho. Nayi upload sirf tab replace karegi jab files select karo.</p>
+                        <button type="button" class="seller-wizard-current-images__clear-btn" id="wizardClearImageRemovals">Clear selection</button>
+                      </div>
                       <div class="seller-wizard-current-images__grid">
-                        <?php foreach ($editGalleryPaths as $gpath): ?>
-                          <img class="seller-wizard-current-images__thumb" src="<?= h('../' . ltrim((string) $gpath, '/')) ?>" alt="" loading="lazy" decoding="async">
+                        <?php foreach ($editGalleryItems as $gitem): ?>
+                          <?php
+                          $gPath = (string) ($gitem['path'] ?? '');
+                          $gId = (int) ($gitem['id'] ?? 0);
+                          $gName = basename($gPath);
+                          ?>
+                          <label class="seller-wizard-current-image-item">
+                            <img class="seller-wizard-current-images__thumb" src="<?= h('../' . ltrim((string) ($gitem['path'] ?? ''), '/')) ?>" alt="" loading="lazy" decoding="async">
+                            <span class="seller-wizard-current-image-item__meta">
+                              <span class="seller-wizard-current-image-item__name" title="<?= h($gName) ?>"><?= h($gName) ?></span>
+                            </span>
+                            <?php if ($gId > 0): ?>
+                              <span class="seller-wizard-current-image-item__remove">
+                                <input type="checkbox" name="remove_image_ids[]" value="<?= $gId ?>" class="seller-wizard-current-image-item__remove-input">
+                                <span class="seller-wizard-current-image-item__remove-label">Remove image</span>
+                              </span>
+                            <?php endif; ?>
+                          </label>
                         <?php endforeach; ?>
                       </div>
                     </div>
@@ -450,6 +505,41 @@ require __DIR__ . '/partials/shell-top.php';
                             <?= $canAddProducts ? '' : 'disabled' ?>
                             value="<?= $isEditMode ? h((string) ($editProduct['brand'] ?? 'LUXE')) : '' ?>"
                           >
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="seller-wizard-offer-card seller-wizard-merch-card<?= !$canAddProducts ? ' seller-wizard-offer-card--disabled' : '' ?>">
+                    <div class="seller-wizard-offer-card__head">
+                      <h3 class="seller-wizard-offer-card__title">Color Group Linking</h3>
+                      <p class="seller-wizard-offer-card__sub">Alag color products ko same PDP swatch group me link karne ke liye.</p>
+                    </div>
+                    <div class="seller-wizard-offer-card__body">
+                      <div class="seller-wizard-offer-grid">
+                        <div class="seller-form-field<?= !$canAddProducts ? ' seller-form-field--disabled' : '' ?>">
+                          <label class="seller-form-field__label" for="wizard_style_group_code_visible">Style group code</label>
+                          <div class="seller-wizard-style-group-row">
+                            <input
+                              type="text"
+                              id="wizard_style_group_code_visible"
+                              class="seller-input-wrap__input"
+                              placeholder="auto-generated (optional override)"
+                              value="<?= $isEditMode ? h((string) ($editProduct['style_group_code'] ?? '')) : '' ?>"
+                              <?= $canAddProducts ? '' : 'disabled' ?>
+                            >
+                            <?php if ($isEditMode): ?>
+                              <button type="button" id="wizardCopyStyleGroupBtn" class="admin-btn admin-btn--ghost-light seller-wizard-style-copy-btn">Copy</button>
+                            <?php endif; ?>
+                          </div>
+                          <p class="seller-form-field__hint">Same design ke saare colors me same code rakho (e.g. women-shirt-striped-mandarin).</p>
+                        </div>
+                        <div class="seller-form-field<?= !$canAddProducts ? ' seller-form-field--disabled' : '' ?>">
+                          <label class="seller-form-field__label" for="wizard_primary_color_visible">Primary color</label>
+                          <select id="wizard_primary_color_visible" class="seller-wizard-select" <?= $canAddProducts ? '' : 'disabled' ?>>
+                            <option value="">Auto (first selected color)</option>
+                          </select>
+                          <p class="seller-form-field__hint">Is product card ka main swatch color.</p>
                         </div>
                       </div>
                     </div>
@@ -814,7 +904,14 @@ require __DIR__ . '/partials/shell-top.php';
             var dropMain = document.getElementById('wizard_drop_main');
             var dropGallery = document.getElementById('wizard_drop_gallery');
             var galleryErr = document.getElementById('wizard_gallery_error');
-            var GALLERY_MAX = 6;
+            var imageColorMapInput = document.getElementById('wizard_image_color_map');
+            var styleGroupInput = document.getElementById('wizard_style_group_code');
+            var primaryColorInput = document.getElementById('wizard_primary_color');
+            var styleGroupVisible = document.getElementById('wizard_style_group_code_visible');
+            var primaryColorVisible = document.getElementById('wizard_primary_color_visible');
+            var copyStyleGroupBtn = document.getElementById('wizardCopyStyleGroupBtn');
+            var GALLERY_MAX_PER_COLOR = 6;
+            var GALLERY_UPLOAD_HARD_CAP = 60;
             var catSelect = document.getElementById('wizard_category');
             var current = 1;
             var maxStep = 6;
@@ -1019,12 +1116,85 @@ require __DIR__ . '/partials/shell-top.php';
                 dt.items.add(fileMain.files[0]);
               }
               if (fileGallery.files) {
-                var cap = Math.min(fileGallery.files.length, GALLERY_MAX);
+                var cap = Math.min(fileGallery.files.length, getGalleryMaxForSelectedColors());
                 for (var i = 0; i < cap; i++) {
                   dt.items.add(fileGallery.files[i]);
                 }
               }
               combinedInput.files = dt.files;
+            }
+
+            function getSelectedWizardColors() {
+              var colors = [];
+              var seen = Object.create(null);
+              document.querySelectorAll('input[name="color_options[]"]:checked').forEach(function (cb) {
+                var c = String(cb.value || '').trim();
+                var k = c.toLowerCase();
+                if (!c || seen[k]) return;
+                seen[k] = true;
+                colors.push(c);
+              });
+              return colors;
+            }
+
+            function slugifyLite(v) {
+              return String(v || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+            }
+
+            function syncHybridHiddenFields() {
+              if (styleGroupVisible && styleGroupInput) {
+                styleGroupInput.value = slugifyLite(styleGroupVisible.value || '');
+              }
+              if (styleGroupInput) {
+                var existing = String(styleGroupInput.value || '').trim();
+                if (!existing) {
+                  var catVal = catSelect ? String(catSelect.value || '').trim() : '';
+                  var ptInput = document.getElementById('wizard_product_type');
+                  var ptVal = ptInput ? String(ptInput.value || '').trim() : '';
+                  var titleVal = titleInput ? String(titleInput.value || '').trim() : '';
+                  var autoCode = slugifyLite(catVal + '-' + ptVal + '-' + titleVal);
+                  styleGroupInput.value = autoCode || 'style-group';
+                }
+              }
+              if (primaryColorInput) {
+                var colors = getSelectedWizardColors();
+                var visibleVal = primaryColorVisible ? String(primaryColorVisible.value || '').trim() : '';
+                if (visibleVal && colors.some(function (c) { return c.toLowerCase() === visibleVal.toLowerCase(); })) {
+                  primaryColorInput.value = visibleVal;
+                } else {
+                  primaryColorInput.value = colors.length ? colors[0] : '';
+                }
+              }
+              if (styleGroupVisible && styleGroupInput) {
+                styleGroupVisible.value = styleGroupInput.value || '';
+              }
+            }
+
+            function refreshPrimaryColorVisibleOptions() {
+              if (!primaryColorVisible) return;
+              var colors = getSelectedWizardColors();
+              var current = String(primaryColorVisible.value || '').trim();
+              var html = '<option value="">Auto (first selected color)</option>';
+              colors.forEach(function (c) {
+                var safe = c.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                var sel = current.toLowerCase() === c.toLowerCase() ? ' selected' : '';
+                html += '<option value="' + safe + '"' + sel + '>' + safe + '</option>';
+              });
+              primaryColorVisible.innerHTML = html;
+              if (current && !colors.some(function (c) { return c.toLowerCase() === current.toLowerCase(); })) {
+                primaryColorVisible.value = '';
+              }
+            }
+
+            function getGalleryMaxForSelectedColors() {
+              var colorCount = getSelectedWizardColors().length;
+              var byColorCap = Math.max(1, colorCount) * GALLERY_MAX_PER_COLOR;
+              return Math.min(GALLERY_UPLOAD_HARD_CAP, byColorCap);
+            }
+
+            function clearImageColorMapState() {
+              if (!imageColorMapInput) return;
+              imageColorMapInput.value = '';
             }
 
             function wireDropzone(zone, input, opts) {
@@ -1070,7 +1240,8 @@ require __DIR__ . '/partials/shell-top.php';
                 var dt = new DataTransfer();
                 var cap;
                 if (input.multiple) {
-                  cap = maxFiles != null ? Math.min(files.length, maxFiles) : files.length;
+                  var dynamicMax = maxFiles != null ? maxFiles : getGalleryMaxForSelectedColors();
+                  cap = Math.min(files.length, dynamicMax);
                 } else {
                   cap = Math.min(files.length, 1);
                 }
@@ -1078,7 +1249,12 @@ require __DIR__ . '/partials/shell-top.php';
                   dt.items.add(files[i]);
                 }
                 input.files = dt.files;
-                if (input.multiple && maxFiles != null && files.length > maxFiles) {
+                var overMax = false;
+                if (input.multiple) {
+                  var dynamicMax2 = maxFiles != null ? maxFiles : getGalleryMaxForSelectedColors();
+                  overMax = files.length > dynamicMax2;
+                }
+                if (overMax) {
                   syncGalleryError(true);
                 } else if (isGallery) {
                   syncGalleryError(false);
@@ -1091,9 +1267,10 @@ require __DIR__ . '/partials/shell-top.php';
                   if (isGallery) syncGalleryError(false);
                   return;
                 }
-                if (isGallery && maxFiles != null && input.files.length > maxFiles) {
+                var dynamicMax3 = maxFiles != null ? maxFiles : getGalleryMaxForSelectedColors();
+                if (isGallery && input.files.length > dynamicMax3) {
                   var dt2 = new DataTransfer();
-                  for (var j = 0; j < maxFiles; j++) {
+                  for (var j = 0; j < dynamicMax3; j++) {
                     dt2.items.add(input.files[j]);
                   }
                   input.files = dt2.files;
@@ -1132,6 +1309,39 @@ require __DIR__ . '/partials/shell-top.php';
               titleInput.addEventListener('input', function () {
                 clearTitleError();
                 updateTitleOk();
+                if (styleGroupInput) styleGroupInput.value = '';
+                syncHybridHiddenFields();
+              });
+            }
+            if (styleGroupVisible) {
+              styleGroupVisible.addEventListener('input', function () {
+                syncHybridHiddenFields();
+              });
+            }
+            if (copyStyleGroupBtn && styleGroupVisible) {
+              copyStyleGroupBtn.addEventListener('click', async function () {
+                var txt = String(styleGroupVisible.value || '').trim();
+                if (!txt) return;
+                try {
+                  if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(txt);
+                  } else {
+                    styleGroupVisible.focus();
+                    styleGroupVisible.select();
+                    document.execCommand('copy');
+                  }
+                  copyStyleGroupBtn.textContent = 'Copied';
+                  setTimeout(function () {
+                    copyStyleGroupBtn.textContent = 'Copy';
+                  }, 1200);
+                } catch (_e) {
+                  // no-op fallback
+                }
+              });
+            }
+            if (primaryColorVisible) {
+              primaryColorVisible.addEventListener('change', function () {
+                syncHybridHiddenFields();
               });
             }
 
@@ -1181,7 +1391,41 @@ require __DIR__ . '/partials/shell-top.php';
             }
 
             wireDropzone(dropMain, fileMain);
-            wireDropzone(dropGallery, fileGallery, { maxFiles: GALLERY_MAX });
+            wireDropzone(dropGallery, fileGallery, { maxFiles: null });
+            if (fileMain) fileMain.addEventListener('change', clearImageColorMapState);
+            if (fileGallery) fileGallery.addEventListener('change', clearImageColorMapState);
+            document.addEventListener('change', function (e) {
+              var t = e.target;
+              if (!(t instanceof Element)) return;
+              if (t.matches('input[name="color_options[]"]')) {
+                if (fileGallery && fileGallery.files && fileGallery.files.length) {
+                  var maxNow = getGalleryMaxForSelectedColors();
+                  if (fileGallery.files.length > maxNow) {
+                    var dt3 = new DataTransfer();
+                    for (var m = 0; m < maxNow; m++) {
+                      dt3.items.add(fileGallery.files[m]);
+                    }
+                    fileGallery.files = dt3.files;
+                  }
+                }
+                refreshPrimaryColorVisibleOptions();
+                clearImageColorMapState();
+                syncHybridHiddenFields();
+                return;
+              }
+            });
+
+            var clearRemovalsBtn = document.getElementById('wizardClearImageRemovals');
+            if (clearRemovalsBtn) {
+              clearRemovalsBtn.addEventListener('click', function (event) {
+                event.preventDefault();
+                var scope = form || document;
+                var boxes = scope.querySelectorAll('input.seller-wizard-current-image-item__remove-input[name="remove_image_ids[]"]');
+                for (var i = 0; i < boxes.length; i++) {
+                  boxes[i].checked = false;
+                }
+              });
+            }
 
             document.querySelectorAll('#wizard_category_chips .seller-wizard-chip').forEach(function (chip) {
               chip.addEventListener('click', function () {
@@ -1193,6 +1437,9 @@ require __DIR__ . '/partials/shell-top.php';
                 if (catSelect) {
                   catSelect.value = val || '';
                   onCategoryChanged();
+                  if (styleGroupInput) styleGroupInput.value = '';
+                  refreshPrimaryColorVisibleOptions();
+                  syncHybridHiddenFields();
                 }
               });
             });
@@ -1208,11 +1455,19 @@ require __DIR__ . '/partials/shell-top.php';
                 var ptInput = document.getElementById('wizard_product_type');
                 if (ptInput) ptInput.value = chip.getAttribute('data-value') || '';
                 onProductTypeChanged();
+                if (styleGroupInput) styleGroupInput.value = '';
+                refreshPrimaryColorVisibleOptions();
+                syncHybridHiddenFields();
               });
             });
 
             if (catSelect) {
-              catSelect.addEventListener('change', onCategoryChanged);
+              catSelect.addEventListener('change', function () {
+                onCategoryChanged();
+                if (styleGroupInput) styleGroupInput.value = '';
+                refreshPrimaryColorVisibleOptions();
+                syncHybridHiddenFields();
+              });
             }
 
             document.querySelectorAll('.seller-wizard-pill[data-pub]').forEach(function (pill) {
@@ -1310,6 +1565,7 @@ require __DIR__ . '/partials/shell-top.php';
                 return;
               }
               mergeImageFiles();
+              syncHybridHiddenFields();
               if (quill && descHidden) {
                 descHidden.value = quill.root.innerHTML;
               }
@@ -1323,6 +1579,9 @@ require __DIR__ . '/partials/shell-top.php';
               bootstrapEditMode();
             }
             syncVariantPanels();
+            refreshPrimaryColorVisibleOptions();
+            clearImageColorMapState();
+            syncHybridHiddenFields();
             applySkuMode();
             if (titleInput) updateTitleOk();
           })();

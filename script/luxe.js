@@ -1862,6 +1862,11 @@ function initThemeToggle() {
     if (t.startsWith("/")) return t;
     return "/" + t.replace(/^\/+/, "");
   }
+
+  function luxeProductPlaceholderImage() {
+    const svg = "<svg xmlns='http://www.w3.org/2000/svg' width='900' height='900' viewBox='0 0 900 900'><defs><linearGradient id='g' x1='0' x2='1' y1='0' y2='1'><stop stop-color='%23f8fafc'/><stop offset='1' stop-color='%23e2e8f0'/></linearGradient></defs><rect width='900' height='900' rx='32' fill='url(%23g)'/><rect x='255' y='265' width='390' height='300' rx='20' fill='none' stroke='%2394a3b8' stroke-width='22'/><circle cx='370' cy='365' r='28' fill='%2394a3b8'/><path d='M300 525l90-105 82 86 54-58 74 77' fill='none' stroke='%2394a3b8' stroke-width='22' stroke-linecap='round' stroke-linejoin='round'/><text x='450' y='638' text-anchor='middle' font-family='Inter,Arial,sans-serif' font-size='40' fill='%2364758b'>No image available</text></svg>";
+    return "data:image/svg+xml;utf8," + svg;
+  }
   let productGalleryUrls = [];
   const stockQty = Math.max(0, Number(P.stockQty ?? 0) || 0);
   const isDiscontinuedBadge = String(P.badge || "").toLowerCase() === "discontinued";
@@ -1875,6 +1880,63 @@ function initThemeToggle() {
     const t = String(c ?? "").trim();
     if (!t || t.toLowerCase() === "default") return "";
     return t.toLowerCase();
+  }
+
+  function normalizeColorKey(c) {
+    return String(c ?? "").trim().toLowerCase();
+  }
+
+  function pickGalleryByColor(colorName) {
+    const byColor = (P && typeof P.imagesByColor === "object" && P.imagesByColor) ? P.imagesByColor : {};
+    const key = normalizeColorKey(colorName);
+    if (!key) return null;
+    for (const mapKey of Object.keys(byColor)) {
+      if (normalizeColorKey(mapKey) !== key) continue;
+      const list = Array.isArray(byColor[mapKey]) ? byColor[mapKey] : [];
+      const resolved = list.map(luxeResolveProductImgUrl).filter(u => u !== "");
+      if (resolved.length > 0) return resolved;
+    }
+    return null;
+  }
+
+  function renderGalleryImages(urls, productName) {
+    const galleryList = Array.isArray(urls) ? urls.filter(Boolean).slice(0, 6) : [];
+    if (galleryList.length === 0) return;
+    productGalleryUrls = galleryList;
+    const thumbsRoot = document.getElementById("thumbs");
+    let thumbEls = Array.from(document.querySelectorAll("#thumbs .thumb"));
+    while (productGalleryUrls.length > thumbEls.length && thumbsRoot && thumbEls[0] && thumbEls.length < 6) {
+      const clone = thumbEls[0].cloneNode(true);
+      clone.classList.remove("active");
+      thumbsRoot.appendChild(clone);
+      thumbEls = Array.from(document.querySelectorAll("#thumbs .thumb"));
+    }
+    thumbEls.forEach((thumb, idx) => {
+      if (idx >= productGalleryUrls.length) {
+        thumb.style.display = "none";
+        thumb.setAttribute("aria-hidden", "true");
+        return;
+      }
+      thumb.style.display = "";
+      thumb.removeAttribute("aria-hidden");
+      thumb.classList.toggle("active", idx === 0);
+      const imgUrl = productGalleryUrls[idx];
+      thumb.dataset.image = imgUrl;
+      const img = thumb.querySelector("img");
+      if (img) {
+        img.src = imgUrl;
+        img.alt = (productName || "Product") + " — " + (idx + 1);
+      }
+    });
+    const pe = document.getElementById("productEmoji");
+    if (pe && productGalleryUrls[0]) pe.src = productGalleryUrls[0];
+    const ze = document.getElementById("zoomEmoji");
+    if (ze && productGalleryUrls[0]) ze.src = productGalleryUrls[0];
+    const stickyThumbEl = document.getElementById("stickyThumb");
+    if (stickyThumbEl && productGalleryUrls[0]) {
+      stickyThumbEl.src = productGalleryUrls[0];
+      stickyThumbEl.alt = String(productName || "Product");
+    }
   }
 
   function variantStockKey(size, color) {
@@ -1951,41 +2013,11 @@ function initThemeToggle() {
     const rawList = (Array.isArray(Pb.images) && Pb.images.length) ? Pb.images : null;
     productGalleryUrls = rawList
       ? rawList.map(luxeResolveProductImgUrl).filter(u => u !== "")
-      : luxeProductImageSet(Pb);
+      : [];
     if (productGalleryUrls.length === 0) {
-      productGalleryUrls = luxeProductImageSet(Pb);
+      productGalleryUrls = [luxeProductPlaceholderImage()];
     }
-    const maxGallery = 6;
-    productGalleryUrls = productGalleryUrls.slice(0, maxGallery);
-    const thumbsRoot = document.getElementById("thumbs");
-    let thumbEls = Array.from(document.querySelectorAll("#thumbs .thumb"));
-    while (productGalleryUrls.length > thumbEls.length && thumbsRoot && thumbEls[0] && thumbEls.length < maxGallery) {
-      const clone = thumbEls[0].cloneNode(true);
-      clone.classList.remove("active");
-      thumbsRoot.appendChild(clone);
-      thumbEls = Array.from(document.querySelectorAll("#thumbs .thumb"));
-    }
-    thumbEls.forEach((thumb, idx) => {
-      if (idx >= productGalleryUrls.length) {
-        thumb.style.display = "none";
-        thumb.setAttribute("aria-hidden", "true");
-        return;
-      }
-      thumb.style.display = "";
-      thumb.removeAttribute("aria-hidden");
-      thumb.classList.toggle("active", idx === 0);
-      const imgUrl = productGalleryUrls[idx];
-      thumb.dataset.image = imgUrl;
-      const img = thumb.querySelector("img");
-      if (img) {
-        img.src = imgUrl;
-        img.alt = (Pb.name || "Product") + " — " + (idx + 1);
-      }
-    });
-    const pe = document.getElementById("productEmoji");
-    if (pe && productGalleryUrls[0]) pe.src = productGalleryUrls[0];
-    const ze = document.getElementById("zoomEmoji");
-    if (ze && productGalleryUrls[0]) ze.src = productGalleryUrls[0];
+    renderGalleryImages(productGalleryUrls, Pb.name);
     const saleBadge = document.querySelector(".main-image .badge-sale"); if (saleBadge) saleBadge.textContent = pct + "% OFF";
     const stickyNameEl = document.getElementById("stickyName");
     if (stickyNameEl) stickyNameEl.textContent = String(Pb.name || "Product");
@@ -1993,11 +2025,6 @@ function initThemeToggle() {
     if (stickyPriceEl) stickyPriceEl.textContent = "₹" + Number(Pb.price || 0).toLocaleString("en-IN");
     const stickyOriginalEl = document.getElementById("stickyOriginal");
     if (stickyOriginalEl) stickyOriginalEl.textContent = "₹" + Number(Pb.original || 0).toLocaleString("en-IN");
-    const stickyThumbEl = document.getElementById("stickyThumb");
-    if (stickyThumbEl && productGalleryUrls[0]) {
-      stickyThumbEl.src = productGalleryUrls[0];
-      stickyThumbEl.alt = String(Pb.name || "Product");
-    }
   }
 
   const stockBadgeEl = document.querySelector(".main-image .badge-stock");
@@ -2028,7 +2055,7 @@ function initThemeToggle() {
   // ---- Gallery ----
   let currentImage = productGalleryUrls.length
     ? productGalleryUrls[0]
-    : luxeProductImageUrl(window.__PRODUCT_PAGE__ || { category: "fashion", id: 1 });
+    : luxeProductPlaceholderImage();
   window.switchImage = function(btn) {
     document.querySelectorAll(".thumb").forEach(t => t.classList.remove("active"));
     btn.classList.add("active");
@@ -2203,12 +2230,37 @@ function initThemeToggle() {
     imgBg.style.background = bg;
   }
 
+  function applyColorGallerySelection(selectedColor) {
+    const colorGallery = pickGalleryByColor(selectedColor);
+    if (Array.isArray(colorGallery) && colorGallery.length > 0) {
+      renderGalleryImages(colorGallery, P.name || "Product");
+      return;
+    }
+    const base = Array.isArray(P.images) ? P.images.map(luxeResolveProductImgUrl).filter(u => u !== "") : [];
+    renderGalleryImages(base.length > 0 ? base : [luxeProductPlaceholderImage()], P.name || "Product");
+  }
+
   window.selectColor = function(btn) {
+    const targetUrl = String(btn && btn.dataset ? (btn.dataset.productUrl || "") : "").trim();
+    if (targetUrl) {
+      try {
+        const target = new URL(targetUrl, window.location.origin);
+        const here = new URL(window.location.href);
+        if (target.pathname + target.search !== here.pathname + here.search) {
+          window.location.href = target.toString();
+          return;
+        }
+      } catch (_e) {
+        // ignore malformed URL and continue local color switch
+      }
+    }
     document.querySelectorAll(".swatch").forEach(s => s.classList.remove("active"));
     btn.classList.add("active");
-    document.getElementById("selectedColor").textContent = btn.dataset.color;
+    const selectedColor = btn.dataset.color || "Default";
+    document.getElementById("selectedColor").textContent = selectedColor;
+    applyColorGallerySelection(selectedColor);
     applyProductImgBgFromSwatch(btn);
-    showToast(`🎨 Color changed to "${btn.dataset.color}"`);
+    showToast(`🎨 Color changed to "${selectedColor}"`);
     refreshVariantStock();
   };
 
@@ -2242,8 +2294,15 @@ function initThemeToggle() {
     });
   }
 
+  const activeSwatchOnLoad = document.querySelector(".swatch.active");
+  if (activeSwatchOnLoad) {
+    const initialColor = activeSwatchOnLoad.getAttribute("data-color") || getCurrentColorText() || "Default";
+    const selectedColorEl = document.getElementById("selectedColor");
+    if (selectedColorEl) selectedColorEl.textContent = initialColor;
+    applyColorGallerySelection(initialColor);
+    applyProductImgBgFromSwatch(activeSwatchOnLoad);
+  }
   refreshVariantStock();
-  applyProductImgBgFromSwatch(document.querySelector(".swatch.active"));
 
   window.changeQty = function(delta) {
     if (maxQty <= 0) return;

@@ -1911,7 +1911,7 @@ html.admin-theme-dark .admin-pgw-step__n {
 
 .admin-pa-actions {
   display: flex;
-  flex-direction: column;
+  /* flex-direction: column; */
   align-items: stretch;
   gap: 8px;
   min-width: 112px;
@@ -1926,6 +1926,17 @@ html.admin-theme-dark .admin-pgw-step__n {
   justify-content: center;
   padding: 8px 12px !important;
   font-size: 0.82rem !important;
+}
+
+.admin-pa-actions__btn--icon {
+  min-height: 34px;
+  padding: 8px !important;
+}
+
+.admin-pa-actions__btn--icon svg {
+  width: 16px;
+  height: 16px;
+  display: block;
 }
 
 .admin-pa-actions__btn--reject {
