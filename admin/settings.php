@@ -13,7 +13,7 @@ $activeNav = 'settings';
 
 $adminId = (int) ($admin['id'] ?? 0);
 
-$pgwAllowedGateways = ['none', 'razorpay', 'stripe', 'payu'];
+$pgwAllowedGateways = ['none', 'razorpay'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = (string) ($_POST['action'] ?? '');
@@ -184,12 +184,7 @@ $pgwConfig['mode'] = in_array((string) ($pgwConfig['mode'] ?? ''), ['test', 'liv
     ? (string) $pgwConfig['mode']
     : 'test';
 $pgwWebhookUrl = platform_payment_gateway_webhook_url();
-$pgwLabel = match ($pgwConfig['gateway']) {
-    'razorpay' => 'Razorpay',
-    'stripe' => 'Stripe',
-    'payu' => 'PayU',
-    default => '—',
-};
+$pgwLabel = ($pgwConfig['gateway'] ?? '') === 'razorpay' ? 'Razorpay' : '—';
 
 $memberSince = (string) ($adminDetail['created_at'] ?? '—');
 if ($memberSince !== '—' && $memberSince !== '') {
@@ -403,14 +398,12 @@ require __DIR__ . '/partials/shell-top.php';
 
                   <fieldset class="admin-pgw-fieldset">
                     <legend class="admin-pgw-legend">Step 1 · Provider</legend>
-                    <p class="admin-pgw-hint">Site-wide payment collection ke liye active provider yahan set hota hai.</p>
+                    <p class="admin-pgw-hint">Storefront online checkout ke liye Razorpay keys yahan (ya <code>includes/config.php</code> me) set karein.</p>
                     <div class="admin-pgw-gateway-grid" role="radiogroup" aria-label="Payment provider">
                       <?php
                         $pgwOpts = [
                             'none' => ['None (disabled)', 'Checkout gateway band'],
-                            'razorpay' => ['Razorpay', 'India — cards, UPI, netbanking'],
-                            'stripe' => ['Stripe', 'Global — cards, wallets'],
-                            'payu' => ['PayU', 'India — multiple banks'],
+                            'razorpay' => ['Razorpay', 'Cards, UPI, netbanking'],
                         ];
                       foreach ($pgwOpts as $val => $meta):
                           $checked = $pgwConfig['gateway'] === $val;
@@ -426,6 +419,7 @@ require __DIR__ . '/partials/shell-top.php';
 
                   <fieldset class="admin-pgw-fieldset">
                     <legend class="admin-pgw-legend">Step 2 · Environment &amp; keys</legend>
+                    <p class="admin-pgw-hint">Storefront checkout (Razorpay) pehle <code>includes/config.php</code> + env ki keys dekhta hai; dono khali hon to yahan <strong>Razorpay</strong> + public/secret se order payment chalega.</p>
                     <div class="admin-pgw-form-row">
                       <label for="admin_pgw_mode">Mode</label>
                       <select id="admin_pgw_mode" name="mode" class="admin-input" style="max-width:280px">
@@ -435,7 +429,7 @@ require __DIR__ . '/partials/shell-top.php';
                     </div>
                     <div class="admin-pgw-form-row admin-pgw-form-row--stack">
                       <div>
-                        <label for="admin_pgw_public">Public / key ID <span class="admin-pgw-label-hint">(Razorpay Key Id, Stripe publishable, PayU merchant key)</span></label>
+                        <label for="admin_pgw_public">Key ID <span class="admin-pgw-label-hint">(Razorpay Key Id, e.g. rzp_test_…)</span></label>
                         <input id="admin_pgw_public" name="public_key" class="admin-input" maxlength="255" value="<?= h((string) $pgwConfig['public_key']) ?>" autocomplete="off" placeholder="rzp_test_… / pk_test_…">
                       </div>
                       <div>

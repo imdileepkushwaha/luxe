@@ -4,17 +4,6 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/helpers.php';
 
-function luxe_app_config(): array
-{
-    static $cfg;
-    if ($cfg === null) {
-        $path = __DIR__ . '/config.php';
-        $cfg = is_file($path) ? include $path : [];
-    }
-
-    return is_array($cfg) ? $cfg : [];
-}
-
 function luxe_signup_hmac_secret(): string
 {
     $cfg = luxe_app_config();

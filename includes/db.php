@@ -1283,11 +1283,8 @@ function db_ensure_site_settings_table(PDO $pdo): void
 
 function db_config(): array
 {
-    $path = __DIR__ . '/config.php';
-    if (!is_readable($path)) {
-        throw new RuntimeException('Missing includes/config.php — copy includes/config.example.php');
-    }
-    $cfg = require $path;
+    $cfg = luxe_app_config();
+
     return $cfg['db'];
 }
 
