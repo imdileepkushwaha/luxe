@@ -3268,6 +3268,9 @@ function initThemeToggle() {
   let currentFilter = "all", searchQuery = "";
 
   function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+  function normalizeStatus(value) {
+    return String(value || "").toLowerCase().trim();
+  }
   const statusDots = { delivered: "✓", out: "📍", shipped: "🚚", confirmed: "✔", processing: "⏳", cancelled: "✕" };
   function getTrackingStep(order) { return ({ processing: 1, confirmed: 2, shipped: 3, out: 4, delivered: 5, cancelled: 2 })[order.status] || 1; }
   function getItemStatus(item, order) {
@@ -3291,7 +3294,7 @@ function initThemeToggle() {
     return Date.now() <= expiry.getTime();
   }
   function returnStatusLabel(status) {
-    const s = String(status || "").toLowerCase();
+    const s = normalizeStatus(status);
     if (s === "pending") return "Pending Seller Review";
     if (s === "approved") return "Approved";
     if (s === "pickup_scheduled") return "Pickup Scheduled";
@@ -3301,8 +3304,18 @@ function initThemeToggle() {
     if (s === "rejected") return "Rejected";
     return s ? s.replace(/_/g, " ") : "No return";
   }
+  function returnStatusLabelFromRequest(rr) {
+    if (isReturnRejected(rr)) return "Rejected";
+    return returnStatusLabel(rr?.status);
+  }
+  function isReturnRejected(rr) {
+    if (!rr || typeof rr !== "object") return false;
+    const st = normalizeStatus(rr.status);
+    const pickup = normalizeStatus(rr.pickupStatus || rr.pickup_status);
+    return st === "rejected" || pickup === "cancelled";
+  }
   function pickupStatusLabel(status) {
-    const s = String(status || "").toLowerCase();
+    const s = normalizeStatus(status);
     if (s === "not_scheduled") return "Not Scheduled";
     if (s === "scheduled") return "Scheduled";
     if (s === "picked_up") return "Picked Up";
@@ -3311,7 +3324,7 @@ function initThemeToggle() {
     return s ? s.replace(/_/g, " ") : "Not Scheduled";
   }
   function returnProgressStep(status) {
-    const s = String(status || "").toLowerCase();
+    const s = normalizeStatus(status);
     if (s === "pending") return 1;
     if (s === "approved") return 2;
     if (s === "pickup_scheduled") return 3;
@@ -3327,9 +3340,8 @@ function initThemeToggle() {
   function canRequestReturn(item) {
     const rr = item?.returnRequest;
     if (!rr || typeof rr !== "object") return true;
-    const st = String(rr.status || "").toLowerCase();
-    // Allow fresh request only when no request exists or last one was rejected.
-    return st === "rejected";
+    // Hide return action once a return request exists (including rejected).
+    return false;
   }
   function itemHasEnquiry(item) {
     const eq = item?.enquiry;
@@ -3338,14 +3350,20 @@ function initThemeToggle() {
   function hasReturnInProgress(item) {
     const rr = item?.returnRequest;
     if (!rr || typeof rr !== "object") return false;
-    const st = String(rr.status || "").toLowerCase();
+    if (isReturnRejected(rr)) return false;
+    const st = normalizeStatus(rr.status);
     return ["pending", "approved", "pickup_scheduled", "picked_up", "refund_processing"].includes(st);
   }
   function hasReturnCompleted(item) {
     const rr = item?.returnRequest;
     if (!rr || typeof rr !== "object") return false;
-    const st = String(rr.status || "").toLowerCase();
+    const st = normalizeStatus(rr.status);
     return st === "refunded";
+  }
+  function hasReturnRejected(item) {
+    const rr = item?.returnRequest;
+    if (!rr || typeof rr !== "object") return false;
+    return isReturnRejected(rr);
   }
   function isHelpEligibleOrder(order) {
     const st = String(order?.status || "").toLowerCase();
@@ -3399,6 +3417,7 @@ function initThemeToggle() {
       const returnableItems = (order.items || []).filter(item => canRequestReturn(item));
       const hasAnyReturnInProgress = (order.items || []).some(item => hasReturnInProgress(item));
       const hasAnyReturnCompleted = (order.items || []).some(item => hasReturnCompleted(item));
+      const hasAnyReturnRejected = (order.items || []).some(item => hasReturnRejected(item));
       const canCancelByOrderStage = order.status === "processing" || order.status === "confirmed" || order.status === "shipped";
       const cancelStatus = cancelRequestStatus(order);
       const canCancel = canCancelByOrderStage && canRequestCancel(order);
@@ -3423,22 +3442,27 @@ function initThemeToggle() {
           ? `<button class="action-btn secondary" onclick="openOrderReturnForm('${order.id}')">Return</button>`
           : hasAnyReturnInProgress
           ? `<button class="action-btn secondary is-disabled" type="button" disabled title="Return request already in progress">Return In Progress</button>`
+          : hasAnyReturnRejected
+          ? ``
           : (hasAnyReturnCompleted && returnableItems.length === 0)
           ? `<button class="action-btn secondary is-disabled" type="button" disabled title="Refund completed for this order item">Return Completed</button>`
           : `<button class="action-btn secondary is-disabled" type="button" disabled title="Return window closed after 10 days">Return (Expired)</button>`)
         : "";
       const returnProgressHtml = returnItems.length > 0
         ? `<div class="tracking-section">
-            <div class="tracking-label">↩ Return Progress</div>
+            <div class="tracking-label">↩ Return Status</div>
             ${returnItems.slice(0, 3).map(item => {
               const rr = item.returnRequest || {};
-              const rrStatus = String(rr.status || "").toLowerCase();
-              const isRejected = rrStatus === "rejected";
+              const rrStatus = normalizeStatus(rr.status);
+              const isRejected = isReturnRejected(rr);
               const rStep = returnProgressStep(rrStatus);
               if (isRejected) {
                 return `<div style="margin-bottom:10px">
                   <div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:6px">${escHtml(item.name)}</div>
-                  <span class="status-badge status-cancelled">✕ Rejected</span>
+                  <div class="return-rejected-ui">
+                    <span class="status-badge status-cancelled return-rejected-ui__badge">✕ Return Rejected</span>
+                    <span class="return-rejected-ui__hint">Seller ne is return request ko reject kar diya.</span>
+                  </div>
                 </div>`;
               }
               return `<div style="margin-bottom:10px">
@@ -3464,7 +3488,7 @@ function initThemeToggle() {
         <div class="order-items-row">${display.map(item => {
           const rr = item.returnRequest;
           const statusLine = rr
-            ? `<span style="display:block;font-size:0.75rem;color:var(--text-dim)">Return: ${escHtml(returnStatusLabel(rr.status))} · Pickup: ${escHtml(pickupStatusLabel(rr.pickupStatus))}</span>`
+            ? `<span style="display:block;font-size:0.75rem;color:var(--text-dim)">Return: ${escHtml(returnStatusLabelFromRequest(rr))} · Pickup: ${escHtml(pickupStatusLabel(rr.pickupStatus))}</span>`
             : "";
           return `<div class="order-product"><div class="order-product-img">${item.emoji}</div><div class="order-product-info"><strong>${item.name}</strong><span>${item.variant}</span>${statusLine}</div></div>`;
         }).join("")}${extra > 0 ? `<span class="order-more-items">+${extra} more</span>` : ""}</div>
@@ -3506,14 +3530,14 @@ function initThemeToggle() {
         const rrPickupNote = rr.pickupNote ? String(rr.pickupNote) : "";
         const rrRefundAmount = Math.max(0, Number(rr.refundAmount || 0));
         const rrRefundMode = rr.refundMode ? String(rr.refundMode) : "";
-        const rrStatus = String(rr.status || "").toLowerCase();
+        const rrStatus = normalizeStatus(rr.status);
         const rStep = returnProgressStep(rr.status);
-        const trackingHtml = rrStatus === "rejected"
+        const trackingHtml = isReturnRejected(rr)
           ? `<span style="display:block;font-size:0.74rem;color:#fca5a5;margin-top:6px">Return request rejected</span>`
           : `<div class="tracking-steps" style="margin-top:8px">${returnTrackingLabels.map((label, i) => `<div class="tracking-step ${i < rStep ? "done" : ""} ${i === rStep - 1 && rrStatus !== "refunded" ? "active" : ""}"><div class="step-dot">${i < rStep ? "✓" : i + 1}</div><span class="step-label">${label}</span></div>`).join("")}</div>`;
         return `<div style="padding:12px 0;border-bottom:1px solid var(--border)">
           <strong style="color:var(--white);display:block">${escHtml(item.name || "Item")}</strong>
-          <span style="display:block;font-size:0.74rem;color:var(--text-dim);margin-top:4px">Return: ${escHtml(returnStatusLabel(rr.status))} | Pickup: ${escHtml(pickupStatusLabel(rr.pickupStatus))}</span>
+          <span style="display:block;font-size:0.74rem;color:var(--text-dim);margin-top:4px">Return: ${escHtml(returnStatusLabelFromRequest(rr))} | Pickup: ${escHtml(pickupStatusLabel(rr.pickupStatus))}</span>
           ${rrReason ? `<span style="display:block;font-size:0.74rem;color:var(--text-dim);margin-top:3px">Reason: ${escHtml(rrReason)}</span>` : ""}
           ${rrDetails ? `<span style="display:block;font-size:0.74rem;color:var(--text-dim);margin-top:3px">Details: ${escHtml(rrDetails)}</span>` : ""}
           ${rrPickupNote ? `<span style="display:block;font-size:0.74rem;color:var(--text-dim);margin-top:3px">Pickup Note: ${escHtml(rrPickupNote)}</span>` : ""}

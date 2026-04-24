@@ -111,6 +111,60 @@ $itemCount = count($toCheckout);
       border-radius: var(--radius-xl);
       padding: 28px;
     }
+    .online-payment-status {
+      margin-top: 8px;
+      border: 1px solid rgba(59, 130, 246, 0.28);
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.14), rgba(14, 116, 144, 0.1));
+      border-radius: 14px;
+      padding: 14px 16px;
+    }
+    .online-payment-status .status-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      letter-spacing: 0.1px;
+      color: var(--text);
+    }
+    .online-payment-status .status-row.hidden {
+      display: none;
+    }
+    .online-payment-status .status-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      background: rgba(59, 130, 246, 0.2);
+      border: 1px solid rgba(59, 130, 246, 0.35);
+    }
+    #onlinePaymentTimerText {
+      margin: 0;
+      color: var(--text);
+      font-size: 0.94rem;
+    }
+    .online-pay-seconds {
+      display: inline-block;
+      min-width: 34px;
+      text-align: center;
+      margin-left: 6px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(59, 130, 246, 0.2);
+      color: var(--text);
+      font-weight: 700;
+    }
+    #onlinePaymentSuccessText {
+      margin: 0;
+      color: #16a34a;
+      font-size: 0.94rem;
+    }
+    #onlinePaymentSuccessText .status-icon {
+      background: rgba(34, 197, 94, 0.2);
+      border-color: rgba(34, 197, 94, 0.35);
+    }
   </style>
 </head>
 <body class="index-page checkout-page">
@@ -187,19 +241,11 @@ $itemCount = count($toCheckout);
             <h3 class="saved-title" style="margin:0 0 14px">Payment method</h3>
             <div class="payment-method-cards payment-method-cards--three" style="margin-bottom:14px">
               <label class="payment-method-card">
-                <input type="radio" name="payment_method" value="Card" checked />
+                <input type="radio" name="payment_method" value="ONLINE" checked />
                 <span class="payment-method-card-inner">
-                  <span class="pm-icon">💳</span>
-                  <span class="pm-title">Card</span>
-                  <span class="pm-desc">Credit / Debit</span>
-                </span>
-              </label>
-              <label class="payment-method-card">
-                <input type="radio" name="payment_method" value="UPI" />
-                <span class="payment-method-card-inner">
-                  <span class="pm-icon">📱</span>
-                  <span class="pm-title">UPI</span>
-                  <span class="pm-desc">GPay, PhonePe…</span>
+                  <span class="pm-icon">🌐</span>
+                  <span class="pm-title">Online Payment</span>
+                  <span class="pm-desc">Razorpay, PayU, Paytm etc.</span>
                 </span>
               </label>
               <label class="payment-method-card">
@@ -211,60 +257,17 @@ $itemCount = count($toCheckout);
                 </span>
               </label>
             </div>
-            <div class="card-fields-wrap" id="cardDetailsWrap">
-              <div class="form-grid">
-                <div class="form-field" style="grid-column:1/-1">
-                  <label for="payCardNumber">Card Number</label>
-                  <input type="text" id="payCardNumber" placeholder="1234 5678 9012 3456" inputmode="numeric" maxlength="23" />
-                </div>
-                <div class="form-field">
-                  <label for="payCardName">Card Holder Name</label>
-                  <input type="text" id="payCardName" placeholder="Rahul Sharma" maxlength="80" />
-                </div>
-                <div class="form-field">
-                  <label for="payCardExpiry">Expiry (MM/YY)</label>
-                  <input type="text" id="payCardExpiry" placeholder="08/29" maxlength="5" />
-                </div>
-                <div class="form-field">
-                  <label for="payCardCvv">CVV</label>
-                  <input type="password" id="payCardCvv" placeholder="123" inputmode="numeric" maxlength="4" />
-                </div>
-                <div class="form-field" style="grid-column:1/-1">
-                  <label class="checkbox-label" style="display:flex;align-items:center;gap:10px;cursor:pointer;margin-top:4px">
-                    <input type="checkbox" id="payCardSave" />
-                    <span>Save this card for faster checkout next time</span>
-                  </label>
-                </div>
-              </div>
-            </div>
-            <div class="upi-fields-wrap hidden" id="upiDetailsWrap">
-              <div class="delivery-opts" style="margin-bottom:12px">
-                <label class="delivery-option">
-                  <input type="radio" name="upi_mode" value="id" checked />
-                  <div class="opt-content"><strong>UPI ID</strong><span>Enter handle</span></div>
-                </label>
-                <label class="delivery-option">
-                  <input type="radio" name="upi_mode" value="qr" />
-                  <div class="opt-content"><strong>Scan QR</strong><span>Pay with any UPI app</span></div>
-                </label>
-              </div>
-              <div id="upiIdEntry">
-                <div class="form-grid">
-                  <div class="form-field" style="grid-column:1/-1">
-                    <label for="payUpiId">UPI ID</label>
-                    <input type="text" id="payUpiId" placeholder="name@okhdfc" maxlength="80" />
-                  </div>
-                </div>
-              </div>
-              <div id="upiQrEntry" class="hidden">
-                <div class="cart-item" style="align-items:center;gap:16px">
-                  <img id="upiQrImage" alt="UPI QR code" width="150" height="150" style="border-radius:12px;border:1px solid var(--border);background:#fff;padding:8px" />
-                  <div class="item-details">
-                    <div class="item-brand">Scan and pay</div>
-                    <div class="item-name" id="upiQrAmountText">₹0</div>
-                    <div class="item-variants"><span class="var-tag" id="upiQrPayeeText">LUXE Store</span></div>
-                  </div>
-                </div>
+            <div class="online-fields-wrap" id="onlineDetailsWrap">
+              <div class="online-payment-status">
+                <p class="cod-note status-row" id="onlinePaymentTimerText">
+                  <span class="status-icon">⏳</span>
+                  <span>Processing online payment</span>
+                  <span class="online-pay-seconds" id="onlinePaymentSeconds">30s</span>
+                </p>
+                <p class="cod-note status-row hidden" id="onlinePaymentSuccessText">
+                  <span class="status-icon">✅</span>
+                  <span>Payment successful. You can continue to review.</span>
+                </p>
               </div>
             </div>
             <div class="cod-fields-wrap hidden" id="codDetailsWrap">
@@ -272,7 +275,7 @@ $itemCount = count($toCheckout);
             </div>
             <div class="form-actions" style="margin-top:16px">
               <button type="button" class="ghost-btn" id="stepBackToAddressBtn">← Back</button>
-              <button type="button" class="checkout-btn" id="stepToReviewBtn" style="max-width:220px">Continue to Review →</button>
+              <button type="button" class="checkout-btn" id="stepToReviewBtn" style="max-width:fit-content">Continue to Review →</button>
             </div>
           </section>
 
@@ -492,9 +495,6 @@ $itemCount = count($toCheckout);
     if (totEl) totEl.textContent = "₹" + total.toLocaleString("en-IN");
     const payAmt = document.getElementById("coPayAmount");
     if (payAmt) payAmt.textContent = total.toLocaleString("en-IN");
-    if (selectedPaymentMethod() === "UPI" && selectedUpiMode() === "qr") {
-      updateUpiQr(total);
-    }
   }
 
   async function fetchDeliveryFees() {
@@ -545,16 +545,15 @@ $itemCount = count($toCheckout);
   const reviewAddressText = document.getElementById("reviewAddressText");
   const reviewPaymentText = document.getElementById("reviewPaymentText");
   const reviewSpeedText = document.getElementById("reviewSpeedText");
-  const cardDetailsWrap = document.getElementById("cardDetailsWrap");
-  const upiDetailsWrap = document.getElementById("upiDetailsWrap");
+  const onlineDetailsWrap = document.getElementById("onlineDetailsWrap");
+  const onlinePaymentTimerText = document.getElementById("onlinePaymentTimerText");
+  const onlinePaymentSeconds = document.getElementById("onlinePaymentSeconds");
+  const onlinePaymentSuccessText = document.getElementById("onlinePaymentSuccessText");
   const codDetailsWrap = document.getElementById("codDetailsWrap");
-  const upiIdEntry = document.getElementById("upiIdEntry");
-  const upiQrEntry = document.getElementById("upiQrEntry");
-  const upiQrImage = document.getElementById("upiQrImage");
-  const upiQrAmountText = document.getElementById("upiQrAmountText");
-  const upiQrPayeeText = document.getElementById("upiQrPayeeText");
-  const upiQrPayeeVpa = "luxe@upi";
-  const upiQrPayeeName = "LUXE Store";
+  const REVIEW_BTN_DEFAULT_LABEL = "Continue to Review →";
+  let onlinePaymentCompleted = false;
+  let onlineTimerRemaining = 30;
+  let onlineTimerId = null;
   let currentStep = 1;
 
   function setStep(n) {
@@ -583,75 +582,71 @@ $itemCount = count($toCheckout);
 
   function selectedPaymentMethod() {
     const payEl = document.querySelector('input[name="payment_method"]:checked');
-    return payEl ? String(payEl.value) : "Card";
+    return payEl ? String(payEl.value) : "ONLINE";
   }
 
-  function selectedUpiMode() {
-    const upiEl = document.querySelector('input[name="upi_mode"]:checked');
-    return upiEl ? String(upiEl.value) : "id";
+  function updateReviewButtonState() {
+    if (!stepToReviewBtn) return;
+    const isOnline = selectedPaymentMethod() === "ONLINE";
+    if (!isOnline) {
+      stepToReviewBtn.disabled = false;
+      stepToReviewBtn.textContent = REVIEW_BTN_DEFAULT_LABEL;
+      return;
+    }
+    if (onlinePaymentCompleted) {
+      stepToReviewBtn.disabled = false;
+      stepToReviewBtn.textContent = REVIEW_BTN_DEFAULT_LABEL;
+      return;
+    }
+    stepToReviewBtn.disabled = true;
+    stepToReviewBtn.textContent = "Wait for payment success...";
+  }
+
+  function renderOnlinePaymentStatus() {
+    if (onlinePaymentTimerText) {
+      onlinePaymentTimerText.classList.toggle("hidden", onlinePaymentCompleted);
+    }
+    if (onlinePaymentSeconds) {
+      onlinePaymentSeconds.textContent = Math.max(0, onlineTimerRemaining) + "s";
+    }
+    if (onlinePaymentSuccessText) {
+      onlinePaymentSuccessText.classList.toggle("hidden", !onlinePaymentCompleted);
+    }
+    updateReviewButtonState();
+  }
+
+  function startOnlinePaymentTimer() {
+    if (onlinePaymentCompleted || onlineTimerId) return;
+    renderOnlinePaymentStatus();
+    onlineTimerId = window.setInterval(function () {
+      if (onlineTimerRemaining > 0) {
+        onlineTimerRemaining -= 1;
+      }
+      if (onlineTimerRemaining <= 0) {
+        onlinePaymentCompleted = true;
+        if (onlineTimerId) {
+          window.clearInterval(onlineTimerId);
+          onlineTimerId = null;
+        }
+        if (typeof showToast === "function") {
+          showToast("Payment successful ✅");
+        }
+      }
+      renderOnlinePaymentStatus();
+    }, 1000);
   }
 
   function togglePaymentDetails() {
     const payment = selectedPaymentMethod();
-    if (cardDetailsWrap) cardDetailsWrap.classList.toggle("hidden", payment !== "Card");
-    if (upiDetailsWrap) upiDetailsWrap.classList.toggle("hidden", payment !== "UPI");
+    if (onlineDetailsWrap) onlineDetailsWrap.classList.toggle("hidden", payment !== "ONLINE");
     if (codDetailsWrap) codDetailsWrap.classList.toggle("hidden", payment !== "COD");
-    if (payment === "UPI") toggleUpiModeDetails();
-  }
-
-  function updateUpiQr(totalAmount) {
-    const amount = Math.max(0, Number(totalAmount) || 0);
-    const upiUri = `upi://pay?pa=${encodeURIComponent(upiQrPayeeVpa)}&pn=${encodeURIComponent(upiQrPayeeName)}&am=${encodeURIComponent(amount.toFixed(2))}&cu=INR&tn=${encodeURIComponent("LUXE Order Payment")}`;
-    if (upiQrImage) {
-      upiQrImage.src = "https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=" + encodeURIComponent(upiUri);
+    if (payment === "ONLINE") {
+      startOnlinePaymentTimer();
     }
-    if (upiQrAmountText) {
-      upiQrAmountText.textContent = "₹" + amount.toLocaleString("en-IN");
-    }
-    if (upiQrPayeeText) {
-      upiQrPayeeText.textContent = upiQrPayeeName + " · " + upiQrPayeeVpa;
-    }
-  }
-
-  function toggleUpiModeDetails() {
-    const mode = selectedUpiMode();
-    if (upiIdEntry) upiIdEntry.classList.toggle("hidden", mode !== "id");
-    if (upiQrEntry) upiQrEntry.classList.toggle("hidden", mode !== "qr");
-    if (mode === "qr") updateUpiQr(latestTotal);
+    updateReviewButtonState();
   }
 
   function validatePaymentDetails() {
-    const payment = selectedPaymentMethod();
-    if (payment === "Card") {
-      const number = (document.getElementById("payCardNumber")?.value || "").replace(/\s+/g, "");
-      const name = (document.getElementById("payCardName")?.value || "").trim();
-      const expiry = (document.getElementById("payCardExpiry")?.value || "").trim();
-      const cvv = (document.getElementById("payCardCvv")?.value || "").trim();
-      if (number.length < 12 || !/^\d+$/.test(number)) {
-        showToast("⚠️ Enter a valid card number.");
-        return false;
-      }
-      if (name.length < 2) {
-        showToast("⚠️ Enter card holder name.");
-        return false;
-      }
-      if (!/^\d{2}\/\d{2}$/.test(expiry)) {
-        showToast("⚠️ Enter expiry in MM/YY format.");
-        return false;
-      }
-      if (!/^\d{3,4}$/.test(cvv)) {
-        showToast("⚠️ Enter a valid CVV.");
-        return false;
-      }
-    } else if (payment === "UPI") {
-      if (selectedUpiMode() === "id") {
-        const upi = (document.getElementById("payUpiId")?.value || "").trim();
-        if (!/^[a-zA-Z0-9.\-_]{2,}@[a-zA-Z]{2,}$/i.test(upi)) {
-          showToast("⚠️ Enter a valid UPI ID.");
-          return false;
-        }
-      }
-    }
     return true;
   }
 
@@ -668,17 +663,8 @@ $itemCount = count($toCheckout);
     }
     const pay = selectedPaymentMethod();
     if (reviewPaymentText) {
-      if (pay === "Card") {
-        const raw = (document.getElementById("payCardNumber")?.value || "").replace(/\s+/g, "");
-        const tail = raw.length >= 4 ? raw.slice(-4) : "****";
-        reviewPaymentText.textContent = "Card •••• " + tail;
-      } else if (pay === "UPI") {
-        if (selectedUpiMode() === "qr") {
-          reviewPaymentText.textContent = "UPI QR (Scan & Pay)";
-        } else {
-          const upi = (document.getElementById("payUpiId")?.value || "").trim();
-          reviewPaymentText.textContent = "UPI (" + (upi || "not set") + ")";
-        }
+      if (pay === "ONLINE") {
+        reviewPaymentText.textContent = "Online Payment";
       } else {
         reviewPaymentText.textContent = "Cash on Delivery";
       }
@@ -696,15 +682,18 @@ $itemCount = count($toCheckout);
   stepBackToAddressBtn?.addEventListener("click", function () { setStep(1); });
   stepToReviewBtn?.addEventListener("click", function () {
     if (!validatePaymentDetails()) return;
+    if (selectedPaymentMethod() === "ONLINE" && !onlinePaymentCompleted) {
+      if (typeof showToast === "function") showToast("Please wait, payment processing is still running.");
+      return;
+    }
     renderReview();
     setStep(3);
   });
   stepBackToPaymentBtn?.addEventListener("click", function () { setStep(2); });
   document.querySelectorAll('input[name="payment_method"]').forEach(el => {
-    el.addEventListener("change", togglePaymentDetails);
-  });
-  document.querySelectorAll('input[name="upi_mode"]').forEach(el => {
-    el.addEventListener("change", toggleUpiModeDetails);
+    el.addEventListener("change", function () {
+      togglePaymentDetails();
+    });
   });
 
   function resolveCheckoutAddressId() {
@@ -744,7 +733,7 @@ $itemCount = count($toCheckout);
           body: JSON.stringify({
             items: items,
             address_id: addressId,
-            payment_method: payment,
+            payment_method: payment === "ONLINE" ? "Card" : payment,
             delivery_speed: speedMode(),
             coupon_code: (function () {
               try { return (sessionStorage.getItem("luxeCheckoutCoupon") || "").trim(); } catch (_e) { return ""; }
@@ -769,7 +758,7 @@ $itemCount = count($toCheckout);
 
   setStep(1);
   togglePaymentDetails();
-  toggleUpiModeDetails();
+  renderOnlinePaymentStatus();
   void fetchDeliveryFees();
 })();
   </script>
