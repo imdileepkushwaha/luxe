@@ -237,11 +237,31 @@ $paymentStatus = strtolower(trim((string) ($order['payment_method'] ?? ''))) ===
       <p>Bank Name: HDFC Bank · IFSC: HDFC0000001 · A/C: XXXX-XXXX-9879</p>
     </div>
 
-    <div class="actions">
-      <a class="btn" href="orders.php">Back</a>
-      <button class="btn primary" type="button" onclick="window.print()">Download / Print Invoice</button>
+    <div class="actions" data-html2canvas-ignore="true">
+      <a class="btn" href="javascript:window.close();">Close</a>
+      <button class="btn primary" type="button" onclick="downloadPDF()">Download PDF</button>
     </div>
   </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script>
+    function downloadPDF() {
+      const element = document.querySelector('.invoice');
+      const opt = {
+        margin:       0.5,
+        filename:     'Invoice_<?= e((string) $order['order_ref']) ?>.pdf',
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2 },
+        jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
+      };
+      html2pdf().set(opt).from(element).save();
+    }
+    
+    // Automatically trigger PDF generation when page loads
+    window.addEventListener('load', () => {
+        setTimeout(downloadPDF, 500);
+    });
+  </script>
 </body>
 </html>
 

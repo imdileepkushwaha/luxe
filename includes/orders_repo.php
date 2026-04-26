@@ -85,15 +85,16 @@ function orders_fetch_for_user(PDO $pdo, int $userId): array
 {
     $reviewedProductIds = [];
     $reviewedSt = $pdo->prepare(
-        'SELECT product_id
+        'SELECT product_id, review_status
          FROM product_reviews
          WHERE user_id = ?
            AND product_id IS NOT NULL'
     );
     $reviewedSt->execute([$userId]);
-    while ($rv = $reviewedSt->fetch()) {
+    while ($rv = $reviewedSt->fetch(PDO::FETCH_ASSOC)) {
         $rpid = (int) ($rv['product_id'] ?? 0);
-        if ($rpid > 0) {
+        $status = strtolower(trim((string) ($rv['review_status'] ?? 'pending')));
+        if ($rpid > 0 && $status !== 'rejected') {
             $reviewedProductIds[$rpid] = true;
         }
     }
@@ -261,6 +262,12 @@ function orders_fetch_for_user(PDO $pdo, int $userId): array
                 'enquiry' => $enquiryMap[$orderItemId] ?? null,
                 'hasReview' => $productId > 0 && isset($reviewedProductIds[$productId]),
             ];
+            
+            $daysSinceDelivery = 0;
+            if (!empty($o['delivered_at'])) {
+                $daysSinceDelivery = (time() - strtotime($o['delivered_at'])) / 86400;
+            }
+            $items[count($items) - 1]['canReview'] = ($productId > 0 && !isset($reviewedProductIds[$productId]) && $daysSinceDelivery <= 60);
         }
         $orderTotal = $computedTotal > 0 ? $computedTotal : (int) $o['total_amount'];
         $out[] = [
@@ -287,15 +294,22 @@ function orders_fetch_for_user(PDO $pdo, int $userId): array
 function profile_order_stats_for_user(PDO $pdo, int $userId): array
 {
     if ($userId <= 0) {
-        return ['order_count' => 0, 'lifetime_spend_rupees' => 0, 'total_saved_rupees' => 0];
+        return ['order_count' => 0, 'lifetime_spend_rupees' => 0, 'total_saved_rupees' => 0, 'delivered_count' => 0, 'pending_count' => 0, 'cancelled_count' => 0];
     }
     $st = $pdo->prepare(
-        'SELECT COUNT(*) AS c, COALESCE(SUM(total_amount), 0) AS spend FROM orders WHERE user_id = ?'
+        'SELECT COUNT(*) AS c, COALESCE(SUM(total_amount), 0) AS spend,
+         SUM(CASE WHEN status = \'delivered\' THEN 1 ELSE 0 END) AS delivered_count,
+         SUM(CASE WHEN status = \'pending\' THEN 1 ELSE 0 END) AS pending_count,
+         SUM(CASE WHEN status = \'cancelled\' THEN 1 ELSE 0 END) AS cancelled_count
+         FROM orders WHERE user_id = ?'
     );
     $st->execute([$userId]);
     $row = $st->fetch(PDO::FETCH_ASSOC) ?: [];
     $orderCount = (int) ($row['c'] ?? 0);
     $spend = (int) ($row['spend'] ?? 0);
+    $deliveredCount = (int) ($row['delivered_count'] ?? 0);
+    $pendingCount = (int) ($row['pending_count'] ?? 0);
+    $cancelledCount = (int) ($row['cancelled_count'] ?? 0);
 
     $savedSt = $pdo->prepare(
         'SELECT COALESCE(SUM(
@@ -313,6 +327,9 @@ function profile_order_stats_for_user(PDO $pdo, int $userId): array
         'order_count' => $orderCount,
         'lifetime_spend_rupees' => $spend,
         'total_saved_rupees' => $saved,
+        'delivered_count' => $deliveredCount,
+        'pending_count' => $pendingCount,
+        'cancelled_count' => $cancelledCount,
     ];
 }
 
