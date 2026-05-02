@@ -104,7 +104,8 @@ function cart_filter_available_items(PDO $pdo, array $items): array
     $items = cart_merge_duplicate_lines($items);
 
     $productSt = $pdo->prepare(
-        'SELECT p.id, p.name, p.emoji, p.price, p.stock_qty, p.brand, p.seller_id
+        'SELECT p.id, p.name, p.slug, p.emoji, p.price, p.original_price AS original, p.stock_qty, p.brand, p.seller_id, p.image_path,
+                (SELECT pi.image_path FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.sort_order ASC, pi.id ASC LIMIT 1) AS gallery_first
          FROM products p
          LEFT JOIN seller_users s ON s.id = p.seller_id
          WHERE p.id = ?
@@ -148,19 +149,25 @@ function cart_filter_available_items(PDO $pdo, array $items): array
         if ($brandLine === '') {
             $brandLine = trim((string) ($p['brand'] ?? ''));
         }
+        $mainImg = trim((string) ($p['image_path'] ?? ''));
+        $galImg = trim((string) ($p['gallery_first'] ?? ''));
+        $finalImg = $mainImg !== '' ? $mainImg : $galImg;
+
         $clean[] = [
             'id' => (int) ($p['id'] ?? 0),
             'name' => (string) ($p['name'] ?? 'Item'),
             'brand' => $brandLine,
             'emoji' => (string) ($p['emoji'] ?? '📦'),
             'price' => max(0, (int) ($p['price'] ?? 0)),
-            'orig' => max(0, (int) ($it['orig'] ?? ($p['price'] ?? 0))),
+            'orig' => max(0, (int) ($p['original'] ?? $p['price'] ?? 0)),
             'qty' => $qty,
             'max_qty' => $maxQty,
             'size' => (string) ($it['size'] ?? ''),
             'color' => (string) ($it['color'] ?? ''),
             'checked' => isset($it['checked']) ? (bool) $it['checked'] : true,
+            'slug' => (string) ($p['slug'] ?? ''),
             'seller_id' => max(0, (int) ($p['seller_id'] ?? 0)),
+            'image_path' => $finalImg,
         ];
     }
 
@@ -325,9 +332,9 @@ function cart_speed_fee_totals_for_lines(PDO $pdo, array $lines): array
         $fee = max(0, (int) ($row['fee_amount'] ?? 0));
         $code = strtolower((string) ($row['option_code'] ?? ''));
         if ($code === 'express') {
-            $out['express'] += $fee;
+            $out['express'] = max($out['express'], $fee);
         } elseif ($code === 'same_day') {
-            $out['same_day'] += $fee;
+            $out['same_day'] = max($out['same_day'], $fee);
         }
     }
 
