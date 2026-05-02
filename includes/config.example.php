@@ -44,4 +44,12 @@ return [
         'sms_api_key' => '',
         'sms_sender_id' => 'LUXE',
     ],
+    // Storefront checkout: Razorpay Standard (Orders API). Test keys: https://dashboard.razorpay.com/app/keys
+    // CLI smoke test: C:\xampp\php\php.exe scripts\razorpay-smoke-test.php — ya env: LUXE_RAZORPAY_KEY_ID / LUXE_RAZORPAY_KEY_SECRET
+    'razorpay' => [
+        'key_id' => '',
+        'key_secret' => '',
+        // true = online checkout bina Razorpay (dev only). Production: false + keys.
+        'dev_skip_gateway' => false,
+    ],
 ];

@@ -14,6 +14,14 @@ if ($userId === null) {
 
 $pdo = db();
 $user = auth_user($pdo);
+require_once __DIR__ . '/includes/razorpay.php';
+$rzDevSkip = luxe_razorpay_dev_skip_payment();
+$rzCheckoutKeyId = ($rzDevSkip || !luxe_razorpay_configured($pdo)) ? '' : luxe_razorpay_credentials($pdo)['key_id'];
+$checkoutRzpPrefill = [
+    'email' => trim((string) ($user['email'] ?? '')),
+    'contact' => preg_replace('/\D+/', '', (string) ($user['phone'] ?? '')),
+    'name' => trim(trim((string) ($user['first_name'] ?? '')) . ' ' . trim((string) ($user['last_name'] ?? ''))),
+];
 $cartItems = $_SESSION['cart'] ?? [];
 $cartItems = cart_filter_available_items($pdo, $cartItems);
 $_SESSION['cart'] = $cartItems;
@@ -126,9 +134,6 @@ $itemCount = count($toCheckout);
       letter-spacing: 0.1px;
       color: var(--text);
     }
-    .online-payment-status .status-row.hidden {
-      display: none;
-    }
     .online-payment-status .status-icon {
       width: 30px;
       height: 30px;
@@ -140,30 +145,10 @@ $itemCount = count($toCheckout);
       background: rgba(59, 130, 246, 0.2);
       border: 1px solid rgba(59, 130, 246, 0.35);
     }
-    #onlinePaymentTimerText {
+    #onlinePaymentInfoText {
       margin: 0;
       color: var(--text);
       font-size: 0.94rem;
-    }
-    .online-pay-seconds {
-      display: inline-block;
-      min-width: 34px;
-      text-align: center;
-      margin-left: 6px;
-      padding: 2px 8px;
-      border-radius: 999px;
-      background: rgba(59, 130, 246, 0.2);
-      color: var(--text);
-      font-weight: 700;
-    }
-    #onlinePaymentSuccessText {
-      margin: 0;
-      color: #16a34a;
-      font-size: 0.94rem;
-    }
-    #onlinePaymentSuccessText .status-icon {
-      background: rgba(34, 197, 94, 0.2);
-      border-color: rgba(34, 197, 94, 0.35);
     }
   </style>
 </head>
@@ -245,7 +230,7 @@ $itemCount = count($toCheckout);
                 <span class="payment-method-card-inner">
                   <span class="pm-icon">🌐</span>
                   <span class="pm-title">Online Payment</span>
-                  <span class="pm-desc">Razorpay, PayU, Paytm etc.</span>
+                  <span class="pm-desc">Cards, UPI, netbanking via Razorpay</span>
                 </span>
               </label>
               <label class="payment-method-card">
@@ -259,14 +244,13 @@ $itemCount = count($toCheckout);
             </div>
             <div class="online-fields-wrap" id="onlineDetailsWrap">
               <div class="online-payment-status">
-                <p class="cod-note status-row" id="onlinePaymentTimerText">
-                  <span class="status-icon">⏳</span>
-                  <span>Processing online payment</span>
-                  <span class="online-pay-seconds" id="onlinePaymentSeconds">30s</span>
-                </p>
-                <p class="cod-note status-row hidden" id="onlinePaymentSuccessText">
-                  <span class="status-icon">✅</span>
-                  <span>Payment successful. You can continue to review.</span>
+                <p class="cod-note status-row" id="onlinePaymentInfoText">
+                  <span class="status-icon"><?= $rzDevSkip ? '🔧' : '💳' ?></span>
+                  <span><?php if ($rzDevSkip): ?>
+                    Dev mode: <strong>Place order</strong> par seedha order ban jayega — Razorpay modal nahi. Live par <code>dev_skip_gateway</code> band rakho.
+                  <?php else: ?>
+                    Razorpay secure checkout opens when you tap <strong>Place order</strong> on the last step.
+                  <?php endif; ?></span>
                 </p>
               </div>
             </div>
@@ -402,6 +386,10 @@ $itemCount = count($toCheckout);
     ], JSON_THROW_ON_ERROR) ?>;
     window.__API_CART_DELIVERY__ = 'api/cart-delivery.php';
     window.__API_PLACE_ORDER__ = 'actions/place-order.php';
+    window.__API_RAZORPAY_CREATE_ORDER__ = 'actions/razorpay-create-order.php';
+    window.__RAZORPAY_KEY_ID__ = <?= json_encode($rzCheckoutKeyId, JSON_THROW_ON_ERROR) ?>;
+    window.__RAZORPAY_DEV_SKIP__ = <?= $rzDevSkip ? 'true' : 'false' ?>;
+    window.__CHECKOUT_USER_PREFILL__ = <?= json_encode($checkoutRzpPrefill, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
     window.__API_ADDRESS_SAVE__ = 'actions/save-address.php';
     window.__API_ADDRESS_DELETE__ = 'actions/delete-address.php';
     window.__API_ADDRESS_DEFAULT__ = 'actions/set-default-address.php';
@@ -546,14 +534,8 @@ $itemCount = count($toCheckout);
   const reviewPaymentText = document.getElementById("reviewPaymentText");
   const reviewSpeedText = document.getElementById("reviewSpeedText");
   const onlineDetailsWrap = document.getElementById("onlineDetailsWrap");
-  const onlinePaymentTimerText = document.getElementById("onlinePaymentTimerText");
-  const onlinePaymentSeconds = document.getElementById("onlinePaymentSeconds");
-  const onlinePaymentSuccessText = document.getElementById("onlinePaymentSuccessText");
   const codDetailsWrap = document.getElementById("codDetailsWrap");
   const REVIEW_BTN_DEFAULT_LABEL = "Continue to Review →";
-  let onlinePaymentCompleted = false;
-  let onlineTimerRemaining = 30;
-  let onlineTimerId = null;
   let currentStep = 1;
 
   function setStep(n) {
@@ -587,62 +569,14 @@ $itemCount = count($toCheckout);
 
   function updateReviewButtonState() {
     if (!stepToReviewBtn) return;
-    const isOnline = selectedPaymentMethod() === "ONLINE";
-    if (!isOnline) {
-      stepToReviewBtn.disabled = false;
-      stepToReviewBtn.textContent = REVIEW_BTN_DEFAULT_LABEL;
-      return;
-    }
-    if (onlinePaymentCompleted) {
-      stepToReviewBtn.disabled = false;
-      stepToReviewBtn.textContent = REVIEW_BTN_DEFAULT_LABEL;
-      return;
-    }
-    stepToReviewBtn.disabled = true;
-    stepToReviewBtn.textContent = "Wait for payment success...";
-  }
-
-  function renderOnlinePaymentStatus() {
-    if (onlinePaymentTimerText) {
-      onlinePaymentTimerText.classList.toggle("hidden", onlinePaymentCompleted);
-    }
-    if (onlinePaymentSeconds) {
-      onlinePaymentSeconds.textContent = Math.max(0, onlineTimerRemaining) + "s";
-    }
-    if (onlinePaymentSuccessText) {
-      onlinePaymentSuccessText.classList.toggle("hidden", !onlinePaymentCompleted);
-    }
-    updateReviewButtonState();
-  }
-
-  function startOnlinePaymentTimer() {
-    if (onlinePaymentCompleted || onlineTimerId) return;
-    renderOnlinePaymentStatus();
-    onlineTimerId = window.setInterval(function () {
-      if (onlineTimerRemaining > 0) {
-        onlineTimerRemaining -= 1;
-      }
-      if (onlineTimerRemaining <= 0) {
-        onlinePaymentCompleted = true;
-        if (onlineTimerId) {
-          window.clearInterval(onlineTimerId);
-          onlineTimerId = null;
-        }
-        if (typeof showToast === "function") {
-          showToast("Payment successful ✅");
-        }
-      }
-      renderOnlinePaymentStatus();
-    }, 1000);
+    stepToReviewBtn.disabled = false;
+    stepToReviewBtn.textContent = REVIEW_BTN_DEFAULT_LABEL;
   }
 
   function togglePaymentDetails() {
     const payment = selectedPaymentMethod();
     if (onlineDetailsWrap) onlineDetailsWrap.classList.toggle("hidden", payment !== "ONLINE");
     if (codDetailsWrap) codDetailsWrap.classList.toggle("hidden", payment !== "COD");
-    if (payment === "ONLINE") {
-      startOnlinePaymentTimer();
-    }
     updateReviewButtonState();
   }
 
@@ -664,7 +598,9 @@ $itemCount = count($toCheckout);
     const pay = selectedPaymentMethod();
     if (reviewPaymentText) {
       if (pay === "ONLINE") {
-        reviewPaymentText.textContent = "Online Payment";
+        reviewPaymentText.textContent = window.__RAZORPAY_DEV_SKIP__
+          ? "Online (dev — gateway skip)"
+          : "Razorpay (UPI / card / netbanking)";
       } else {
         reviewPaymentText.textContent = "Cash on Delivery";
       }
@@ -682,10 +618,6 @@ $itemCount = count($toCheckout);
   stepBackToAddressBtn?.addEventListener("click", function () { setStep(1); });
   stepToReviewBtn?.addEventListener("click", function () {
     if (!validatePaymentDetails()) return;
-    if (selectedPaymentMethod() === "ONLINE" && !onlinePaymentCompleted) {
-      if (typeof showToast === "function") showToast("Please wait, payment processing is still running.");
-      return;
-    }
     renderReview();
     setStep(3);
   });
@@ -714,6 +646,48 @@ $itemCount = count($toCheckout);
     }
     return 0;
   }
+  function getCouponCodeForOrder() {
+    try { return (sessionStorage.getItem("luxeCheckoutCoupon") || "").trim(); } catch (_e) { return ""; }
+  }
+
+  function loadRazorpayScript() {
+    return new Promise(function (resolve, reject) {
+      if (window.Razorpay) {
+        resolve();
+        return;
+      }
+      const s = document.createElement("script");
+      s.src = "https://checkout.razorpay.com/v1/checkout.js";
+      s.onload = function () { resolve(); };
+      s.onerror = function () { reject(new Error("Could not load Razorpay checkout")); };
+      document.body.appendChild(s);
+    });
+  }
+
+  async function postPlaceOrder(addressId, paymentMethod, rzpExtra) {
+    const url = window.__API_PLACE_ORDER__ || "actions/place-order.php";
+    /** @type {Record<string, unknown>} */
+    const body = {
+      items: items,
+      address_id: addressId,
+      payment_method: paymentMethod,
+      delivery_speed: speedMode(),
+      coupon_code: getCouponCodeForOrder()
+    };
+    if (rzpExtra && typeof rzpExtra === "object") {
+      body.razorpay_order_id = rzpExtra.razorpay_order_id;
+      body.razorpay_payment_id = rzpExtra.razorpay_payment_id;
+      body.razorpay_signature = rzpExtra.razorpay_signature;
+    }
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify(body)
+    });
+    return r.json();
+  }
+
   if (btn) {
     btn.addEventListener("click", async function () {
       const addressId = resolveCheckoutAddressId();
@@ -723,42 +697,145 @@ $itemCount = count($toCheckout);
         return;
       }
       const payment = selectedPaymentMethod();
+      if (payment === "COD") {
+        btn.disabled = true;
+        try {
+          const data = await postPlaceOrder(addressId, "COD", null);
+          if (data.ok && data.order_ref) {
+            try { sessionStorage.removeItem("luxeCheckoutCoupon"); } catch (_e) {}
+            window.location.href = "orders.php?placed=" + encodeURIComponent(data.order_ref);
+            return;
+          }
+          if (typeof showToast === "function") showToast(data.message || "Could not place order.");
+          else alert(data.message || "Could not place order.");
+        } catch (_e) {
+          if (typeof showToast === "function") showToast("Network error — try again.");
+          else alert("Network error.");
+        }
+        btn.disabled = false;
+        return;
+      }
+      if (window.__RAZORPAY_DEV_SKIP__ === true) {
+        btn.disabled = true;
+        try {
+          const data = await postPlaceOrder(addressId, "Razorpay", null);
+          if (data.ok && data.order_ref) {
+            try { sessionStorage.removeItem("luxeCheckoutCoupon"); } catch (_e) {}
+            window.location.href = "orders.php?placed=" + encodeURIComponent(data.order_ref);
+            return;
+          }
+          if (typeof showToast === "function") showToast(data.message || "Could not place order.");
+          else alert(data.message || "Could not place order.");
+        } catch (_e) {
+          if (typeof showToast === "function") showToast("Network error — try again.");
+          else alert("Network error.");
+        }
+        btn.disabled = false;
+        return;
+      }
+      const rzKey = (typeof window.__RAZORPAY_KEY_ID__ === "string" && window.__RAZORPAY_KEY_ID__.trim()) || "";
+      if (!rzKey) {
+        if (typeof showToast === "function") {
+          showToast("Razorpay is not configured. Use COD or add key_id / key_secret in includes/config.php.");
+        } else {
+          alert("Razorpay not configured.");
+        }
+        return;
+      }
       btn.disabled = true;
       try {
-        const url = window.__API_PLACE_ORDER__ || "actions/place-order.php";
-        const r = await fetch(url, {
+        await loadRazorpayScript();
+      } catch (e) {
+        const msg = e && e.message ? String(e.message) : "Could not load payment UI.";
+        if (typeof showToast === "function") showToast(msg);
+        else alert(msg);
+        btn.disabled = false;
+        return;
+      }
+      try {
+        const createUrl = window.__API_RAZORPAY_CREATE_ORDER__ || "actions/razorpay-create-order.php";
+        const cr = await fetch(createUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "same-origin",
           body: JSON.stringify({
             items: items,
             address_id: addressId,
-            payment_method: payment === "ONLINE" ? "Card" : payment,
             delivery_speed: speedMode(),
-            coupon_code: (function () {
-              try { return (sessionStorage.getItem("luxeCheckoutCoupon") || "").trim(); } catch (_e) { return ""; }
-            })()
+            coupon_code: getCouponCodeForOrder()
           })
         });
-        const data = await r.json();
-        if (data.ok && data.order_ref) {
-          try { sessionStorage.removeItem("luxeCheckoutCoupon"); } catch (_e) {}
-          window.location.href = "orders.php?placed=" + encodeURIComponent(data.order_ref);
+        const co = await cr.json();
+        if (!co.ok) {
+          if (typeof showToast === "function") showToast(co.message || "Could not start payment.");
+          else alert(co.message || "Could not start payment.");
+          btn.disabled = false;
           return;
         }
-        if (typeof showToast === "function") showToast(data.message || "Could not place order.");
-        else alert(data.message || "Could not place order.");
-      } catch (_e) {
-        if (typeof showToast === "function") showToast("Network error — try again.");
-        else alert("Network error.");
+        const prefill = (typeof window.__CHECKOUT_USER_PREFILL__ === "object" && window.__CHECKOUT_USER_PREFILL__) || {};
+        const placeBtn = btn;
+        const options = {
+          key: co.key_id,
+          amount: co.amount,
+          currency: co.currency || "INR",
+          order_id: co.order_id,
+          name: "LUXE",
+          description: "Order payment",
+          handler: function (response) {
+            void (async function () {
+              try {
+                const data = await postPlaceOrder(addressId, "Razorpay", {
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_signature: response.razorpay_signature
+                });
+                if (data.ok && data.order_ref) {
+                  try { sessionStorage.removeItem("luxeCheckoutCoupon"); } catch (_e2) {}
+                  window.location.href = "orders.php?placed=" + encodeURIComponent(data.order_ref);
+                  return;
+                }
+                if (typeof showToast === "function") {
+                  showToast(data.message || "Order failed after payment. Contact support if you were charged.");
+                } else {
+                  alert(data.message || "Order failed.");
+                }
+              } catch (_e3) {
+                if (typeof showToast === "function") {
+                  showToast("Network error after payment — check My orders or contact support.");
+                } else {
+                  alert("Network error.");
+                }
+              }
+              placeBtn.disabled = false;
+            })();
+          },
+          modal: {
+            ondismiss: function () {
+              placeBtn.disabled = false;
+            }
+          },
+          prefill: {
+            email: prefill.email || "",
+            contact: prefill.contact || "",
+            name: (String(prefill.name || "").trim()) || "Customer"
+          },
+          theme: { color: "#18181b" }
+        };
+        const rzp = new window.Razorpay(options);
+        rzp.on("payment.failed", function () {
+          if (typeof showToast === "function") showToast("Payment failed or was cancelled.");
+          placeBtn.disabled = false;
+        });
+        rzp.open();
+      } catch (_err) {
+        if (typeof showToast === "function") showToast("Could not start Razorpay — try again.");
+        btn.disabled = false;
       }
-      btn.disabled = false;
     });
   }
 
   setStep(1);
   togglePaymentDetails();
-  renderOnlinePaymentStatus();
   void fetchDeliveryFees();
 })();
   </script>

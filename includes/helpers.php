@@ -46,3 +46,27 @@ function luxe_product_url(int $id, string $slug = ''): string
 
     return 'product.php?id=' . $id;
 }
+
+/**
+ * Full app config (includes/db.php uses ['db'] via db_config()).
+ *
+ * @return array<string, mixed>
+ */
+function luxe_app_config(): array
+{
+    static $full = null;
+    if ($full !== null) {
+        return $full;
+    }
+    $path = __DIR__ . '/config.php';
+    if (!is_readable($path)) {
+        throw new RuntimeException('Missing includes/config.php — copy includes/config.example.php');
+    }
+    $cfg = require $path;
+    if (!is_array($cfg)) {
+        throw new RuntimeException('Invalid includes/config.php');
+    }
+    $full = $cfg;
+
+    return $full;
+}

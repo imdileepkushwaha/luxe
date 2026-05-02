@@ -1,0 +1,778 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zenis Layout Replica</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Inter:wght@400;500;600;700&family=Jost:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="header-logo" href="#" aria-label="Zenis home">
+        <span class="logo-mark" aria-hidden="true">
+          <span class="logo-stripe"></span>
+          <span class="logo-stripe"></span>
+          <span class="logo-stripe"></span>
+        </span>
+        <span class="logo-word">Zenis</span>
+      </a>
+
+      <form class="header-search" role="search" action="#" method="get">
+        <div class="search-cat">
+          <label class="visually-hidden" for="header-cat">Category</label>
+          <select id="header-cat" name="category" class="search-cat-select">
+            <option>All Categories</option>
+            <option>Men's Fashion</option>
+            <option>Women's Fashion</option>
+          </select>
+        </div>
+        <span class="search-divider" aria-hidden="true"></span>
+        <input type="search" class="search-input" name="q" placeholder="Search your product..." autocomplete="off">
+        <button type="submit" class="search-submit" aria-label="Search">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="7"/>
+            <path d="M20 20l-4.3-4.3"/>
+          </svg>
+        </button>
+      </form>
+
+      <div class="header-hotline">
+        <span class="hotline-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+          </svg>
+        </span>
+        <div class="hotline-text">
+          <span class="hotline-label">Hotline:</span>
+          <span class="hotline-num">+(402) 763 282 46</span>
+        </div>
+      </div>
+
+      <div class="header-locale">
+        <label class="visually-hidden" for="header-lang">Language</label>
+        <div class="locale-pill-wrap">
+          <select id="header-lang" class="locale-pill" name="lang">
+            <option>English</option>
+            <option>Arabic</option>
+            <option>Hindi</option>
+          </select>
+        </div>
+        <label class="visually-hidden" for="header-currency">Currency</label>
+        <div class="locale-pill-wrap">
+          <select id="header-currency" class="locale-pill" name="currency">
+            <option>$USD</option>
+            <option>€EUR</option>
+            <option>£GBP</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero-block" aria-label="Featured">
+      <div class="container hero-block-inner">
+        <div class="subnav-strip">
+          <button type="button" class="browse-categories-btn">
+            <svg class="ico-hamburger" width="18" height="14" viewBox="0 0 18 14" fill="none" aria-hidden="true">
+              <path d="M0 1h18M0 7h18M0 13h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Browse Categories
+          </button>
+          <nav class="subnav-menu" aria-label="Main">
+            <a href="#" class="is-active">Home</a>
+            <a href="#">Shop <span class="nav-chev" aria-hidden="true"></span></a>
+            <a href="#">Vendor <span class="nav-chev" aria-hidden="true"></span></a>
+            <a href="#">Flash Deals <span class="nav-chev" aria-hidden="true"></span></a>
+            <a href="#">Pages <span class="nav-chev" aria-hidden="true"></span></a>
+            <a href="#">Blog <span class="nav-chev" aria-hidden="true"></span></a>
+            <a href="#">Contact</a>
+          </nav>
+          <div class="subnav-tools">
+            <a href="#" class="tool-link" title="Compare">
+              <span class="badge-count">2</span>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M8 21H3v-5"/><path d="M21 16l-5 5"/><path d="M3 8l5-5"/><path d="M12 12h.01"/><path d="M16 12h.01"/><path d="M8 12h.01"/></svg>
+            </a>
+            <a href="#" class="tool-link" title="Wishlist">
+              <span class="badge-count">5</span>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            </a>
+            <a href="#" class="tool-link" title="Cart">
+              <span class="badge-count">3</span>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6h15l-1.5 9h-12z"/><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/><path d="M6 6L5 3H2"/></svg>
+            </a>
+            <div class="user-chip">
+              <span class="user-avatar" aria-hidden="true">SJ</span>
+              <span class="user-name">Smith Jhon</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="hero-row">
+          <aside class="category-sidebar">
+            <ul class="category-list">
+              <li>
+                <span class="cat-ico" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 5 4 8v4h2"/><path d="m18 5 2 3v4h-2"/><path d="M6 12h12v9H6z"/><path d="M9 5V3h6v2"/></svg></span>
+                <span>Men's Fashion</span><span class="cat-chev" aria-hidden="true"></span>
+              </li>
+              <li>
+                <span class="cat-ico" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 7 7h10L12 3Z"/><path d="m7 7-2 14h14L17 7"/></svg></span>
+                <span>Women's Fashion</span><span class="cat-chev" aria-hidden="true"></span>
+              </li>
+              <li>
+                <span class="cat-ico" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="11" r="7"/><path d="M8 15s1.3 2 4 2 4-2 4-2"/><circle cx="9" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="1" fill="currentColor" stroke="none"/></svg></span>
+                <span>Kid's Fashion</span><span class="cat-chev" aria-hidden="true"></span>
+              </li>
+              <li>
+                <span class="cat-ico" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3h4v5l-1 15h-2L10 8 9 18H7L8 8V3z"/></svg></span>
+                <span>Denim Collection</span><span class="cat-chev" aria-hidden="true"></span>
+              </li>
+              <li>
+                <span class="cat-ico" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14h16"/><path d="M12 5c-4.5 0-8 3-8 7v2h16v-2c0-4-3.5-7-8-7Z"/><path d="M8 9h8"/></svg></span>
+                <span>Western Wear</span><span class="cat-chev" aria-hidden="true"></span>
+              </li>
+              <li>
+                <span class="cat-ico" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 11h2"/><path d="M16 11h2"/><path d="M9 8H7.5a1.5 1.5 0 0 0 0 3H9"/><path d="M15 8h1.5a1.5 1.5 0 0 1 0 3H15"/><path d="M11 8v8"/><path d="M13 8v8"/></svg></span>
+                <span>Sport Wear</span><span class="cat-chev" aria-hidden="true"></span>
+              </li>
+              <li>
+                <span class="cat-ico" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12c2-4 5-5 8-5s6 1 8 5v7H4v-7Z"/><path d="M16 7c2 0 4 2 4 4v3"/></svg></span>
+                <span>Footwear</span><span class="cat-chev" aria-hidden="true"></span>
+              </li>
+              <li>
+                <span class="cat-ico" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 20 9 12 21 4 9 12 3Z"/><path d="M4 9h16"/></svg></span>
+                <span>Fashion Jewellery</span><span class="cat-chev" aria-hidden="true"></span>
+              </li>
+              <li>
+                <span class="cat-ico" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v2"/><path d="M12 19v2"/><path d="M3 12h2"/><path d="M19 12h2"/><path d="m5.6 5.6 1.4 1.4"/><path d="m17 17 1.4 1.4"/><path d="m5.6 18.4 1.4-1.4"/><path d="m17 7 1.4-1.4"/><circle cx="12" cy="12" r="2.5"/></svg></span>
+                <span>Beauty & Cosmetics</span><span class="cat-chev" aria-hidden="true"></span>
+              </li>
+            </ul>
+            <a href="#" class="view-all-categories">View All Categories <span aria-hidden="true">→</span></a>
+          </aside>
+
+          <article class="hero-banner" id="hero-carousel" aria-roledescription="carousel" aria-label="Promotional banners">
+            <div class="hero-banner-decor" aria-hidden="true"></div>
+            <div class="hero-slides-viewport">
+              <div class="hero-slides-track" data-hero-track>
+                <div class="hero-slide" id="hero-carousel-slide-1" data-hero-slide aria-hidden="false">
+                  <div class="hero-banner-inner">
+                    <div class="hero-banner-copy">
+                      <p class="hero-script-accent">Best Selling Of 2025</p>
+                      <h1 class="hero-title">Discover Your Best Fitting Clothes</h1>
+                      <a class="btn-hero" href="#">
+                        Shop Now
+                        <svg class="btn-hero-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7"/><path d="M7 7h10v10"/></svg>
+                      </a>
+                    </div>
+                    <div class="hero-banner-visual">
+                      <span class="hero-pink-blob" aria-hidden="true"></span>
+                      <div class="hero-model-photo hero-model-photo--1" role="img" aria-label="Fashion model"></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="hero-slide" id="hero-carousel-slide-2" data-hero-slide aria-hidden="true">
+                  <div class="hero-banner-inner">
+                    <div class="hero-banner-copy">
+                      <p class="hero-script-accent">New Arrivals Of 2025</p>
+                      <h1 class="hero-title">Where Fashion Meets Individuality</h1>
+                      <a class="btn-hero" href="#">
+                        Shop Now
+                        <svg class="btn-hero-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7"/><path d="M7 7h10v10"/></svg>
+                      </a>
+                    </div>
+                    <div class="hero-banner-visual">
+                      <span class="hero-pink-blob hero-pink-blob--soft" aria-hidden="true"></span>
+                      <div class="hero-model-photo hero-model-photo--2" role="img" aria-label="Fashion model"></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="hero-slide" id="hero-carousel-slide-3" data-hero-slide aria-hidden="true">
+                  <div class="hero-banner-inner">
+                    <div class="hero-banner-copy">
+                      <p class="hero-script-accent">Trending Of This Month</p>
+                      <h1 class="hero-title">Make Your Fashion Look More Changing</h1>
+                      <a class="btn-hero" href="#">
+                        Shop Now
+                        <svg class="btn-hero-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7"/><path d="M7 7h10v10"/></svg>
+                      </a>
+                    </div>
+                    <div class="hero-banner-visual">
+                      <span class="hero-pink-blob hero-pink-blob--mint" aria-hidden="true"></span>
+                      <div class="hero-model-photo hero-model-photo--3" role="img" aria-label="Fashion model"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="hero-slider-dots" role="tablist" aria-label="Choose slide">
+              <button type="button" class="is-active" role="tab" aria-selected="true" aria-controls="hero-carousel-slide-1" id="hero-carousel-tab-1" data-hero-dot="0" aria-label="Slide 1 of 3"></button>
+              <button type="button" role="tab" aria-selected="false" aria-controls="hero-carousel-slide-2" id="hero-carousel-tab-2" data-hero-dot="1" aria-label="Slide 2 of 3"></button>
+              <button type="button" role="tab" aria-selected="false" aria-controls="hero-carousel-slide-3" id="hero-carousel-tab-3" data-hero-dot="2" aria-label="Slide 3 of 3"></button>
+            </div>
+          </article>
+
+          <article class="hero-side-card">
+            <span class="hero-side-badge script-accent">Summer Offer</span>
+            <h2 class="hero-side-title">Make Your Fashion Story Unique Every Day</h2>
+            <a class="btn-hero btn-hero-sm" href="#">
+              Shop Now
+              <svg class="btn-hero-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7"/><path d="M7 7h10v10"/></svg>
+            </a>
+            <div class="hero-side-photo" role="img" aria-label="Model in denim"></div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <div class="container page">
+
+    <section class="feature-pills" aria-label="Store benefits">
+      <article class="feature-pill feature-pill--refund">
+        <div class="feature-pill__icon" aria-hidden="true">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+        </div>
+        <div class="feature-pill__body">
+          <strong class="feature-pill__title">Return &amp; Refund</strong>
+          <span class="feature-pill__sub">Money back guarantee</span>
+        </div>
+      </article>
+      <article class="feature-pill feature-pill--support">
+        <div class="feature-pill__icon" aria-hidden="true">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/><path d="M14.05 2a9 9 0 0 1 8 7.94"/></svg>
+        </div>
+        <div class="feature-pill__body">
+          <strong class="feature-pill__title">Quality Support</strong>
+          <span class="feature-pill__sub">Always online 24/7</span>
+        </div>
+      </article>
+      <article class="feature-pill feature-pill--payment">
+        <div class="feature-pill__icon" aria-hidden="true">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+        </div>
+        <div class="feature-pill__body">
+          <strong class="feature-pill__title">Secure Payment</strong>
+          <span class="feature-pill__sub">Trusted checkout</span>
+        </div>
+      </article>
+      <article class="feature-pill feature-pill--offers">
+        <div class="feature-pill__icon" aria-hidden="true">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><path d="M7 7h.01"/></svg>
+        </div>
+        <div class="feature-pill__body">
+          <strong class="feature-pill__title">Daily Offers</strong>
+          <span class="feature-pill__sub">Fresh discounts</span>
+        </div>
+      </article>
+    </section>
+
+    <section class="icon-row icon-row--premium" aria-label="Featured brands">
+      <div class="icon-row__header">
+        <div class="icon-row__intro">
+          <p class="icon-row__eyebrow">Trusted partners</p>
+          <h3 class="icon-row__title">Global brands you love</h3>
+          <p class="icon-row__lead">Curated labels for quality, fit, and everyday style.</p>
+        </div>
+        <span class="icon-row__stat"><strong>6+</strong> brands</span>
+      </div>
+      <div class="icon-row__scroller">
+        <div class="icon-row__list">
+          <a class="icon-row__card icon-row__card--adidas" href="#">
+            <span class="icon-row__mark" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M6 18l4-12M10 18l4-12M14 18l4-12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+            </span>
+            <span class="icon-row__name">Adidas</span>
+            <span class="icon-row__chev" aria-hidden="true"></span>
+          </a>
+          <a class="icon-row__card icon-row__card--nike" href="#">
+            <span class="icon-row__mark" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 16c4-6 12-10 16-10-6 2-12 8-16 10z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+            </span>
+            <span class="icon-row__name">Nike</span>
+            <span class="icon-row__chev" aria-hidden="true"></span>
+          </a>
+          <a class="icon-row__card icon-row__card--puma" href="#">
+            <span class="icon-row__mark" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="7" stroke="currentColor" stroke-width="2"/><path d="M12 8v8M8 12h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            </span>
+            <span class="icon-row__name">Puma</span>
+            <span class="icon-row__chev" aria-hidden="true"></span>
+          </a>
+          <a class="icon-row__card icon-row__card--zara" href="#">
+            <span class="icon-row__mark" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M6 8h12M6 12h9M6 16h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </span>
+            <span class="icon-row__name">Zara</span>
+            <span class="icon-row__chev" aria-hidden="true"></span>
+          </a>
+          <a class="icon-row__card icon-row__card--levis" href="#">
+            <span class="icon-row__mark" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="5" y="6" width="14" height="12" rx="2" stroke="currentColor" stroke-width="2"/><path d="M9 10h6M9 14h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            </span>
+            <span class="icon-row__name">Levi's</span>
+            <span class="icon-row__chev" aria-hidden="true"></span>
+          </a>
+          <a class="icon-row__card icon-row__card--hm" href="#">
+            <span class="icon-row__mark" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M8 18V6l8 6-8 6z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+            </span>
+            <span class="icon-row__name">H&amp;M</span>
+            <span class="icon-row__chev" aria-hidden="true"></span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <section class="split-block">
+      <article class="left-banner">
+        <div class="left-banner__content">
+          <h3>Make Your Fashion Look More Changing</h3>
+          <p>Get 50% Off on Selected Clothing Items</p>
+          <a class="btn left-banner__btn" href="#">Shop Now <span aria-hidden="true">↗</span></a>
+        </div>
+        <div class="left-banner__model" role="img" aria-label="Fashion model"></div>
+      </article>
+      <div class="right-list">
+        <article class="mini-product">
+          <span class="mini-save">Save $50</span>
+          <div class="mini-thumb peach"></div>
+          <div class="mini-info">
+            <h4>Men's Premium Formal Pant</h4>
+            <div class="mini-stars" aria-hidden="true">★★★★☆</div>
+            <p><span>$29.00</span> <del>$32.00</del></p>
+          </div>
+        </article>
+        <article class="mini-product">
+          <span class="mini-save">Save $39</span>
+          <div class="mini-thumb blue"></div>
+          <div class="mini-info">
+            <h4>Full Sleeve Hoodie Jacket</h4>
+            <div class="mini-stars" aria-hidden="true">★★★☆☆</div>
+            <p><span>$20.00</span> <del>$22.00</del></p>
+          </div>
+        </article>
+        <article class="mini-product">
+          <span class="mini-save">Save $45</span>
+          <div class="mini-thumb mint"></div>
+          <div class="mini-info">
+            <h4>Kids Cotton Combo Set</h4>
+            <div class="mini-stars" aria-hidden="true">★★★☆☆</div>
+            <p><span>$16.00</span> <del>$18.00</del></p>
+          </div>
+        </article>
+        <article class="mini-product">
+          <span class="mini-save">Save $20</span>
+          <div class="mini-thumb lilac"></div>
+          <div class="mini-info">
+            <h4>Men's Trendy Formal Shoes</h4>
+            <div class="mini-stars" aria-hidden="true">★★★☆☆</div>
+            <p><span>$10.00</span> <del>$12.00</del></p>
+          </div>
+        </article>
+        <article class="mini-product">
+          <span class="mini-save">Save $40</span>
+          <div class="mini-thumb cyan"></div>
+          <div class="mini-info">
+            <h4>Men's T-Shirt Combo Set</h4>
+            <div class="mini-stars" aria-hidden="true">★★★☆☆</div>
+            <p><span>$17.00</span> <del>$20.00</del></p>
+          </div>
+        </article>
+        <article class="mini-product">
+          <span class="mini-save">Save $19</span>
+          <div class="mini-thumb pink"></div>
+          <div class="mini-info">
+            <h4>Women's T-Shirt Combo</h4>
+            <div class="mini-stars" aria-hidden="true">★★★☆☆</div>
+            <p><span>$13.00</span> <del>$15.00</del></p>
+          </div>
+        </article>
+        <article class="mini-product">
+          <span class="mini-save">Save $50</span>
+          <div class="mini-thumb peach"></div>
+          <div class="mini-info">
+            <h4>Men's Premium Formal Pant</h4>
+            <div class="mini-stars" aria-hidden="true">★★★☆☆</div>
+            <p><span>$29.00</span> <del>$32.00</del></p>
+          </div>
+        </article>
+        <article class="mini-product">
+          <span class="mini-save">Save $39</span>
+          <div class="mini-thumb blue"></div>
+          <div class="mini-info">
+            <h4>Men's Fashionable Hoodie</h4>
+            <div class="mini-stars" aria-hidden="true">★★★☆☆</div>
+            <p><span>$20.00</span> <del>$22.00</del></p>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="block block--products">
+      <div class="block-head"><h2>Trending Products</h2><a href="#">View all</a></div>
+      <div class="product-grid five">
+        <article class="pcard">
+          <div class="pcard__media">
+            <div class="pcard__badges">
+              <span class="pcard__badge pcard__badge--new">new</span>
+              <span class="pcard__badge pcard__badge--off">- 45%</span>
+            </div>
+            <div class="thumb peach" role="img" aria-hidden="true"></div>
+            <span class="pcard__oos">Out Of Stock</span>
+          </div>
+          <div class="pcard__body">
+            <h3 class="pcard__title">Kid's Dresses For Summer</h3>
+            <div class="pcard__price">
+              <span class="pcard__price-current">$70.00</span>
+              <del class="pcard__price-old">$50.00</del>
+            </div>
+            <div class="pcard__rating">
+              <span class="pcard__stars" aria-label="4 out of 5 stars">
+                <span class="pcard__star pcard__star--full">★</span><span class="pcard__star pcard__star--full">★</span><span class="pcard__star pcard__star--full">★</span><span class="pcard__star pcard__star--full">★</span><span class="pcard__star">☆</span>
+              </span>
+              <span class="pcard__reviews">(44 Reviews)</span>
+            </div>
+            <div class="pcard__swatches" role="group" aria-label="Colors">
+              <button type="button" class="pcard__swatch is-active" style="--sw:#c62828" aria-label="Red" aria-pressed="true"></button>
+              <button type="button" class="pcard__swatch" style="--sw:#2e7d32" aria-label="Green" aria-pressed="false"></button>
+              <button type="button" class="pcard__swatch" style="--sw:#1565c0" aria-label="Blue" aria-pressed="false"></button>
+              <button type="button" class="pcard__swatch" style="--sw:#f9a825" aria-label="Yellow" aria-pressed="false"></button>
+            </div>
+            <div class="pcard__actions">
+              <a class="pcard__btn pcard__btn--cart" href="#">Add to cart</a>
+              <a class="pcard__btn pcard__btn--view" href="#">View</a>
+            </div>
+          </div>
+        </article>
+        <article class="pcard">
+          <div class="pcard__media">
+            <div class="pcard__badges"><span class="pcard__badge pcard__badge--new">new</span></div>
+            <div class="thumb cyan" role="img" aria-hidden="true"></div>
+          </div>
+          <div class="pcard__body">
+            <h3 class="pcard__title">Denim Jeans Pants For Men</h3>
+            <div class="pcard__price"><span class="pcard__price-current">$71.00</span></div>
+            <div class="pcard__rating">
+              <span class="pcard__stars" aria-label="5 out of 5 stars">
+                <span class="pcard__star pcard__star--full">★</span><span class="pcard__star pcard__star--full">★</span><span class="pcard__star pcard__star--full">★</span><span class="pcard__star pcard__star--full">★</span><span class="pcard__star pcard__star--full">★</span>
+              </span>
+              <span class="pcard__reviews">(20 Reviews)</span>
+            </div>
+            <div class="pcard__swatches" role="group" aria-label="Colors">
+              <button type="button" class="pcard__swatch is-active" style="--sw:#37474f" aria-label="Charcoal" aria-pressed="true"></button>
+              <button type="button" class="pcard__swatch" style="--sw:#5d4037" aria-label="Brown" aria-pressed="false"></button>
+              <button type="button" class="pcard__swatch" style="--sw:#283593" aria-label="Indigo" aria-pressed="false"></button>
+            </div>
+            <div class="pcard__actions">
+              <a class="pcard__btn pcard__btn--cart" href="#">Add to cart</a>
+              <a class="pcard__btn pcard__btn--view" href="#">View</a>
+            </div>
+          </div>
+        </article>
+        <article class="pcard pcard--muted">
+          <div class="pcard__media">
+            <div class="pcard__badges"><span class="pcard__badge pcard__badge--off">- 15%</span></div>
+            <div class="thumb blue" role="img" aria-hidden="true"></div>
+            <span class="pcard__oos">Out Of Stock</span>
+          </div>
+          <div class="pcard__body">
+            <h3 class="pcard__title">Half Sleeve Tops for Women</h3>
+            <div class="pcard__price"><span class="pcard__price-current">$29.00</span></div>
+            <div class="pcard__rating">
+              <span class="pcard__stars" aria-label="3 out of 5 stars">
+                <span class="pcard__star pcard__star--full">★</span><span class="pcard__star pcard__star--full">★</span><span class="pcard__star pcard__star--full">★</span><span class="pcard__star">☆</span><span class="pcard__star">☆</span>
+              </span>
+              <span class="pcard__reviews">(12 Reviews)</span>
+            </div>
+            <div class="pcard__swatches" role="group" aria-label="Colors">
+              <button type="button" class="pcard__swatch is-active" style="--sw:#ec407a" aria-label="Pink" aria-pressed="true"></button>
+              <button type="button" class="pcard__swatch pcard__swatch--light" style="--sw:#fff" aria-label="White" aria-pressed="false"></button>
+            </div>
+            <div class="pcard__actions">
+              <a class="pcard__btn pcard__btn--cart" href="#">Add to cart</a>
+              <a class="pcard__btn pcard__btn--view" href="#">View</a>
+            </div>
+          </div>
+        </article>
+        <article class="pcard">
+          <div class="pcard__media">
+            <div class="pcard__badges"><span class="pcard__badge pcard__badge--off">- 22%</span></div>
+            <div class="thumb pink" role="img" aria-hidden="true"></div>
+          </div>
+          <div class="pcard__body">
+            <h3 class="pcard__title">Sharee Petticoat For Women</h3>
+            <div class="pcard__price">
+              <span class="pcard__price-current">$56.00</span>
+              <del class="pcard__price-old">$48.00</del>
+            </div>
+            <div class="pcard__rating">
+              <span class="pcard__stars" aria-label="5 out of 5 stars">
+                <span class="pcard__star pcard__star--full">★</span><span class="pcard__star pcard__star--full">★</span><span class="pcard__star pcard__star--full">★</span><span class="pcard__star pcard__star--full">★</span><span class="pcard__star pcard__star--full">★</span>
+              </span>
+              <span class="pcard__reviews">(98 Reviews)</span>
+            </div>
+            <div class="pcard__swatches" role="group" aria-label="Colors">
+              <button type="button" class="pcard__swatch is-active" style="--sw:#6a1b9a" aria-label="Purple" aria-pressed="true"></button>
+              <button type="button" class="pcard__swatch" style="--sw:#00897b" aria-label="Teal" aria-pressed="false"></button>
+              <button type="button" class="pcard__swatch" style="--sw:#ef6c00" aria-label="Orange" aria-pressed="false"></button>
+            </div>
+            <div class="pcard__actions">
+              <a class="pcard__btn pcard__btn--cart" href="#">Add to cart</a>
+              <a class="pcard__btn pcard__btn--view" href="#">View</a>
+            </div>
+          </div>
+        </article>
+        <article class="pcard">
+          <div class="pcard__media">
+            <div class="pcard__badges">
+              <span class="pcard__badge pcard__badge--new">new</span>
+              <span class="pcard__badge pcard__badge--off">- 10%</span>
+            </div>
+            <div class="thumb lilac" role="img" aria-hidden="true"></div>
+          </div>
+          <div class="pcard__body">
+            <h3 class="pcard__title">Women Jeans Pants</h3>
+            <div class="pcard__price">
+              <span class="pcard__price-current">$49.00</span>
+              <del class="pcard__price-old">$39.00</del>
+            </div>
+            <div class="pcard__rating">
+              <span class="pcard__stars" aria-label="4 out of 5 stars">
+                <span class="pcard__star pcard__star--full">★</span><span class="pcard__star pcard__star--full">★</span><span class="pcard__star pcard__star--full">★</span><span class="pcard__star pcard__star--full">★</span><span class="pcard__star">☆</span>
+              </span>
+              <span class="pcard__reviews">(44 Reviews)</span>
+            </div>
+            <div class="pcard__swatches" role="group" aria-label="Colors">
+              <button type="button" class="pcard__swatch is-active" style="--sw:#1b5e20" aria-label="Green" aria-pressed="true"></button>
+              <button type="button" class="pcard__swatch" style="--sw:#212121" aria-label="Black" aria-pressed="false"></button>
+            </div>
+            <div class="pcard__actions">
+              <a class="pcard__btn pcard__btn--cart" href="#">Add to cart</a>
+              <a class="pcard__btn pcard__btn--view" href="#">View</a>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="block block--products">
+      <div class="block-head"><h2>Our New Arrival Products</h2><a href="#">View all</a></div>
+      <div class="product-grid four">
+        <article class="pcard">
+          <div class="pcard__media">
+            <div class="pcard__badges"><span class="pcard__badge pcard__badge--new">new</span></div>
+            <div class="thumb peach" role="img" aria-hidden="true"></div>
+          </div>
+          <div class="pcard__body">
+            <h3 class="pcard__title">Full Sleeve Hoodie Jacket</h3>
+            <div class="pcard__price"><span class="pcard__price-current">$88.00</span></div>
+            <div class="pcard__rating">
+              <span class="pcard__stars" aria-label="5 out of 5 stars">
+                <span class="pcard__star pcard__star--full">★</span><span class="pcard__star pcard__star--full">★</span><span class="pcard__star pcard__star--full">★</span><span class="pcard__star pcard__star--full">★</span><span class="pcard__star pcard__star--full">★</span>
+              </span>
+              <span class="pcard__reviews">(20 Reviews)</span>
+            </div>
+            <div class="pcard__swatches" role="group" aria-label="Colors">
+              <button type="button" class="pcard__swatch is-active" style="--sw:#c62828" aria-label="Red" aria-pressed="true"></button>
+              <button type="button" class="pcard__swatch" style="--sw:#303f9f" aria-label="Navy" aria-pressed="false"></button>
+              <button type="button" class="pcard__swatch" style="--sw:#37474f" aria-label="Gray" aria-pressed="false"></button>
+            </div>
+            <div class="pcard__actions">
+              <a class="pcard__btn pcard__btn--cart" href="#">Add to cart</a>
+              <a class="pcard__btn pcard__btn--view" href="#">View</a>
+            </div>
+          </div>
+        </article>
+        <article class="pcard">
+          <div class="pcard__media">
+            <div class="pcard__badges"><span class="pcard__badge pcard__badge--off">- 18%</span></div>
+            <div class="thumb cyan" role="img" aria-hidden="true"></div>
+          </div>
+          <div class="pcard__body">
+            <h3 class="pcard__title">Men's Premium Formal Shirt</h3>
+            <div class="pcard__price">
+              <span class="pcard__price-current">$46.00</span>
+              <del class="pcard__price-old">$56.00</del>
+            </div>
+            <div class="pcard__rating">
+              <span class="pcard__stars" aria-label="4 out of 5 stars">
+                <span class="pcard__star pcard__star--full">★</span><span class="pcard__star pcard__star--full">★</span><span class="pcard__star pcard__star--full">★</span><span class="pcard__star pcard__star--full">★</span><span class="pcard__star">☆</span>
+              </span>
+              <span class="pcard__reviews">(17 Reviews)</span>
+            </div>
+            <div class="pcard__swatches" role="group" aria-label="Colors">
+              <button type="button" class="pcard__swatch pcard__swatch--light is-active" style="--sw:#fff" aria-label="White" aria-pressed="true"></button>
+              <button type="button" class="pcard__swatch pcard__swatch--light" style="--sw:#eceff1" aria-label="Light gray" aria-pressed="false"></button>
+            </div>
+            <div class="pcard__actions">
+              <a class="pcard__btn pcard__btn--cart" href="#">Add to cart</a>
+              <a class="pcard__btn pcard__btn--view" href="#">View</a>
+            </div>
+          </div>
+        </article>
+        <article class="pcard">
+          <div class="pcard__media">
+            <div class="pcard__badges"><span class="pcard__badge pcard__badge--new">new</span></div>
+            <div class="thumb lilac" role="img" aria-hidden="true"></div>
+          </div>
+          <div class="pcard__body">
+            <h3 class="pcard__title">Cherry Fabric Western Tops</h3>
+            <div class="pcard__price"><span class="pcard__price-current">$46.00</span></div>
+            <div class="pcard__rating">
+              <span class="pcard__stars" aria-label="5 out of 5 stars">
+                <span class="pcard__star pcard__star--full">★</span><span class="pcard__star pcard__star--full">★</span><span class="pcard__star pcard__star--full">★</span><span class="pcard__star pcard__star--full">★</span><span class="pcard__star pcard__star--full">★</span>
+              </span>
+              <span class="pcard__reviews">(22 Reviews)</span>
+            </div>
+            <div class="pcard__swatches" role="group" aria-label="Colors">
+              <button type="button" class="pcard__swatch is-active" style="--sw:#ad1457" aria-label="Rose" aria-pressed="true"></button>
+              <button type="button" class="pcard__swatch" style="--sw:#fbc02d" aria-label="Mustard" aria-pressed="false"></button>
+              <button type="button" class="pcard__swatch" style="--sw:#00838f" aria-label="Teal" aria-pressed="false"></button>
+              <button type="button" class="pcard__swatch" style="--sw:#000" aria-label="Black" aria-pressed="false"></button>
+            </div>
+            <div class="pcard__actions">
+              <a class="pcard__btn pcard__btn--cart" href="#">Add to cart</a>
+              <a class="pcard__btn pcard__btn--view" href="#">View</a>
+            </div>
+          </div>
+        </article>
+        <article class="pcard pcard--muted">
+          <div class="pcard__media">
+            <div class="pcard__badges">
+              <span class="pcard__badge pcard__badge--new">new</span>
+              <span class="pcard__badge pcard__badge--off">- 45%</span>
+            </div>
+            <div class="thumb mint" role="img" aria-hidden="true"></div>
+            <span class="pcard__oos">Out Of Stock</span>
+          </div>
+          <div class="pcard__body">
+            <h3 class="pcard__title">Comfortable Sports Sneakers</h3>
+            <div class="pcard__price">
+              <span class="pcard__price-current">$75.00</span>
+              <del class="pcard__price-old">$69.00</del>
+            </div>
+            <div class="pcard__rating">
+              <span class="pcard__stars" aria-label="5 out of 5 stars">
+                <span class="pcard__star pcard__star--full">★</span><span class="pcard__star pcard__star--full">★</span><span class="pcard__star pcard__star--full">★</span><span class="pcard__star pcard__star--full">★</span><span class="pcard__star pcard__star--full">★</span>
+              </span>
+              <span class="pcard__reviews">(58 Reviews)</span>
+            </div>
+            <div class="pcard__swatches" role="group" aria-label="Colors">
+              <button type="button" class="pcard__swatch pcard__swatch--light is-active" style="--sw:#fff" aria-label="White" aria-pressed="true"></button>
+              <button type="button" class="pcard__swatch" style="--sw:#212121" aria-label="Black" aria-pressed="false"></button>
+            </div>
+            <div class="pcard__actions">
+              <a class="pcard__btn pcard__btn--cart" href="#">Add to cart</a>
+              <a class="pcard__btn pcard__btn--view" href="#">View</a>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    </div>
+
+    <section class="newsletter-banner" aria-labelledby="newsletter-heading">
+      <div class="newsletter-banner__row">
+        <div class="newsletter-banner__visual newsletter-banner__visual--left" role="img" aria-label="Customer shopping"></div>
+        <div class="newsletter-banner__center">
+          <h2 id="newsletter-heading" class="newsletter-banner__title">
+            Get Upto <span class="newsletter-banner__accent">70%</span> Off Discount Coupon
+          </h2>
+          <p class="newsletter-banner__sub">By Subscribe Our Newsletter</p>
+          <form class="newsletter-banner__form" action="#" method="post">
+            <label class="visually-hidden" for="newsletter-email">Email</label>
+            <div class="newsletter-banner__field">
+              <input id="newsletter-email" type="email" name="email" placeholder="Your email" autocomplete="email" required>
+              <button type="submit">Subscribe</button>
+            </div>
+          </form>
+        </div>
+        <div class="newsletter-banner__visual newsletter-banner__visual--right" role="img" aria-label="Folded apparel"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-top">
+      <div class="footer-brand">
+        <a class="footer-logo" href="#">
+          <span class="footer-logo-mark" aria-hidden="true">
+            <span class="logo-stripe"></span>
+            <span class="logo-stripe"></span>
+            <span class="logo-stripe"></span>
+          </span>
+          <span class="footer-logo-word">Zenis</span>
+        </a>
+        <p>Lorem ipsum dolor sit amet consectetur adipisicing elit. Sequi, distinctio molestiae error ullam obcaecati dolorem inventore.</p>
+        <div class="footer-social">
+          <span>Follow :</span>
+          <a href="#" aria-label="Facebook">f</a>
+          <a href="#" aria-label="Twitter">x</a>
+          <a href="#" aria-label="Google">g+</a>
+          <a href="#" aria-label="LinkedIn">in</a>
+        </div>
+      </div>
+
+      <div class="footer-links">
+        <h4>Company</h4>
+        <ul>
+          <li><a href="#">About Us</a></li>
+          <li><a href="#">Contact Us</a></li>
+          <li><a href="#">Affiliate</a></li>
+          <li><a href="#">Career</a></li>
+          <li><a href="#">Latest News</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-links">
+        <h4>Category</h4>
+        <ul>
+          <li><a href="#">Men's Fashion</a></li>
+          <li><a href="#">Denim Collection</a></li>
+          <li><a href="#">Western Wear</a></li>
+          <li><a href="#">Sport Wear</a></li>
+          <li><a href="#">Fashion Jewellery</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-links">
+        <h4>Quick Links</h4>
+        <ul>
+          <li><a href="#">Privacy Policy</a></li>
+          <li><a href="#">Terms And Condition</a></li>
+          <li><a href="#">Return Policy</a></li>
+          <li><a href="#">FAQ's</a></li>
+          <li><a href="#">Become A Vendor</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-contact">
+        <h4>Contact Us</h4>
+        <p>It is a long established fact that reader distracted looking layout It is a long established fact.</p>
+        <ul>
+          <li>37 W 24th St, New York, NY</li>
+          <li>+123 324 5879 39</li>
+          <li>info@Zenis.com</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="container footer-bottom">
+      <p>Copyright @ <span>Zenis</span> 2026. All right reserved.</p>
+      <div class="footer-payments">
+        <span>Payment by :</span>
+        <i>Mastercard</i>
+        <i>Visa</i>
+        <i>Bank</i>
+      </div>
+    </div>
+  </footer>
+  <script src="js/hero-carousel.js" defer></script>
+  <script src="js/pcard-swatches.js" defer></script>
+</body>
+</html>

@@ -95,7 +95,7 @@ function products_fetch_all(PDO $pdo): array
     $st = $pdo->query(
         'SELECT p.id, p.name, p.slug, p.category, p.price, p.original_price AS original, p.emoji, p.badge, p.rating, p.review_count AS reviews, p.brand, p.image_bg, p.image_path,
                 p.stock_qty, p.active,
-                p.size_options, p.color_options,
+                p.size_options, p.color_options, p.primary_color,
                 (SELECT COUNT(*) FROM product_variant_inventory pvi WHERE pvi.product_id = p.id AND pvi.active = 1) AS variant_row_count,
                 (SELECT pi.image_path FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.sort_order ASC, pi.id ASC LIMIT 1) AS gallery_first
          FROM products p

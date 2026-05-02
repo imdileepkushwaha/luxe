@@ -6,6 +6,7 @@ require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/cart_session.php';
 require_once __DIR__ . '/../includes/coupons.php';
 require_once __DIR__ . '/../includes/notification_mail.php';
+require_once __DIR__ . '/../includes/razorpay.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -29,8 +30,16 @@ if (!is_array($data) || empty($data['items']) || !is_array($data['items'])) {
     exit;
 }
 
-$items = $data['items'];
-$payment = trim((string) ($data['payment_method'] ?? 'Card'));
+$items = cart_merge_duplicate_lines($data['items']);
+$paymentRaw = strtoupper(trim((string) ($data['payment_method'] ?? '')));
+if ($paymentRaw === 'COD') {
+    $payment = 'COD';
+    $isCod = true;
+} else {
+    // Online checkout (Razorpay). Legacy "Card"/"ONLINE" from older clients map here.
+    $payment = luxe_razorpay_dev_skip_payment() ? 'Razorpay (dev skip)' : 'Razorpay';
+    $isCod = false;
+}
 $deliverySpeedRaw = $data['delivery_speed'] ?? 'standard';
 $deliverySpeed = 'standard';
 if (is_string($deliverySpeedRaw) && in_array($deliverySpeedRaw, ['standard', 'express', 'same_day'], true)) {
@@ -235,6 +244,64 @@ try {
          LIMIT 1'
     );
     $updO->execute([$orderTotal, $platformFee, $adminCommission, $orderId]);
+
+    if (!$isCod) {
+        if (luxe_razorpay_dev_skip_payment()) {
+            unset($_SESSION['luxe_razorpay_checkout']);
+        } else {
+            if (!luxe_razorpay_configured($pdo)) {
+                throw new RuntimeException('Online payment is not configured. Use COD, admin Settings → Payments (Razorpay), ya includes/config.php.');
+            }
+            $rzOid = trim((string) ($data['razorpay_order_id'] ?? ''));
+            $rzPid = trim((string) ($data['razorpay_payment_id'] ?? ''));
+            $rzSig = trim((string) ($data['razorpay_signature'] ?? ''));
+            if ($rzOid === '' || $rzPid === '' || $rzSig === '') {
+                throw new RuntimeException('Complete Razorpay payment before placing the order.');
+            }
+            $creds = luxe_razorpay_credentials($pdo);
+            if (!luxe_razorpay_verify_payment_signature($rzOid, $rzPid, $rzSig, $creds['key_secret'])) {
+                throw new RuntimeException('Payment verification failed.');
+            }
+            $chk = $_SESSION['luxe_razorpay_checkout'] ?? null;
+            if (!is_array($chk)) {
+                throw new RuntimeException('Payment session expired. Please reopen checkout and pay again.');
+            }
+            if ((int) ($chk['created_at'] ?? 0) + 3600 < time()) {
+                unset($_SESSION['luxe_razorpay_checkout']);
+                throw new RuntimeException('Payment session expired. Please try again.');
+            }
+            if ((string) ($chk['razorpay_order_id'] ?? '') !== $rzOid) {
+                throw new RuntimeException('Payment does not match this checkout session.');
+            }
+            if ((int) ($chk['amount_rupees'] ?? -1) !== (int) $orderTotal) {
+                throw new RuntimeException('Cart or total changed. Please create payment again from checkout.');
+            }
+            $remote = luxe_razorpay_fetch_order_api($rzOid, $creds['key_id'], $creds['key_secret']);
+            if ($remote === null) {
+                throw new RuntimeException('Could not confirm payment with Razorpay.');
+            }
+            if ((string) ($remote['id'] ?? '') !== $rzOid) {
+                throw new RuntimeException('Invalid Razorpay order.');
+            }
+            $rpAmount = (int) ($remote['amount'] ?? 0);
+            if ($rpAmount !== $orderTotal * 100) {
+                throw new RuntimeException('Paid amount does not match order total.');
+            }
+            $notesRaw = $remote['notes'] ?? null;
+            /** @var array<string, mixed> $notes */
+            $notes = is_array($notesRaw) ? $notesRaw : [];
+            if ((string) ($notes['luxe_user_id'] ?? '') !== (string) $userId) {
+                throw new RuntimeException('Payment is not linked to this account.');
+            }
+            if ((string) ($notes['luxe_nonce'] ?? '') !== (string) ($chk['nonce'] ?? '')) {
+                throw new RuntimeException('Payment verification mismatch.');
+            }
+            if ((string) ($remote['status'] ?? '') !== 'paid') {
+                throw new RuntimeException('Payment not completed on Razorpay yet. If money was debited, check your orders or contact support.');
+            }
+            unset($_SESSION['luxe_razorpay_checkout']);
+        }
+    }
 
     $_SESSION['cart'] = [];
     unset($_SESSION['checkout']);

@@ -2064,6 +2064,10 @@ body.offer-popup-open {
     flex-wrap: wrap;
 }
 
+.hero-actions .btn-primary {
+    color: #fff!important;
+}
+
 .btn-primary {
     display: inline-flex;
     align-items: center;
