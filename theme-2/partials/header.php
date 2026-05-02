@@ -15,8 +15,21 @@ $isLoggedIn = (bool) ($isLoggedIn ?? false);
 $userInitials = (string) ($userInitials ?? 'GU');
 $userName = (string) ($userName ?? 'Guest User');
 $userEmail = (string) ($userEmail ?? '');
-$theme1LoginHref = (string) ($theme1LoginHref ?? ('login.php?redirect=' . rawurlencode('theme-1/index.php')));
+$theme1LoginHref = (string) ($theme1LoginHref ?? ('login.php?redirect=' . rawurlencode('index.php')));
 $theme1CurrentScript = basename((string) ($_SERVER['PHP_SELF'] ?? $_SERVER['SCRIPT_NAME'] ?? ''));
+
+$t2HeaderBrand = 'LUXE';
+$t2HeaderLogo = '';
+if (function_exists('site_brand_name') && function_exists('db')) {
+    try {
+        $t2HeaderBrand = site_brand_name(db());
+        $t2HeaderLogo = site_logo_path(db());
+    } catch (Throwable $e) {
+        $t2HeaderBrand = 'LUXE';
+        $t2HeaderLogo = '';
+    }
+}
+$t2HeaderLogoUrl = $t2HeaderLogo !== '' ? luxe_public_href(ltrim($t2HeaderLogo, '/')) : '';
 ?>
 <header class="site-header">
   <div class="container header-inner">
@@ -26,9 +39,13 @@ $theme1CurrentScript = basename((string) ($_SERVER['PHP_SELF'] ?? $_SERVER['SCRI
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
     </button>
 
-    <a class="header-logo" href="index.php" aria-label="LUXE home">
-      <span class="logo-mark" aria-hidden="true"><span class="logo-stripe"></span><span class="logo-stripe"></span><span class="logo-stripe"></span></span>
-      <span class="logo-word">LUXE</span>
+    <a class="header-logo" href="index.php" aria-label="<?= h($t2HeaderBrand) ?> home">
+      <?php if ($t2HeaderLogoUrl !== ''): ?>
+        <img src="<?= h($t2HeaderLogoUrl) ?>" alt="<?= h($t2HeaderBrand) ?>" class="header-logo-img">
+      <?php else: ?>
+        <span class="logo-mark" aria-hidden="true"><span class="logo-stripe"></span><span class="logo-stripe"></span><span class="logo-stripe"></span></span>
+        <span class="logo-word"><?= h($t2HeaderBrand) ?></span>
+      <?php endif; ?>
     </a>
     
     <!-- Desktop Search -->
@@ -89,9 +106,13 @@ $theme1CurrentScript = basename((string) ($_SERVER['PHP_SELF'] ?? $_SERVER['SCRI
 <div class="container">
   <div class="subnav-strip">
     
-    <a class="subnav-logo" href="index.php" aria-label="LUXE home">
-      <span class="logo-mark" aria-hidden="true"><span class="logo-stripe"></span><span class="logo-stripe"></span><span class="logo-stripe"></span></span>
-      <span class="logo-word">LUXE</span>
+    <a class="subnav-logo" href="index.php" aria-label="<?= h($t2HeaderBrand) ?> home">
+      <?php if ($t2HeaderLogoUrl !== ''): ?>
+        <img src="<?= h($t2HeaderLogoUrl) ?>" alt="<?= h($t2HeaderBrand) ?>" class="subnav-logo-img">
+      <?php else: ?>
+        <span class="logo-mark" aria-hidden="true"><span class="logo-stripe"></span><span class="logo-stripe"></span><span class="logo-stripe"></span></span>
+        <span class="logo-word"><?= h($t2HeaderBrand) ?></span>
+      <?php endif; ?>
     </a>
     <nav class="subnav-menu" aria-label="Main">
       <a href="index.php" class="<?= $theme1CurrentScript === 'index.php' ? 'is-active' : '' ?>">Home</a>
@@ -125,7 +146,7 @@ $theme1CurrentScript = basename((string) ($_SERVER['PHP_SELF'] ?? $_SERVER['SCRI
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
               <span>Settings</span>
             </a>
-            <a href="../actions/logout.php?redirect=theme-1/index.php" role="menuitem">
+            <a href="<?= h(luxe_action_href('logout.php?redirect=' . rawurlencode('index.php'))) ?>" role="menuitem">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
               <span>Logout</span>
             </a>
@@ -219,7 +240,7 @@ $theme1CurrentScript = basename((string) ($_SERVER['PHP_SELF'] ?? $_SERVER['SCRI
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
               <span>Settings</span>
             </a>
-            <a href="../actions/logout.php?redirect=theme-1/index.php" class="drawer-tool-link" style="color: #ef4444;">
+            <a href="<?= h(luxe_action_href('logout.php?redirect=' . rawurlencode('index.php'))) ?>" class="drawer-tool-link" style="color: #ef4444;">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
               <span>Logout</span>
             </a>

@@ -10,9 +10,13 @@ require_once __DIR__ . '/orders_repo.php';
 require_once __DIR__ . '/loyalty_points.php';
 require_once __DIR__ . '/addresses.php';
 require_once __DIR__ . '/account_deletion.php';
+require_once __DIR__ . '/cms.php';
 
 auth_start();
 
 if (!isset($_SESSION['cart']) || !is_array($_SESSION['cart'])) {
     $_SESSION['cart'] = [];
 }
+
+require_once __DIR__ . '/storefront_theme.php';
+storefront_theme_dispatch_from_root_if_needed();

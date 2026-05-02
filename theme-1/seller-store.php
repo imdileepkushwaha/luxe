@@ -8,7 +8,7 @@ function luxe_public_product_card_image(array $p): string
     $raw = trim((string) ($p['image_path'] ?? ''));
     if ($raw !== '' && strcasecmp($raw, 'default') !== 0) {
         if (!preg_match('#^(?:https?:)?//#i', $raw) && !str_starts_with($raw, '/')) {
-            return '../' . ltrim($raw, '/');
+            return luxe_public_href(ltrim($raw, '/'));
         }
         return $raw;
     }
@@ -20,7 +20,7 @@ $sellerId = isset($_GET['id']) ? (int) $_GET['id'] : 0;
 $seller = $sellerId > 0 ? seller_fetch_public_profile($pdo, $sellerId) : null;
 
 if (!$seller) {
-    header('Location: index.php');
+    header('Location: ' . luxe_public_href('index.php'));
     exit;
 }
 
@@ -39,7 +39,7 @@ if ($userName === '') $userName = trim((string) ($currentUser['name'] ?? 'Guest 
 $userInitials = strtoupper(substr(preg_replace('/[^A-Za-z]/', '', $userName) ?: 'GU', 0, 2));
 $userEmail = trim((string) ($currentUser['email'] ?? ''));
 $isLoggedIn = $currentUser !== null;
-$theme1LoginHref = '../login.php?redirect=' . rawurlencode('theme-1/seller-store.php?id=' . $sellerId);
+$theme1LoginHref = 'login.php?redirect=' . rawurlencode('seller-store.php?id=' . $sellerId);
 
 $theme1HeaderCategories = [];
 $theme1HeaderCompareCount = 0;
@@ -56,7 +56,9 @@ function theme1_url(array $p): string { return luxe_product_url((int) ($p['id'] 
 function theme1_thumb_url(array $p): string {
     $path = trim((string) ($p['image_path'] ?? ''));
     if ($path === '' || strcasecmp($path, 'default') === 0) return '';
-    if (!preg_match('#^(?:https?:)?//#i', $path) && !str_starts_with($path, '/')) $path = '../' . ltrim($path, '/');
+    if (!preg_match('#^(?:https?:)?//#i', $path) && !str_starts_with($path, '/')) {
+        $path = luxe_public_href(ltrim($path, '/'));
+    }
     return $path;
 }
 function theme1_thumb_style(array $p): string {
@@ -71,11 +73,11 @@ if ($displayName === '') {
 }
 $logoPath = trim((string) ($seller['logo_path'] ?? ''));
 if ($logoPath !== '' && !preg_match('#^(?:https?:)?//#i', $logoPath) && !str_starts_with($logoPath, '/')) {
-    $logoPath = '../' . ltrim($logoPath, '/');
+    $logoPath = luxe_public_href(ltrim($logoPath, '/'));
 }
 $bannerPath = trim((string) ($seller['banner_path'] ?? ''));
 if ($bannerPath !== '' && !preg_match('#^(?:https?:)?//#i', $bannerPath) && !str_starts_with($bannerPath, '/')) {
-    $bannerPath = '../' . ltrim($bannerPath, '/');
+    $bannerPath = luxe_public_href(ltrim($bannerPath, '/'));
 }
 $city = trim((string) ($seller['city'] ?? ''));
 $state = trim((string) ($seller['state'] ?? ''));
@@ -120,7 +122,7 @@ $sellerReviewsCount = (int)($seller['reviews_count'] ?? 124);
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Inter:wght@400;500;600;700;800&family=Jost:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="<?= h(luxe_theme_asset('css/styles.css')) ?>">
 </head>
 <body class="t1-seller-page">
   <?php require __DIR__ . '/partials/header.php'; ?>

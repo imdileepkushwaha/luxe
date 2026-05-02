@@ -2,18 +2,25 @@
 declare(strict_types=1);
 
 require __DIR__ . '/partials/theme1-page-context.php';
+$cmsAboutT1 = cms_page_get($pdo, 'about', [
+    'hero_kicker' => 'Our story',
+    'hero_title' => 'Style that fits your everyday',
+    'hero_lead' => 'LUXE brings together trusted sellers and thoughtful curation so you can shop fashion and lifestyle with confidence — from discovery to delivery.',
+    'meta_description' => 'Learn about LUXE: curated fashion and lifestyle from trusted sellers across India.',
+]);
+$siteBrandT1About = site_brand_name($pdo);
 ?>
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>About Us — LUXE</title>
-  <meta name="description" content="Learn about LUXE: curated fashion and lifestyle from trusted sellers across India.">
+  <title><?= h($cmsAboutT1['hero_title'] !== '' ? $cmsAboutT1['hero_title'] : 'About Us') ?> — <?= h($siteBrandT1About) ?></title>
+  <meta name="description" content="<?= h($cmsAboutT1['meta_description']) ?>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Inter:wght@400;500;600;700;800&family=Jost:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="<?= h(luxe_theme_asset('css/styles.css')) ?>">
 </head>
 <body class="t1-static-body">
   <?php require __DIR__ . '/partials/header.php'; ?>
@@ -22,10 +29,12 @@ require __DIR__ . '/partials/theme1-page-context.php';
     <section class="t1-static-hero" aria-labelledby="t1-about-title">
       <div class="container t1-static-hero-inner">
         <div class="t1-static-hero-copy">
-          <p class="t1-static-kicker script-accent">Our story</p>
-          <h1 id="t1-about-title" class="t1-static-title">Style that fits your everyday</h1>
+          <?php if (($cmsAboutT1['hero_kicker'] ?? '') !== ''): ?>
+            <p class="t1-static-kicker script-accent"><?= h($cmsAboutT1['hero_kicker']) ?></p>
+          <?php endif; ?>
+          <h1 id="t1-about-title" class="t1-static-title"><?= h($cmsAboutT1['hero_title'] !== '' ? $cmsAboutT1['hero_title'] : 'About Us') ?></h1>
           <p class="t1-static-lead">
-            LUXE brings together trusted sellers and thoughtful curation so you can shop fashion and lifestyle with confidence — from discovery to delivery.
+            <?= nl2br(h($cmsAboutT1['hero_lead'])) ?>
           </p>
           <div class="t1-static-hero-actions">
             <a class="btn-hero" href="product-list.php">Shop collection</a>
@@ -46,13 +55,17 @@ require __DIR__ . '/partials/theme1-page-context.php';
       <section class="t1-static-section">
         <div class="t1-static-grid-2">
           <div>
-            <h2 class="t1-static-h2">Who we are</h2>
-            <p class="t1-static-p">
-              We started with a simple idea: make premium shopping feel personal again. Our marketplace highlights quality listings, clear pricing in rupees, and sellers who care about the details — so every order feels considered, not rushed.
-            </p>
-            <p class="t1-static-p">
-              Whether you are refreshing your wardrobe or gifting something special, LUXE is built to help you compare, save favourites, and check out securely — on desktop or mobile.
-            </p>
+            <?php if (trim((string) $cmsAboutT1['body_html']) !== ''): ?>
+              <div class="t1-static-cms-body"><?= $cmsAboutT1['body_html'] ?></div>
+            <?php else: ?>
+              <h2 class="t1-static-h2">Who we are</h2>
+              <p class="t1-static-p">
+                We started with a simple idea: make premium shopping feel personal again. Our marketplace highlights quality listings, clear pricing in rupees, and sellers who care about the details — so every order feels considered, not rushed.
+              </p>
+              <p class="t1-static-p">
+                Whether you are refreshing your wardrobe or gifting something special, LUXE is built to help you compare, save favourites, and check out securely — on desktop or mobile.
+              </p>
+            <?php endif; ?>
           </div>
           <ul class="t1-static-stats" role="list">
             <li><strong>500+</strong><span>Curated styles</span></li>

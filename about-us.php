@@ -10,6 +10,14 @@ foreach ($_SESSION['cart'] ?? [] as $ci) {
     $cartNavCount += (int) ($ci['qty'] ?? 1);
 }
 $allProducts = products_fetch_all($pdo);
+
+$cmsAbout = cms_page_get($pdo, 'about', [
+    'hero_kicker' => 'Our story',
+    'hero_title' => 'About Us',
+    'hero_lead' => 'At LUXE, we combine product curation, engineering, and design thinking to build a premium shopping experience.',
+    'meta_description' => 'Learn more about LUXE, our mission, and why shoppers trust our platform.',
+]);
+$siteContactAbout = site_contact_bundle($pdo);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -17,8 +25,8 @@ $allProducts = products_fetch_all($pdo);
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <?php require __DIR__ . '/includes/luxe_theme_head.php'; ?>
-  <title>About Us — LUXE</title>
-  <meta name="description" content="Learn more about LUXE, our mission, and why shoppers trust our platform." />
+  <title><?= h($cmsAbout['hero_title'] !== '' ? $cmsAbout['hero_title'] : 'About Us') ?> — <?= h($siteContactAbout['brand']) ?></title>
+  <meta name="description" content="<?= h($cmsAbout['meta_description']) ?>" />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,700;1,400&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/luxe.css" />
   <style>
@@ -226,15 +234,17 @@ $allProducts = products_fetch_all($pdo);
   <main class="page-main">
     <div class="container">
       <div class="page-header">
-        <h1>About Us</h1>
+        <h1><?= h($cmsAbout['hero_title'] !== '' ? $cmsAbout['hero_title'] : 'About Us') ?></h1>
         <a href="index.php" class="continue-link">← Back to home</a>
       </div>
 
-      <div class="about-breadcrumb"><a href="index.php">Home</a><span>/</span><span>About Us</span></div>
+      <div class="about-breadcrumb"><a href="index.php">Home</a><span>/</span><span><?= h($cmsAbout['hero_title'] !== '' ? $cmsAbout['hero_title'] : 'About Us') ?></span></div>
 
       <section class="about-hero">
-        <h2>About Software Agency Style Commerce Team</h2>
-        <p>At LUXE, we combine product curation, engineering, and design thinking to build a premium shopping experience. From startup sellers to growing brands, we help businesses reach customers through a clean, high-performing commerce platform.</p>
+        <?php if (($cmsAbout['hero_kicker'] ?? '') !== ''): ?>
+          <h2><?= h($cmsAbout['hero_kicker']) ?></h2>
+        <?php endif; ?>
+        <p><?= nl2br(h($cmsAbout['hero_lead'])) ?></p>
         <div class="about-stats">
           <div class="about-stat"><strong>6+ Years</strong><span>eCommerce excellence</span></div>
           <div class="about-stat"><strong>120k+</strong><span>Happy shoppers served</span></div>
@@ -244,6 +254,11 @@ $allProducts = products_fetch_all($pdo);
 
       <div class="cart-layout">
         <section class="cart-items-col">
+          <?php if (trim((string) $cmsAbout['body_html']) !== ''): ?>
+            <article class="about-panel about-panel--cms">
+              <?= $cmsAbout['body_html'] ?>
+            </article>
+          <?php else: ?>
           <article class="about-panel">
             <h3>Years of eCommerce Excellence</h3>
             <p style="margin:0;">For years, LUXE has helped customers discover trusted products with transparent pricing, fast checkout, and reliable delivery. Our approach is user-first, data-driven, and built for long-term growth.</p>
@@ -294,6 +309,7 @@ $allProducts = products_fetch_all($pdo);
             <p>Have a project, collaboration idea, or support query? Our team is ready to help.</p>
             <a href="contact-us.php" class="checkout-btn" style="max-width:200px;">Contact Us</a>
           </div>
+          <?php endif; ?>
         </section>
         <aside class="summary-col">
           <div class="summary-card">

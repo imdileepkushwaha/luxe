@@ -283,7 +283,7 @@ if ($userName === '') $userName = trim((string) ($currentUser['name'] ?? 'Guest 
 $userInitials = strtoupper(substr(preg_replace('/[^A-Za-z]/', '', $userName) ?: 'GU', 0, 2));
 $userEmail = trim((string) ($currentUser['email'] ?? ''));
 $isLoggedIn = $currentUser !== null;
-$theme1LoginHref = 'login.php?redirect=' . rawurlencode('theme-1/product.php?slug=' . h((string)$product['slug']));
+$theme1LoginHref = 'login.php?redirect=' . rawurlencode('product.php?slug=' . (string) ($product['slug'] ?? ''));
 
 $theme1HeaderCategories = [];
 $theme1HeaderCompareCount = 0;
@@ -299,7 +299,9 @@ function theme1_url(array $p): string { return luxe_product_url((int) ($p['id'] 
 function theme1_thumb_url(array $p): string {
     $path = trim((string) ($p['image_path'] ?? ''));
     if ($path === '' || strcasecmp($path, 'default') === 0) return '';
-    if (!preg_match('#^(?:https?:)?//#i', $path) && !str_starts_with($path, '/')) return '../' . ltrim($path, '/');
+    if (!preg_match('#^(?:https?:)?//#i', $path) && !str_starts_with($path, '/')) {
+        return luxe_public_href(ltrim($path, '/'));
+    }
     return $path;
 }
 function theme1_thumb_style(array $p): string {
@@ -316,7 +318,7 @@ function theme1_thumb_style(array $p): string {
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Inter:wght@400;500;600;700;800&family=Jost:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="<?= h(luxe_theme_asset('css/styles.css')) ?>">
 </head>
 <body>
   <?php require __DIR__ . '/partials/header.php'; ?>
@@ -325,7 +327,7 @@ function theme1_thumb_style(array $p): string {
     <!-- Breadcrumb -->
     <div class="t1-breadcrumb container">
       <a href="index.php">Home</a> <span>/</span>
-      <a href="../product-list.php?category=<?= urlencode((string)$product['category']) ?>"><?= h(ucwords((string)$product['category'])) ?></a> <span>/</span>
+      <a href="product-list.php?category=<?= urlencode((string)$product['category']) ?>"><?= h(ucwords((string)$product['category'])) ?></a> <span>/</span>
       <span class="current"><?= h((string)$product['name']) ?></span>
     </div>
 
@@ -888,7 +890,7 @@ function theme1_thumb_style(array $p): string {
       if (col) fd.append('color', col);
 
       try {
-        const res = await fetch('actions/cart-add.php', { method: 'POST', body: fd });
+        const res = await fetch(<?= json_encode(luxe_theme_cart_add_url(), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES) ?>, { method: 'POST', body: fd });
         const data = await res.json();
 
         if (data.ok) {

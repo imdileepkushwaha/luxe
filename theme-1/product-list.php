@@ -19,7 +19,7 @@ if ($userName === '') {
 $userInitials = strtoupper(substr(preg_replace('/[^A-Za-z]/', '', $userName) ?: 'GU', 0, 2));
 $userEmail = trim((string) ($user['email'] ?? ''));
 $isLoggedIn = $user !== null;
-$theme1LoginHref = 'login.php?redirect=' . rawurlencode('theme-1/product-list.php');
+$theme1LoginHref = 'login.php?redirect=' . rawurlencode('product-list.php');
 
 $categories = [];
 $brands = ['Luxe', 'Nike', 'Adidas', 'Gucci', 'Prada', 'Zara']; // Mock brands for filter
@@ -169,7 +169,7 @@ function theme1_thumb_url(array $p): string
         return '';
     }
     if (!preg_match('#^(?:https?:)?//#i', $path) && !str_starts_with($path, '/')) {
-        $path = '../' . ltrim($path, '/');
+        $path = luxe_public_href(ltrim($path, '/'));
     }
     return $path;
 }
@@ -183,7 +183,7 @@ function theme1_thumb_url(array $p): string
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Inter:wght@400;500;600;700;800&family=Jost:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="<?= h(luxe_theme_asset('css/styles.css')) ?>">
 </head>
 <body>
   <?php require __DIR__ . '/partials/header.php'; ?>
@@ -361,7 +361,7 @@ function theme1_thumb_url(array $p): string
 
   <?php require __DIR__ . '/partials/footer.php'; ?>
 
-  <script src="js/wishlist.js" defer></script>
+  <script src="<?= h(luxe_theme_asset('js/wishlist.js')) ?>" defer></script>
   
   <script>
     document.addEventListener('DOMContentLoaded', () => {

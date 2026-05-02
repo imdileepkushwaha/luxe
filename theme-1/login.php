@@ -5,15 +5,15 @@ require_once __DIR__ . '/../includes/bootstrap.php';
 
 $pdo = db();
 if (auth_user($pdo)) {
-    header('Location: ../index.php');
+    header('Location: ' . luxe_public_href('index.php'));
     exit;
 }
 
-$redirect = '../theme-1/index.php';
+$redirect = luxe_public_href('index.php');
 if (isset($_GET['redirect'])) {
     $r = trim((string) $_GET['redirect']);
     if ($r !== '' && !preg_match('#^https?://#i', $r) && strpos($r, '..') === false) {
-        $redirect = '../' . ltrim($r, '/');
+        $redirect = luxe_public_href(ltrim($r, '/'));
     }
 }
 
@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $postedRedirect = trim((string) ($_POST['redirect'] ?? ''));
 
     if ($postedRedirect !== '' && !preg_match('#^https?://#i', $postedRedirect) && strpos($postedRedirect, '..') === false) {
-        $redirect = '../' . ltrim($postedRedirect, '/');
+        $redirect = luxe_public_href(ltrim($postedRedirect, '/'));
     }
 
     if ($email === '' || $password === '') {
@@ -61,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Inter:wght@400;500;600;700;800&family=Jost:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="<?= h(luxe_theme_asset('css/styles.css')) ?>">
   <style>
     body {
       margin: 0; padding: 0;
@@ -349,7 +349,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     <!-- Left Banner -->
     <aside class="theme1-auth-left">
-      <a class="theme1-auth-logo" href="../index.php" aria-label="LUXE home">
+      <a class="theme1-auth-logo" href="index.php" aria-label="LUXE home">
         <span class="logo-mark" aria-hidden="true">
           <span class="logo-stripe" style="background:#fff"></span>
           <span class="logo-stripe" style="background:#fff"></span>
@@ -386,7 +386,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           </div>
         <?php endif; ?>
         <form method="post" class="theme1-form-grid">
-          <input type="hidden" name="redirect" value="<?= h(ltrim(str_replace('../', '', $redirect), '/')) ?>">
+          <input type="hidden" name="redirect" value="<?= h(luxe_redirect_app_path_for_form($redirect)) ?>">
           <div class="theme1-form-field">
             <label for="email">Email Address</label>
             <input id="email" name="email" type="email" value="<?= h($email) ?>" placeholder="you@example.com" autocomplete="email" required>
@@ -435,7 +435,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </div>
 
       <div class="theme1-auth-links">
-        <a href="../index.php">← Back to home</a>
+        <a href="index.php">← Back to home</a>
       </div>
     </main>
   </div>
@@ -460,6 +460,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   <script>
     (function () {
+      const LUXE_ACT = <?= json_encode(luxe_actions_root_url(), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES) ?>;
       var tabs = document.querySelectorAll(".theme1-tab");
       var paneLogin = document.getElementById("pane-login");
       var paneSignup = document.getElementById("pane-signup");
@@ -510,7 +511,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       forgotForm.addEventListener("submit", function (e) {
         e.preventDefault();
         var email = document.getElementById("femail").value.trim();
-        window.location.href = "../login.php#forgot=" + encodeURIComponent(email);
+        window.location.href = "login.php#forgot=" + encodeURIComponent(email);
       });
 
       signupForm.addEventListener("submit", async function (e) {
@@ -524,7 +525,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           password: document.getElementById("spass").value
         };
         try {
-          var res = await fetch("../actions/register-send-code.php", {
+          var res = await fetch(LUXE_ACT + "register-send-code.php", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
@@ -545,14 +546,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         e.preventDefault();
         verifyError.classList.add("hidden");
         try {
-          var res = await fetch("../actions/register-verify.php", {
+          var res = await fetch(LUXE_ACT + "register-verify.php", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ code: document.getElementById("scode").value.trim() })
           });
           var data = await res.json();
           if (!res.ok || !data.ok) throw new Error(data.message || "Verification failed");
-          window.location.href = "../index.php";
+          window.location.href = "index.php";
         } catch (err) {
           verifyError.textContent = err.message || "Verification failed";
           verifyError.classList.remove("hidden");

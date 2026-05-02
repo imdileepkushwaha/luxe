@@ -127,6 +127,17 @@ h3,
   text-decoration: none;
   flex-shrink: 0;
 }
+.header-logo-img,
+.subnav-logo-img,
+.footer-logo-img {
+  display: block;
+  height: 44px;
+  width: auto;
+  max-width: 200px;
+  object-fit: contain;
+}
+.subnav-logo-img { height: 36px; }
+.footer-logo-img { height: 38px; }
 
 .logo-mark {
   width: 48px;

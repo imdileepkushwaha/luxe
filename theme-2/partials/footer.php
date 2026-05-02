@@ -1,6 +1,10 @@
 <?php
 declare(strict_types=1);
 
+if (!function_exists('site_contact_bundle')) {
+    require_once dirname(__DIR__, 2) . '/includes/bootstrap.php';
+}
+
 $theme1FooterCategories = $theme1FooterCategories ?? [];
 if (!is_array($theme1FooterCategories) || $theme1FooterCategories === []) {
     $theme1FooterCategories = [
@@ -11,17 +15,40 @@ if (!is_array($theme1FooterCategories) || $theme1FooterCategories === []) {
         "Sport Wear",
     ];
 }
+
+$t2FooterBrand = 'LUXE';
+$t2FooterAddress = '37 W 24th St, New York, NY';
+$t2FooterPhone = '+123 324 5879 39';
+$t2FooterEmail = 'info@luxe.com';
+$t2FooterLogo = '';
+if (function_exists('site_contact_bundle') && function_exists('db')) {
+    try {
+        $b = site_contact_bundle(db());
+        $t2FooterBrand   = $b['brand']   !== '' ? $b['brand']   : $t2FooterBrand;
+        $t2FooterAddress = $b['address'] !== '' ? $b['address'] : $t2FooterAddress;
+        $t2FooterPhone   = $b['phone']   !== '' ? $b['phone']   : $t2FooterPhone;
+        $t2FooterEmail   = $b['email']   !== '' ? $b['email']   : $t2FooterEmail;
+        $t2FooterLogo    = $b['logo'];
+    } catch (Throwable $e) {
+        /* defaults */
+    }
+}
+$t2FooterLogoUrl = $t2FooterLogo !== '' ? luxe_public_href(ltrim($t2FooterLogo, '/')) : '';
 ?>
 <footer class="footer">
   <div class="container footer-top">
     <div class="footer-brand">
       <a class="footer-logo" href="index.php">
-        <span class="footer-logo-mark" aria-hidden="true">
-          <span class="logo-stripe"></span>
-          <span class="logo-stripe"></span>
-          <span class="logo-stripe"></span>
-        </span>
-        <span class="footer-logo-word">LUXE</span>
+        <?php if ($t2FooterLogoUrl !== ''): ?>
+          <img src="<?= h($t2FooterLogoUrl) ?>" alt="<?= h($t2FooterBrand) ?>" class="footer-logo-img">
+        <?php else: ?>
+          <span class="footer-logo-mark" aria-hidden="true">
+            <span class="logo-stripe"></span>
+            <span class="logo-stripe"></span>
+            <span class="logo-stripe"></span>
+          </span>
+          <span class="footer-logo-word"><?= h($t2FooterBrand) ?></span>
+        <?php endif; ?>
       </a>
       <p>Curated collections from trusted sellers. Shop fashion, lifestyle and essentials with easy returns and secure checkout.</p>
       <div class="footer-social">
@@ -60,7 +87,7 @@ if (!is_array($theme1FooterCategories) || $theme1FooterCategories === []) {
         <li><a href="terms-and-conditions.php">Terms And Condition</a></li>
         <li><a href="return-policy.php">Return Policy</a></li>
         <li><a href="faq.php">FAQ's</a></li>
-        <li><a href="../seller/login.php">Become A Vendor</a></li>
+        <li><a href="<?= h(luxe_public_href('seller/login.php')) ?>">Become A Vendor</a></li>
       </ul>
     </div>
 
@@ -68,15 +95,21 @@ if (!is_array($theme1FooterCategories) || $theme1FooterCategories === []) {
       <h4>Contact Us</h4>
       <p>Need help with your order or account? Our support team is available for quick assistance.</p>
       <ul>
-        <li>37 W 24th St, New York, NY</li>
-        <li>+123 324 5879 39</li>
-        <li>info@luxe.com</li>
+        <?php if ($t2FooterAddress !== ''): ?>
+          <li><?= h($t2FooterAddress) ?></li>
+        <?php endif; ?>
+        <?php if ($t2FooterPhone !== ''): ?>
+          <li><?= h($t2FooterPhone) ?></li>
+        <?php endif; ?>
+        <?php if ($t2FooterEmail !== ''): ?>
+          <li><?= h($t2FooterEmail) ?></li>
+        <?php endif; ?>
       </ul>
     </div>
   </div>
 
   <div class="container footer-bottom">
-    <p>Copyright @ <span>LUXE</span> <?= date('Y') ?>. All right reserved.</p>
+    <p>Copyright @ <span><?= h($t2FooterBrand) ?></span> <?= date('Y') ?>. All right reserved.</p>
     <div class="footer-payments">
       <span>Payment by :</span>
       <i>Mastercard</i>

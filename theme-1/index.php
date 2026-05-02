@@ -19,7 +19,7 @@ if ($userName === '') {
 $userInitials = strtoupper(substr(preg_replace('/[^A-Za-z]/', '', $userName) ?: 'GU', 0, 2));
 $userEmail = trim((string) ($user['email'] ?? ''));
 $isLoggedIn = $user !== null;
-$theme1LoginHref = 'login.php?redirect=' . rawurlencode('theme-1/index.php');
+$theme1LoginHref = 'login.php?redirect=' . rawurlencode('index.php');
 
 $categories = [];
 foreach ($allProducts as $product) {
@@ -109,7 +109,7 @@ function theme1_thumb_url(array $p): string
         return '';
     }
     if (!preg_match('#^(?:https?:)?//#i', $path) && !str_starts_with($path, '/')) {
-        $path = '../' . ltrim($path, '/');
+        $path = luxe_public_href(ltrim($path, '/'));
     }
     return $path;
 }
@@ -123,7 +123,7 @@ function theme1_thumb_url(array $p): string
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Inter:wght@400;500;600;700;800&family=Jost:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="<?= h(luxe_theme_asset('css/styles.css')) ?>">
 </head>
 <body>
   <?php require __DIR__ . '/partials/header.php'; ?>
@@ -180,7 +180,7 @@ function theme1_thumb_url(array $p): string
           <article class="hero-side-card">
             <span class="hero-side-badge script-accent">Summer Offer</span>
             <h2 class="hero-side-title">Make Your Fashion Story Unique Every Day</h2>
-            <a class="btn-hero btn-hero-sm" href="../product-list.php">
+            <a class="btn-hero btn-hero-sm" href="product-list.php">
               Shop Now
               <svg class="btn-hero-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7"/><path d="M7 7h10v10"/></svg>
             </a>
@@ -196,7 +196,7 @@ function theme1_thumb_url(array $p): string
           <div class="left-banner__content">
             <h3>Live products from seller catalog</h3>
             <p>Home page now uses dynamic data from database.</p>
-            <a class="btn left-banner__btn" href="../product-list.php">Shop Now <span aria-hidden="true">↗</span></a>
+            <a class="btn left-banner__btn" href="product-list.php">Shop Now <span aria-hidden="true">↗</span></a>
           </div>
           <div class="left-banner__model" role="img" aria-label="Fashion model"></div>
         </article>
@@ -322,8 +322,8 @@ function theme1_thumb_url(array $p): string
   </main>
 
   <?php require __DIR__ . '/partials/footer.php'; ?>
-  <script src="js/hero-carousel.js" defer></script>
-  <script src="js/pcard-swatches.js" defer></script>
+  <script src="<?= h(luxe_theme_asset('js/hero-carousel.js')) ?>" defer></script>
+  <script src="<?= h(luxe_theme_asset('js/pcard-swatches.js')) ?>" defer></script>
   <script>
     (function () {
       var strip = document.querySelector(".subnav-strip");

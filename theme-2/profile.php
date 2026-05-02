@@ -6,7 +6,7 @@ require_once __DIR__ . '/../includes/bootstrap.php';
 $pdo = db();
 $user = auth_user($pdo);
 if (!$user) {
-    header('Location: login.php?redirect=' . rawurlencode('theme-1/profile.php'));
+    header('Location: login.php?redirect=' . rawurlencode('profile.php'));
     exit;
 }
 
@@ -47,7 +47,7 @@ $isLoggedIn = true;
 $userInitials = $initial;
 $userName = $fullName;
 $userEmail = trim((string) ($user['email'] ?? ''));
-$theme1LoginHref = 'login.php?redirect=' . rawurlencode('theme-1/profile.php');
+$theme1LoginHref = 'login.php?redirect=' . rawurlencode('profile.php');
 
 $theme1HeaderCategories = ["Men's Fashion", "Women's Fashion", "Kid's Fashion", 'Footwear'];
 $theme1HeaderCompareCount = 0;
@@ -66,7 +66,7 @@ function theme1_media_src(string $raw): string
     if ($path[0] === '/') {
         return $path;
     }
-    return '../' . ltrim($path, '/');
+    return luxe_public_href(ltrim($path, '/'));
 }
 
 $uid = (int) ($user['id'] ?? 0);
@@ -133,7 +133,7 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Inter:wght@400;500;600;700;800&family=Jost:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="<?= h(luxe_theme_asset('css/styles.css')) ?>">
 </head>
 <body class="profile-page-wrap">
   <?php require __DIR__ . '/partials/header.php'; ?>
@@ -461,6 +461,12 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
   <?php require __DIR__ . '/partials/footer.php'; ?>
   <script>
     (function () {
+      const LUXE_ACT = <?= json_encode(luxe_actions_root_url(), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES) ?>;
+      const LUXE_APP_BASE = <?= json_encode(luxe_web_path_prefix() === '' ? '' : '/' . luxe_web_path_prefix()) ?>;
+      function luxeJoin(rel) {
+        rel = String(rel || "").replace(/^\/+/, "");
+        return (LUXE_APP_BASE === "" ? "/" : LUXE_APP_BASE + "/") + rel;
+      }
       var tabLinks = document.querySelectorAll("[data-tab-link]");
       var tabPanels = document.querySelectorAll(".t1-tab-panel");
       function activateTab(tab) {
@@ -511,7 +517,7 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
             gender: document.getElementById("editGender").value
           };
           try {
-            var res = await fetch("../actions/update-profile.php", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+            var res = await fetch(LUXE_ACT + "update-profile.php", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
             var data = await res.json();
             if (!res.ok || !data.ok) throw new Error(data.message || "Could not save profile");
             document.getElementById("profileNameValue").textContent = (data.first_name || "") + " " + (data.last_name || "");
@@ -647,9 +653,9 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
           return;
         }
         runVerifyFlow(
-          "../actions/profile-email-change-send.php",
+          LUXE_ACT + "profile-email-change-send.php",
           { new_email: newEmail },
-          "../actions/profile-email-change-verify.php",
+          LUXE_ACT + "profile-email-change-verify.php",
           "email",
           "emailVerifyBadge",
           "Email verified successfully."
@@ -663,9 +669,9 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
           return;
         }
         runVerifyFlow(
-          "../actions/profile-phone-change-send.php",
+          LUXE_ACT + "profile-phone-change-send.php",
           { new_phone: newPhone },
-          "../actions/profile-phone-change-verify.php",
+          LUXE_ACT + "profile-phone-change-verify.php",
           "phone",
           "phoneVerifyBadge",
           "Mobile number verified successfully."
@@ -682,7 +688,7 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
           var confirm = document.getElementById("cpConfirm").value;
           if (next !== confirm) { setMsg(cpMsg, "New password and confirm password do not match.", false); return; }
           try {
-            var res = await fetch("../actions/change-password.php", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ current_password: current, new_password: next }) });
+            var res = await fetch(LUXE_ACT + "change-password.php", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ current_password: current, new_password: next }) });
             var data = await res.json();
             setMsg(cpMsg, data.message || (data.ok ? "Password updated." : "Could not update password."), !!data.ok);
             if (data.ok) cpForm.reset();
@@ -723,13 +729,13 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
         grid.querySelectorAll("[data-delete-id]").forEach(function (b) { b.addEventListener("click", function () { deleteAddress(Number(b.getAttribute("data-delete-id"))); }); });
       }
       async function setDefaultAddress(id) {
-        var res = await fetch("../actions/set-default-address.php", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+        var res = await fetch(LUXE_ACT + "set-default-address.php", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
         var data = await res.json();
         if (data.ok && Array.isArray(data.addresses)) { addresses = data.addresses; renderAddresses(); }
       }
       async function deleteAddress(id) {
         if (!window.confirm("Remove this address?")) return;
-        var res = await fetch("../actions/delete-address.php", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+        var res = await fetch(LUXE_ACT + "delete-address.php", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
         var data = await res.json();
         if (data.ok && Array.isArray(data.addresses)) { addresses = data.addresses; renderAddresses(); }
       }
@@ -752,7 +758,7 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
           pin: document.getElementById("addrPin").value.trim(),
           is_default: !!document.getElementById("addrIsDefault").checked
         };
-        var res = await fetch("../actions/save-address.php", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        var res = await fetch(LUXE_ACT + "save-address.php", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         var data = await res.json();
         if (data.ok && Array.isArray(data.addresses)) { addresses = data.addresses; closeModal(); renderAddresses(); } else { alert(data.message || "Could not save address."); }
       });
@@ -778,7 +784,7 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
           if (!v) return "";
           if (/^(https?:)?\/\//i.test(v) || v.charAt(0) === "/") return v;
           if (v.indexOf("../") === 0) return v;
-          return "../" + v.replace(/^\/+/, "");
+          return luxeJoin(v);
         }
         wishlistGrid.innerHTML = items.map(function (w) {
           var id = Number(w.id || 0);
@@ -791,7 +797,7 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
             : '<span class="t1-wishlist-media-fallback">Image unavailable</span>';
           var discountPct = (orig > price && orig > 0) ? Math.round((orig - price) / orig * 100) : 0;
           var priceHtml = '<b>Rs ' + price.toLocaleString("en-IN") + (orig > price ? ' <small>Rs ' + orig.toLocaleString("en-IN") + '</small>' : '') + '</b>' + (discountPct > 0 ? '<span class="t1-wishlist-discount">' + discountPct + '% off</span>' : '');
-          return '<div class="t1-wishlist-card"><button type="button" class="t1-wishlist-remove" data-w-remove="' + id + '" aria-label="Remove from wishlist"><svg class="heart-icon" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg></button><a class="t1-wishlist-link" href="../product.php?id=' + id + '"><span class="t1-wishlist-media">' + media + '</span><div class="t1-wishlist-card-body"><strong>' + name + '</strong><span>LUXE — Premium Collection</span><span class="t1-wishlist-meta">Saved item</span><div class="t1-wishlist-price-row">' + priceHtml + '</div></div></a></div>';
+          return '<div class="t1-wishlist-card"><button type="button" class="t1-wishlist-remove" data-w-remove="' + id + '" aria-label="Remove from wishlist"><svg class="heart-icon" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg></button><a class="t1-wishlist-link" href="' + wEsc(luxeJoin("product.php?id=" + id)) + '"><span class="t1-wishlist-media">' + media + '</span><div class="t1-wishlist-card-body"><strong>' + name + '</strong><span>LUXE — Premium Collection</span><span class="t1-wishlist-meta">Saved item</span><div class="t1-wishlist-price-row">' + priceHtml + '</div></div></a></div>';
         }).join("");
         wishlistGrid.querySelectorAll("[data-w-remove]").forEach(function (btn) {
           btn.addEventListener("click", function () {
@@ -808,7 +814,7 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
         if (e.key === "luxe_profile_wishlist_v1") renderWishlist();
       });
 
-      window.__API_REDEEM_LOYALTY__ = '../actions/redeem-loyalty-points.php';
+      window.__API_REDEEM_LOYALTY__ = LUXE_ACT + "redeem-loyalty-points.php";
       window.redeemPoints = async function () {
         var input = document.getElementById("redeemInput");
         if (!input) return;

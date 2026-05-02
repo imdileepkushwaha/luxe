@@ -60,7 +60,7 @@ function profile_menu_href($tabName) {
       <span class="profile-menu-icon">⚙️</span> Settings
     </a></li>
     <div class="profile-menu-divider"></div>
-    <li><a href="../actions/logout.php?redirect=theme-1/index.php" style="color:#dc2626;">
+    <li><a href="<?= h(luxe_action_href('logout.php?redirect=' . rawurlencode('index.php'))) ?>" style="color:#dc2626;">
       <span class="profile-menu-icon" style="background:linear-gradient(140deg,#fee2e2,#fecaca);border-color:rgba(239,68,68,0.2);">🚪</span> Logout
     </a></li>
   </ul>
