@@ -6,7 +6,7 @@ require_once __DIR__ . '/../includes/bootstrap.php';
 $pdo = db();
 $user = auth_user($pdo);
 if (!$user) {
-    header('Location: login.php?redirect=' . rawurlencode('theme-1/profile.php'));
+    header('Location: login.php?redirect=' . rawurlencode('profile.php'));
     exit;
 }
 
@@ -47,7 +47,7 @@ $isLoggedIn = true;
 $userInitials = $initial;
 $userName = $fullName;
 $userEmail = trim((string) ($user['email'] ?? ''));
-$theme1LoginHref = 'login.php?redirect=' . rawurlencode('theme-1/profile.php');
+$theme1LoginHref = 'login.php?redirect=' . rawurlencode('profile.php');
 
 $theme1HeaderCategories = ["Men's Fashion", "Women's Fashion", "Kid's Fashion", 'Footwear'];
 $theme1HeaderCompareCount = 0;
@@ -66,7 +66,7 @@ function theme1_media_src(string $raw): string
     if ($path[0] === '/') {
         return $path;
     }
-    return '../' . ltrim($path, '/');
+    return luxe_public_href(ltrim($path, '/'));
 }
 
 $uid = (int) ($user['id'] ?? 0);
@@ -129,18 +129,24 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LUXE Theme 1 - My Account</title>
+  <title>My Account — LUXE</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Inter:wght@400;500;600;700;800&family=Jost:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="<?= h(luxe_theme_asset('css/styles.css')) ?>">
 </head>
-<body class="profile-page-wrap">
-  <?php require __DIR__ . '/partials/header.php'; ?>
-
-  <main>
+<body class="profile-page-wrap t2-account-layout">
+  <?php
+  $isAddressesTab = ($_GET['tab'] ?? '') === 'addresses';
+  ?>
+  <?php if (!$isAddressesTab): ?>
+    <?php require __DIR__ . '/partials/header.php'; ?>
+  <?php endif; ?>
+  <main class="<?= $isAddressesTab ? 't2-address-only-view' : '' ?>">
     <section class="profile-shell" aria-label="Profile content">
-      <?php require __DIR__ . '/partials/profile-sidebar.php'; ?>
+      <?php if (!$isAddressesTab): ?>
+        <?php require __DIR__ . '/partials/profile-sidebar.php'; ?>
+      <?php endif; ?>
 
       <article class="profile-main">
         <div class="t1-tab-panel" id="tab-dashboard">
@@ -156,74 +162,114 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
             <h2>Dashboard</h2>
           </div>
           <div class="t1-stat-grid">
-            <div class="t1-stat-card"><strong><?= (int) ($orderStats['order_count'] ?? 0) ?></strong><span>Total Orders</span></div>
-            <div class="t1-stat-card"><strong>Rs <?= number_format((int) ($orderStats['lifetime_spend_rupees'] ?? 0)) ?></strong><span>Lifetime Spend</span></div>
-            <div class="t1-stat-card"><strong>Rs <?= number_format((int) ($orderStats['total_saved_rupees'] ?? 0)) ?></strong><span>Total Saved</span></div>
+            <div class="t1-stat-card">
+              <div class="t1-stat-info">
+                <strong><?= (int) ($orderStats['order_count'] ?? 0) ?></strong>
+                <span>Total Orders</span>
+              </div>
+              <div class="t1-stat-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>
+            </div>
+            <div class="t1-stat-card">
+              <div class="t1-stat-info">
+                <strong>Rs <?= number_format((int) ($orderStats['lifetime_spend_rupees'] ?? 0)) ?></strong>
+                <span>Lifetime Spend</span>
+              </div>
+              <div class="t1-stat-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"/></svg></div>
+            </div>
+            <div class="t1-stat-card">
+              <div class="t1-stat-info">
+                <strong>Rs <?= number_format((int) ($orderStats['total_saved_rupees'] ?? 0)) ?></strong>
+                <span>Total Saved</span>
+              </div>
+              <div class="t1-stat-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 3.5 3.5L22 12l-10 10L2 12 12 2Z"/><path d="m15 5-3-3"/><path d="M18 8l-3-3"/></svg></div>
+            </div>
           </div>
+          
 
           <div class="t1-activity-head"><span>Activity Overview</span></div>
           <div class="t1-activity-grid">
             <div class="t1-activity-card t1-act--orders">
-              <div class="t1-activity-icon">📋</div>
+              <div class="t1-activity-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg></div>
               <div class="t1-activity-info"><strong><?= (int) ($orderStats['order_count'] ?? 0) ?></strong><span>Total Orders</span></div>
             </div>
             <div class="t1-activity-card t1-act--completed">
-              <div class="t1-activity-icon">✅</div>
+              <div class="t1-activity-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
               <div class="t1-activity-info"><strong><?= (int) ($orderStats['delivered_count'] ?? 0) ?></strong><span>Completed</span></div>
             </div>
             <div class="t1-activity-card t1-act--pending">
-              <div class="t1-activity-icon">🔄</div>
+              <div class="t1-activity-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8.1 8.1 0 0 0-15.5-2m-.5-4v4h4"/><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/></svg></div>
               <div class="t1-activity-info"><strong><?= (int) ($orderStats['pending_count'] ?? 0) ?></strong><span>Pending</span></div>
             </div>
             <div class="t1-activity-card t1-act--cancelled">
-              <div class="t1-activity-icon">✖</div>
+              <div class="t1-activity-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div>
               <div class="t1-activity-info"><strong><?= (int) ($orderStats['cancelled_count'] ?? 0) ?></strong><span>Cancelled</span></div>
             </div>
             <div class="t1-activity-card t1-act--wishlist">
-              <div class="t1-activity-icon"><svg class="heart-icon" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg></div>
+              <div class="t1-activity-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg></div>
               <div class="t1-activity-info"><strong id="dashWishlistCount">—</strong><span>Wishlist</span></div>
             </div>
             <div class="t1-activity-card t1-act--reviews">
-              <div class="t1-activity-icon">⭐</div>
+              <div class="t1-activity-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
               <div class="t1-activity-info"><strong><?= count($deliveredReviewRows) ?></strong><span>Reviews</span></div>
             </div>
           </div>
-          <div class="t1-profile-card" style="background:#fff; border-radius:16px; border:1px solid #e2e8f0; padding:24px; margin-bottom:24px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-              <h3 style="margin:0; font-size:18px; font-weight:700; color:#0f172a;">Personal Information</h3>
-              <button type="button" class="profile-edit-btn" id="profileEditBtn" style="padding:8px 16px; font-size:13px; border-radius:10px;">Edit Details</button>
+          <div class="profile-info-card">
+            <div class="profile-info-header">
+              <h3>Personal Information</h3>
+              <button type="button" class="profile-edit-btn" id="profileEditBtn">Edit Details</button>
             </div>
             
             <div id="profileInfoBox">
-              <div class="profile-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
-                <div class="profile-field"><dt style="color:#64748b; font-size:13px; margin-bottom:4px;">Full Name</dt><dd id="profileNameValue" style="color:#0f172a; font-weight:600; font-size:15px; margin:0;"><?= h($fullName) ?></dd></div>
-                <div class="profile-field"><dt style="color:#64748b; font-size:13px; margin-bottom:4px;">Email Address</dt><dd style="color:#0f172a; font-weight:600; font-size:15px; margin:0; display:flex; align-items:center; gap:8px;"><span id="profileEmailValue"><?= h((string) ($user['email'] ?? '—')) ?></span> <span class="t1-verify-badge <?= $emailVerified ? 'is-verified' : 'is-unverified' ?>" id="emailVerifyBadge" style="font-size:11px; padding:2px 8px;"><?= $emailVerified ? '✔ Verified' : '⚠ Unverified' ?></span></dd></div>
-                <div class="profile-field"><dt style="color:#64748b; font-size:13px; margin-bottom:4px;">Mobile Number</dt><dd style="color:#0f172a; font-weight:600; font-size:15px; margin:0; display:flex; align-items:center; gap:8px;"><span id="profilePhoneValue"><?= h((string) ($user['phone'] ?? '—')) ?></span> <span class="t1-verify-badge <?= $phoneVerified ? 'is-verified' : 'is-unverified' ?>" id="phoneVerifyBadge" style="font-size:11px; padding:2px 8px;"><?= $phoneVerified ? '✔ Verified' : '⚠ Unverified' ?></span></dd></div>
-                <div class="profile-field"><dt style="color:#64748b; font-size:13px; margin-bottom:4px;">Gender</dt><dd id="profileGenderValue" style="color:#0f172a; font-weight:600; font-size:15px; margin:0; text-transform:capitalize;"><?= h((string) ($user['gender'] ?? '—')) ?></dd></div>
-                <div class="profile-field"><dt style="color:#64748b; font-size:13px; margin-bottom:4px;">Date of Birth</dt><dd id="profileDobValue" style="color:#0f172a; font-weight:600; font-size:15px; margin:0;"><?= h(!empty($user['dob']) ? (string) $user['dob'] : '—') ?></dd></div>
+              <div class="profile-details-grid">
+                <div class="profile-detail-item">
+                  <dt><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Full Name</dt>
+                  <dd id="profileNameValue"><?= h($fullName) ?></dd>
+                </div>
+                <div class="profile-detail-item">
+                  <dt><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> Email Address</dt>
+                  <dd>
+                    <span id="profileEmailValue"><?= h((string) ($user['email'] ?? '—')) ?></span>
+                    <span class="t1-verify-badge <?= $emailVerified ? 'is-verified' : 'is-unverified' ?>" id="emailVerifyBadge"><?= $emailVerified ? '✔ Verified' : '⚠ Unverified' ?></span>
+                  </dd>
+                </div>
+                <div class="profile-detail-item">
+                  <dt><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg> Mobile Number</dt>
+                  <dd>
+                    <span id="profilePhoneValue"><?= h((string) ($user['phone'] ?? '—')) ?></span>
+                    <span class="t1-verify-badge <?= $phoneVerified ? 'is-verified' : 'is-unverified' ?>" id="phoneVerifyBadge"><?= $phoneVerified ? '✔ Verified' : '⚠ Unverified' ?></span>
+                  </dd>
+                </div>
+                <div class="profile-detail-item">
+                  <dt><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Gender</dt>
+                  <dd id="profileGenderValue" style="text-transform:capitalize;"><?= h((string) ($user['gender'] ?? '—')) ?></dd>
+                </div>
+                <div class="profile-detail-item">
+                  <dt><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Date of Birth</dt>
+                  <dd id="profileDobValue"><?= h(!empty($user['dob']) ? (string) $user['dob'] : '—') ?></dd>
+                </div>
               </div>
             </div>
 
-            <form class="profile-edit-form hidden" id="profileEditForm" style="margin-top:0; padding:20px; background:#f8fafc; border-radius:12px; border:1px solid #e2e8f0;">
-              <div class="profile-edit-grid" style="margin-top:0;">
-                <div><label for="editFirstName">First name</label><input id="editFirstName" type="text" value="<?= h((string) ($user['first_name'] ?? '')) ?>" required></div>
-                <div><label for="editLastName">Last name</label><input id="editLastName" type="text" value="<?= h((string) ($user['last_name'] ?? '')) ?>" required></div>
-                <div>
+            <form class="profile-edit-form hidden" id="profileEditForm">
+              <div class="profile-form-grid">
+                <div class="profile-form-group"><label for="editFirstName">First name</label><input id="editFirstName" type="text" value="<?= h((string) ($user['first_name'] ?? '')) ?>" required></div>
+                <div class="profile-form-group"><label for="editLastName">Last name</label><input id="editLastName" type="text" value="<?= h((string) ($user['last_name'] ?? '')) ?>" required></div>
+                <div class="profile-form-group">
                   <label for="editEmail">Email</label>
-                  <div style="display:flex; gap:8px;">
-                    <input id="editEmail" type="email" value="<?= h((string) ($user['email'] ?? '')) ?>" style="flex:1;">
-                    <button type="button" class="profile-edit-btn" id="verifyEmailBtn" style="padding:0 16px; font-size:13px; white-space:nowrap; border-radius:10px;">Verify</button>
+                  <div class="profile-form-flex">
+                    <input id="editEmail" type="email" value="<?= h((string) ($user['email'] ?? '')) ?>">
+                    <button type="button" class="btn-verify-mini" id="verifyEmailBtn">Verify</button>
                   </div>
                 </div>
-                <div>
+                <div class="profile-form-group">
                   <label for="editPhone">Mobile number</label>
-                  <div style="display:flex; gap:8px;">
-                    <input id="editPhone" type="tel" value="<?= h((string) ($user['phone'] ?? '')) ?>" style="flex:1;">
-                    <button type="button" class="profile-edit-btn" id="verifyPhoneBtn" style="padding:0 16px; font-size:13px; white-space:nowrap; border-radius:10px;">Verify</button>
+                  <div class="profile-form-flex">
+                    <input id="editPhone" type="tel" value="<?= h((string) ($user['phone'] ?? '')) ?>">
+                    <button type="button" class="btn-verify-mini" id="verifyPhoneBtn">Verify</button>
                   </div>
                 </div>
-                <div><label for="editDob">Date of birth</label><input id="editDob" type="date" value="<?= h(!empty($user['dob']) ? substr((string) $user['dob'], 0, 10) : '') ?>"></div>
-                <div>
+                <div class="profile-form-group"><label for="editDob">Date of birth</label><input id="editDob" type="date" value="<?= h(!empty($user['dob']) ? substr((string) $user['dob'], 0, 10) : '') ?>"></div>
+                <div class="profile-form-group">
                   <label for="editGender">Gender</label>
                   <select id="editGender">
                     <option value="">Select</option>
@@ -233,9 +279,9 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
                   </select>
                 </div>
               </div>
-              <div class="profile-edit-actions" style="margin-top:20px; display:flex; gap:12px; justify-content:flex-end;">
-                <button type="button" class="profile-edit-cancel" id="profileEditCancel">Cancel</button>
-                <button type="submit" class="profile-edit-btn">Save Changes</button>
+              <div class="profile-form-actions">
+                <button type="button" class="btn-cancel-profile" id="profileEditCancel">Cancel</button>
+                <button type="submit" class="btn-save-profile">Save Changes</button>
               </div>
               <p class="profile-edit-msg hidden" id="profileEditMsg"></p>
             </form>
@@ -458,9 +504,17 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
     </div>
   </div>
 
-  <?php require __DIR__ . '/partials/footer.php'; ?>
+  <?php if (!$isAddressesTab): ?>
+    <?php require __DIR__ . '/partials/footer.php'; ?>
+  <?php endif; ?>
   <script>
     (function () {
+      const LUXE_ACT = <?= json_encode(luxe_actions_root_url(), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES) ?>;
+      const LUXE_APP_BASE = <?= json_encode(luxe_web_path_prefix() === '' ? '' : '/' . luxe_web_path_prefix()) ?>;
+      function luxeJoin(rel) {
+        rel = String(rel || "").replace(/^\/+/, "");
+        return (LUXE_APP_BASE === "" ? "/" : LUXE_APP_BASE + "/") + rel;
+      }
       var tabLinks = document.querySelectorAll("[data-tab-link]");
       var tabPanels = document.querySelectorAll(".t1-tab-panel");
       function activateTab(tab) {
@@ -511,7 +565,7 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
             gender: document.getElementById("editGender").value
           };
           try {
-            var res = await fetch("../actions/update-profile.php", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+            var res = await fetch(LUXE_ACT + "update-profile.php", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
             var data = await res.json();
             if (!res.ok || !data.ok) throw new Error(data.message || "Could not save profile");
             document.getElementById("profileNameValue").textContent = (data.first_name || "") + " " + (data.last_name || "");
@@ -647,9 +701,9 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
           return;
         }
         runVerifyFlow(
-          "../actions/profile-email-change-send.php",
+          LUXE_ACT + "profile-email-change-send.php",
           { new_email: newEmail },
-          "../actions/profile-email-change-verify.php",
+          LUXE_ACT + "profile-email-change-verify.php",
           "email",
           "emailVerifyBadge",
           "Email verified successfully."
@@ -663,9 +717,9 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
           return;
         }
         runVerifyFlow(
-          "../actions/profile-phone-change-send.php",
+          LUXE_ACT + "profile-phone-change-send.php",
           { new_phone: newPhone },
-          "../actions/profile-phone-change-verify.php",
+          LUXE_ACT + "profile-phone-change-verify.php",
           "phone",
           "phoneVerifyBadge",
           "Mobile number verified successfully."
@@ -682,7 +736,7 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
           var confirm = document.getElementById("cpConfirm").value;
           if (next !== confirm) { setMsg(cpMsg, "New password and confirm password do not match.", false); return; }
           try {
-            var res = await fetch("../actions/change-password.php", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ current_password: current, new_password: next }) });
+            var res = await fetch(LUXE_ACT + "change-password.php", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ current_password: current, new_password: next }) });
             var data = await res.json();
             setMsg(cpMsg, data.message || (data.ok ? "Password updated." : "Could not update password."), !!data.ok);
             if (data.ok) cpForm.reset();
@@ -716,20 +770,20 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
         if (!addresses.length) { grid.innerHTML = '<div class="theme1-address-empty">No address saved yet.</div>'; return; }
         grid.innerHTML = addresses.map(function (a) {
           var line2 = (a.line2 || "").trim() ? ", " + esc(a.line2) : "";
-          return '<div class="theme1-address-card"><div class="theme1-address-top"><span class="theme1-address-type">' + esc(a.type || "Home") + '</span>' + (a.isDefault ? '<span class="theme1-address-default">Default</span>' : '') + '</div><strong>' + esc(a.name || "") + '</strong><p>' + esc(a.line1 || "") + line2 + ', ' + esc(a.city || "") + ', ' + esc(a.state || "") + ' - ' + esc(a.pin || "") + '</p><p>' + (a.phone ? ('Phone: ' + esc(a.phone)) : '') + '</p><div class="theme1-address-actions"><button type="button" class="theme1-action-btn is-edit" data-edit-id="' + Number(a.id || 0) + '">Edit</button>' + (a.isDefault ? "" : '<button type="button" class="theme1-action-btn is-default" data-default-id="' + Number(a.id || 0) + '">Set default</button>') + '<button type="button" class="theme1-action-btn is-delete" data-delete-id="' + Number(a.id || 0) + '">Delete</button></div></div>';
+          return '<div class="theme1-address-card"><div class="theme1-address-card-inner"><div class="theme1-address-top"><span class="theme1-address-type">' + esc(a.type || "Home") + '</span>' + (a.isDefault ? '<span class="theme1-address-default">Default</span>' : '') + '</div><strong>' + esc(a.name || "") + '</strong><p>' + esc(a.line1 || "") + line2 + ', ' + esc(a.city || "") + ', ' + esc(a.state || "") + ' - ' + esc(a.pin || "") + '</p><p>' + (a.phone ? ('Phone: ' + esc(a.phone)) : '') + '</p></div><div class="theme1-address-actions"><button type="button" class="theme1-action-btn is-edit" data-edit-id="' + Number(a.id || 0) + '">Edit</button>' + (a.isDefault ? "" : '<button type="button" class="theme1-action-btn is-default" data-default-id="' + Number(a.id || 0) + '">Set default</button>') + '<button type="button" class="theme1-action-btn is-delete" data-delete-id="' + Number(a.id || 0) + '">Delete</button></div></div>';
         }).join("");
         grid.querySelectorAll("[data-edit-id]").forEach(function (b) { b.addEventListener("click", function () { openModal(addresses.find(function (x) { return Number(x.id) === Number(b.getAttribute("data-edit-id")); }) || null); }); });
         grid.querySelectorAll("[data-default-id]").forEach(function (b) { b.addEventListener("click", function () { setDefaultAddress(Number(b.getAttribute("data-default-id"))); }); });
         grid.querySelectorAll("[data-delete-id]").forEach(function (b) { b.addEventListener("click", function () { deleteAddress(Number(b.getAttribute("data-delete-id"))); }); });
       }
       async function setDefaultAddress(id) {
-        var res = await fetch("../actions/set-default-address.php", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+        var res = await fetch(LUXE_ACT + "set-default-address.php", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
         var data = await res.json();
         if (data.ok && Array.isArray(data.addresses)) { addresses = data.addresses; renderAddresses(); }
       }
       async function deleteAddress(id) {
         if (!window.confirm("Remove this address?")) return;
-        var res = await fetch("../actions/delete-address.php", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+        var res = await fetch(LUXE_ACT + "delete-address.php", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
         var data = await res.json();
         if (data.ok && Array.isArray(data.addresses)) { addresses = data.addresses; renderAddresses(); }
       }
@@ -752,7 +806,7 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
           pin: document.getElementById("addrPin").value.trim(),
           is_default: !!document.getElementById("addrIsDefault").checked
         };
-        var res = await fetch("../actions/save-address.php", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        var res = await fetch(LUXE_ACT + "save-address.php", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         var data = await res.json();
         if (data.ok && Array.isArray(data.addresses)) { addresses = data.addresses; closeModal(); renderAddresses(); } else { alert(data.message || "Could not save address."); }
       });
@@ -778,7 +832,7 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
           if (!v) return "";
           if (/^(https?:)?\/\//i.test(v) || v.charAt(0) === "/") return v;
           if (v.indexOf("../") === 0) return v;
-          return "../" + v.replace(/^\/+/, "");
+          return luxeJoin(v);
         }
         wishlistGrid.innerHTML = items.map(function (w) {
           var id = Number(w.id || 0);
@@ -791,7 +845,7 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
             : '<span class="t1-wishlist-media-fallback">Image unavailable</span>';
           var discountPct = (orig > price && orig > 0) ? Math.round((orig - price) / orig * 100) : 0;
           var priceHtml = '<b>Rs ' + price.toLocaleString("en-IN") + (orig > price ? ' <small>Rs ' + orig.toLocaleString("en-IN") + '</small>' : '') + '</b>' + (discountPct > 0 ? '<span class="t1-wishlist-discount">' + discountPct + '% off</span>' : '');
-          return '<div class="t1-wishlist-card"><button type="button" class="t1-wishlist-remove" data-w-remove="' + id + '" aria-label="Remove from wishlist"><svg class="heart-icon" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg></button><a class="t1-wishlist-link" href="../product.php?id=' + id + '"><span class="t1-wishlist-media">' + media + '</span><div class="t1-wishlist-card-body"><strong>' + name + '</strong><span>LUXE — Premium Collection</span><span class="t1-wishlist-meta">Saved item</span><div class="t1-wishlist-price-row">' + priceHtml + '</div></div></a></div>';
+          return '<div class="t1-wishlist-card"><button type="button" class="t1-wishlist-remove" data-w-remove="' + id + '" aria-label="Remove from wishlist"><svg class="heart-icon" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg></button><a class="t1-wishlist-link" href="' + wEsc(luxeJoin("product.php?id=" + id)) + '"><span class="t1-wishlist-media">' + media + '</span><div class="t1-wishlist-card-body"><strong>' + name + '</strong><span>LUXE — Premium Collection</span><span class="t1-wishlist-meta">Saved item</span><div class="t1-wishlist-price-row">' + priceHtml + '</div></div></a></div>';
         }).join("");
         wishlistGrid.querySelectorAll("[data-w-remove]").forEach(function (btn) {
           btn.addEventListener("click", function () {
@@ -808,7 +862,7 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
         if (e.key === "luxe_profile_wishlist_v1") renderWishlist();
       });
 
-      window.__API_REDEEM_LOYALTY__ = '../actions/redeem-loyalty-points.php';
+      window.__API_REDEEM_LOYALTY__ = LUXE_ACT + "redeem-loyalty-points.php";
       window.redeemPoints = async function () {
         var input = document.getElementById("redeemInput");
         if (!input) return;

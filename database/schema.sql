@@ -34,6 +34,7 @@ CREATE TABLE site_settings (
 
 INSERT INTO site_settings (setting_key, setting_value) VALUES ('platform_fee_rupees', '3');
 INSERT INTO site_settings (setting_key, setting_value) VALUES ('admin_seller_commission_percent', '1');
+INSERT INTO site_settings (setting_key, setting_value) VALUES ('storefront_theme', 'default');
 
 CREATE TABLE platform_payment_gateway_config (
   id TINYINT UNSIGNED PRIMARY KEY,

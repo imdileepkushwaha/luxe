@@ -150,7 +150,7 @@ function t1_cart_thumb(array $line): string {
     $img = trim((string) ($line['image'] ?? $line['image_path'] ?? ''));
     if ($img === '' || strcasecmp($img, 'default') === 0) return '';
     if (!preg_match('#^(https?:)?//#i', $img) && !str_starts_with($img, '/')) {
-        $img = '../' . ltrim($img, '/');
+        $img = luxe_public_href(ltrim($img, '/'));
     }
     return $img;
 }
@@ -184,7 +184,7 @@ $isLoggedIn = $user !== null;
 $userInitials = $initial;
 $userName = $fullName;
 $userEmail = trim((string)($user['email'] ?? ''));
-$theme1LoginHref        = 'login.php?redirect=' . rawurlencode('theme-1/cart.php');
+$theme1LoginHref        = 'login.php?redirect=' . rawurlencode('cart.php');
 $theme1HeaderCategories = ["Men's Fashion", "Women's Fashion", "Kid's Fashion", 'Footwear'];
 $theme1HeaderCompareCount = 0;
 $theme1HeaderCartCount  = $cartCount;
@@ -198,10 +198,10 @@ $theme1FooterCategories = $theme1HeaderCategories;
   <title>My Cart — LUXE</title>
   <meta name="description" content="Review your cart and proceed to checkout on LUXE.">
   <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Inter:wght@400;500;600;700;800&family=Jost:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="<?= h(luxe_theme_asset('css/styles.css')) ?>">
   
 </head>
-<body class="profile-page-wrap t1-cart-page">
+<body class="profile-page-wrap t1-cart-page t2-account-layout t2-cart-checkout">
   <?php require __DIR__ . '/partials/header.php'; ?>
 
   <main>
@@ -261,17 +261,17 @@ $theme1FooterCategories = $theme1HeaderCategories;
               $lineColor = (string) ($line['color'] ?? '');
               $lineImg   = t1_cart_thumb($line);
             ?>
-            <div class="t1-cart-card" id="cartCard<?= $lineId ?>">
-              <!-- Top Section: Product Info -->
-              <div class="t1-cart-card-top">
-                <label class="t1-cart-checkbox-wrap">
+            <div class="t1-cart-card t2-cart-item" id="cartCard<?= $lineId ?>">
+              <!-- Top Section: Product Info (theme-2 minimal row) -->
+              <div class="t1-cart-card-top t2-cart-row">
+                <label class="t1-cart-checkbox-wrap t2-cart-cb">
                   <input type="checkbox" class="item-checkbox" data-id="<?= $lineId ?>" onchange="onItemSelect(<?= $lineId ?>, this.checked)" <?= ($line['checked'] ?? true) ? 'checked' : '' ?>>
                   <span class="t1-cart-checkmark">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
                   </span>
                 </label>
 
-                <a href="product.php?slug=<?= h((string)($line['slug'] ?? '')) ?>" class="t1-cart-card-img">
+                <a href="product.php?slug=<?= h((string)($line['slug'] ?? '')) ?>" class="t1-cart-card-img t2-cart-thumb">
                   <?php if ($lineImg !== ''): ?>
                     <img src="<?= h($lineImg) ?>" alt="<?= h($lineName) ?>">
                   <?php else: ?>
@@ -279,7 +279,7 @@ $theme1FooterCategories = $theme1HeaderCategories;
                   <?php endif; ?>
                 </a>
 
-                <div class="t1-cart-card-body">
+                <div class="t1-cart-card-body t2-cart-product-text">
                   <?php if ($lineBrand !== ''): ?>
                     <div class="t1-cart-card-brand"><?= h($lineBrand) ?></div>
                   <?php endif; ?>
@@ -301,15 +301,11 @@ $theme1FooterCategories = $theme1HeaderCategories;
                     <?php endif; ?>
                   </div>
                   <?php endif; ?>
+                </div>
 
-                  <div class="t1-cart-qty-wrap">
-                    <button class="t1-cart-qty-btn" onclick="changeQty(<?= $lineId ?>, -1)" title="Decrease">−</button>
-                    <input class="t1-cart-qty-num" type="number" id="qty<?= $lineId ?>" value="<?= $lineQty ?>" min="1" max="<?= (int)($line['max_qty'] ?? 50) ?>" onchange="setQty(<?= $lineId ?>, this.value)">
-                    <button class="t1-cart-qty-btn" id="plus<?= $lineId ?>" onclick="changeQty(<?= $lineId ?>, 1)" title="Increase" <?= $lineQty >= (int)($line['max_qty'] ?? 50) ? 'disabled' : '' ?>>+</button>
-                  </div>
-
-                  <div class="t1-cart-price-group">
-                    <span class="t1-cart-price">₹<?= number_format($lineTotal) ?></span>
+                <div class="t2-cart-price-col">
+                  <div class="t1-cart-price-group t2-cart-price-group">
+                    <span class="t1-cart-price t2-cart-line-total">₹<?= number_format($lineTotal) ?></span>
                     <?php 
                       $origUnitPrice = (int)($line['orig'] ?? 0);
                       if ($origUnitPrice > $linePrice): 
@@ -325,24 +321,22 @@ $theme1FooterCategories = $theme1HeaderCategories;
                   </div>
                 </div>
 
-                <!-- Remove btn top-right -->
-                <button class="t1-cart-remove-btn" onclick="removeItem(<?= $lineId ?>)" title="Remove">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
+                <div class="t1-cart-qty-wrap t2-cart-qty">
+                  <button type="button" class="t1-cart-qty-btn" onclick="changeQty(<?= $lineId ?>, -1)" title="Decrease">−</button>
+                  <input class="t1-cart-qty-num" type="number" id="qty<?= $lineId ?>" value="<?= $lineQty ?>" min="1" max="<?= (int)($line['max_qty'] ?? 50) ?>" onchange="setQty(<?= $lineId ?>, this.value)">
+                  <button type="button" class="t1-cart-qty-btn" id="plus<?= $lineId ?>" onclick="changeQty(<?= $lineId ?>, 1)" title="Increase" <?= $lineQty >= (int)($line['max_qty'] ?? 50) ? 'disabled' : '' ?>>+</button>
+                </div>
+
+                <button type="button" class="t2-cart-remove-text" onclick="removeItem(<?= $lineId ?>)">Remove</button>
               </div>
 
               <!-- Bottom Section: Delivery + Actions -->
-              <div class="t1-cart-card-actions">
+              <div class="t1-cart-card-actions t2-cart-card-actions">
                 <div class="t1-cart-delivery-info" id="delInfo<?= $lineId ?>"></div>
                 <div class="t1-cart-action-btns">
-                  <button class="t1-cart-action-link" onclick="saveForLater(<?= $lineId ?>)">
+                  <button type="button" class="t1-cart-action-link" onclick="saveForLater(<?= $lineId ?>)">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
                     Save for Later
-                  </button>
-                  <span class="t1-cart-action-divider"></span>
-                  <button class="t1-cart-action-link danger" onclick="removeItem(<?= $lineId ?>)">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                    Remove
                   </button>
                 </div>
               </div>
@@ -369,7 +363,7 @@ $theme1FooterCategories = $theme1HeaderCategories;
 
               <!-- Delivery Speed -->
               <div class="t1-co-speed-box">
-                <div class="t1-co-speed-lbl">📦 Delivery Speed</div>
+                <div class="t1-co-speed-lbl t2-shipping-heading">Shipping</div>
                 <?php if ($subtotal >= 1000): ?>
                 <div class="ti-co-speed-free">
                   🎉 FREE delivery on orders above ₹1,000!
@@ -410,8 +404,7 @@ $theme1FooterCategories = $theme1HeaderCategories;
               </div>
 
               <!-- CTA -->
-              <a href="checkout.php" class="t1-co-place-btn" id="checkoutBtn">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+              <a href="checkout.php" class="t1-co-place-btn t2-cart-checkout-btn" id="checkoutBtn">
                 Proceed to Checkout
               </a>
               <div class="t1-co-secure">🔒 Secured by 256-bit SSL encryption</div>

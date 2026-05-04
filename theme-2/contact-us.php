@@ -3,6 +3,15 @@ declare(strict_types=1);
 
 require __DIR__ . '/partials/theme1-page-context.php';
 
+$cmsContactT2 = cms_page_get($pdo, 'contact', [
+    'hero_kicker' => 'We are here to help',
+    'hero_title' => 'Contact Us',
+    'hero_lead' => 'Questions about an order, your account or selling on LUXE? Send us a note — we read every message.',
+    'meta_description' => 'Contact LUXE for order help, seller enquiries or general support.',
+]);
+$siteContactT2 = site_contact_bundle($pdo);
+$contactPhoneHrefT2 = site_contact_phone_href($siteContactT2['phone']);
+
 $contactThanks = isset($_GET['thanks']) && $_GET['thanks'] === '1';
 $formName = '';
 $formEmail = '';
@@ -33,12 +42,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Contact Us — LUXE</title>
-  <meta name="description" content="Contact LUXE for order help, seller enquiries or general support.">
+  <title><?= h($cmsContactT2['hero_title'] !== '' ? $cmsContactT2['hero_title'] : 'Contact Us') ?> — <?= h($siteContactT2['brand']) ?></title>
+  <meta name="description" content="<?= h($cmsContactT2['meta_description']) ?>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Inter:wght@400;500;600;700;800&family=Jost:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="<?= h(luxe_theme_asset('css/styles.css')) ?>">
 </head>
 <body class="t1-static-body">
   <?php require __DIR__ . '/partials/header.php'; ?>
@@ -47,10 +56,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <section class="t1-static-hero t1-static-hero--compact" aria-labelledby="t1-contact-title">
       <div class="container t1-static-hero-inner t1-static-hero-inner--compact">
         <div class="t1-static-hero-copy">
-          <p class="t1-static-kicker script-accent">We are here to help</p>
-          <h1 id="t1-contact-title" class="t1-static-title">Contact Us</h1>
+          <?php if (($cmsContactT2['hero_kicker'] ?? '') !== ''): ?>
+            <p class="t1-static-kicker script-accent"><?= h($cmsContactT2['hero_kicker']) ?></p>
+          <?php endif; ?>
+          <h1 id="t1-contact-title" class="t1-static-title"><?= h($cmsContactT2['hero_title'] !== '' ? $cmsContactT2['hero_title'] : 'Contact Us') ?></h1>
           <p class="t1-static-lead">
-            Questions about an order, your account or selling on LUXE? Send us a note — we read every message.
+            <?= nl2br(h($cmsContactT2['hero_lead'])) ?>
           </p>
         </div>
       </div>
@@ -76,20 +87,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <div class="t1-contact-grid">
         <div class="t1-contact-card t1-contact-card--info">
           <h2 class="t1-static-h2">Reach us directly</h2>
-          <p class="t1-static-p">Our support hours are Monday–Saturday, 9:00–18:00 IST.</p>
+          <?php if ($siteContactT2['hours'] !== ''): ?>
+            <p class="t1-static-p">Our support hours are <?= h($siteContactT2['hours']) ?>.</p>
+          <?php endif; ?>
           <ul class="t1-contact-details">
-            <li>
-              <span class="t1-contact-details-label">Address</span>
-              37 W 24th St, New York, NY
-            </li>
-            <li>
-              <span class="t1-contact-details-label">Phone</span>
-              <a href="tel:+123324587939">+123 324 5879 39</a>
-            </li>
-            <li>
-              <span class="t1-contact-details-label">Email</span>
-              <a href="mailto:info@luxe.com">info@luxe.com</a>
-            </li>
+            <?php if ($siteContactT2['address'] !== ''): ?>
+              <li>
+                <span class="t1-contact-details-label">Address</span>
+                <?= nl2br(h($siteContactT2['address'])) ?>
+              </li>
+            <?php endif; ?>
+            <?php if ($siteContactT2['phone'] !== ''): ?>
+              <li>
+                <span class="t1-contact-details-label">Phone</span>
+                <a href="tel:<?= h($contactPhoneHrefT2) ?>"><?= h($siteContactT2['phone']) ?></a>
+              </li>
+            <?php endif; ?>
+            <?php if ($siteContactT2['email'] !== ''): ?>
+              <li>
+                <span class="t1-contact-details-label">Email</span>
+                <a href="mailto:<?= h($siteContactT2['email']) ?>"><?= h($siteContactT2['email']) ?></a>
+              </li>
+            <?php endif; ?>
           </ul>
           <p class="t1-static-p t1-static-p--small">
             For order-specific issues, include your order number so we can help faster.

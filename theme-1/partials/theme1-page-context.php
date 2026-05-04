@@ -20,7 +20,8 @@ $userEmail = trim((string) ($user['email'] ?? ''));
 $isLoggedIn = $user !== null;
 
 $theme1Self = basename((string) ($_SERVER['PHP_SELF'] ?? 'index.php'));
-$theme1LoginHref = 'login.php?redirect=' . rawurlencode('theme-1/' . $theme1Self);
+$theme1ThemeDir = basename(dirname(__DIR__));
+$theme1LoginHref = 'login.php?redirect=' . rawurlencode($theme1ThemeDir . '/' . $theme1Self);
 
 /** @var array<int,string> $theme1HeaderCategories */
 $theme1HeaderCategories = $theme1HeaderCategories ?? [

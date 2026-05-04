@@ -10,6 +10,14 @@ foreach ($_SESSION['cart'] ?? [] as $ci) {
     $cartNavCount += (int) ($ci['qty'] ?? 1);
 }
 $allProducts = products_fetch_all($pdo);
+
+$cmsAbout = cms_page_get($pdo, 'about', [
+    'hero_kicker' => 'Our story',
+    'hero_title' => 'About Us',
+    'hero_lead' => 'At LUXE, we combine product curation, engineering, and design thinking to build a premium shopping experience.',
+    'meta_description' => 'Learn more about LUXE, our mission, and why shoppers trust our platform.',
+]);
+$siteContactAbout = site_contact_bundle($pdo);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -17,184 +25,13 @@ $allProducts = products_fetch_all($pdo);
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <?php require __DIR__ . '/includes/luxe_theme_head.php'; ?>
-  <title>About Us — LUXE</title>
-  <meta name="description" content="Learn more about LUXE, our mission, and why shoppers trust our platform." />
+  <title><?= h($cmsAbout['hero_title'] !== '' ? $cmsAbout['hero_title'] : 'About Us') ?> — <?= h($siteContactAbout['brand']) ?></title>
+  <meta name="description" content="<?= h($cmsAbout['meta_description']) ?>" />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,700;1,400&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/luxe.css" />
-  <style>
-    .about-breadcrumb {
-      margin: 8px 0 16px;
-      color: var(--text-dim);
-      font-size: 0.82rem;
-      letter-spacing: 0.02em;
-    }
-    .about-breadcrumb a {
-      color: var(--primary-light);
-    }
-    .about-breadcrumb span {
-      margin: 0 6px;
-      color: var(--text-dim);
-    }
-    .about-hero {
-      border: 1px solid var(--border);
-      background:
-        radial-gradient(ellipse at top right, rgba(236, 72, 153, 0.14), transparent 55%),
-        radial-gradient(ellipse at bottom left, rgba(139, 92, 246, 0.16), transparent 55%),
-        var(--card);
-      border-radius: var(--radius-xl);
-      padding: clamp(22px, 3vw, 34px);
-      margin-bottom: 20px;
-    }
-    .about-hero h2 {
-      margin: 0 0 10px;
-      font-size: clamp(1.5rem, 3vw, 2rem);
-      color: var(--white);
-    }
-    .about-hero p {
-      margin: 0;
-      color: var(--text-muted);
-      line-height: 1.7;
-      max-width: 68ch;
-    }
-    .about-stats {
-      margin-top: 16px;
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 10px;
-    }
-    .about-stat {
-      border: 1px solid rgba(139, 92, 246, 0.3);
-      background: rgba(139, 92, 246, 0.08);
-      border-radius: 12px;
-      padding: 12px;
-    }
-    .about-stat strong {
-      display: block;
-      font-size: 1.1rem;
-      color: var(--white);
-    }
-    .about-stat span {
-      font-size: 0.82rem;
-      color: var(--text-muted);
-    }
-    .about-panel {
-      border: 1px solid var(--border);
-      background: var(--card);
-      border-radius: var(--radius-lg);
-      padding: 18px;
-      margin-bottom: 14px;
-    }
-    .about-panel h3 {
-      margin: 0 0 10px;
-      color: var(--white);
-      font-size: 1rem;
-    }
-    .about-panel p,
-    .about-panel li {
-      color: var(--text-muted);
-      line-height: 1.75;
-    }
-    .about-grid-3 {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 14px;
-      margin-bottom: 16px;
-    }
-    .about-pill-card {
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 14px;
-      background: linear-gradient(160deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
-    }
-    .about-pill-card h4 {
-      margin: 0 0 6px;
-      color: var(--white);
-      font-size: 0.98rem;
-    }
-    .about-pill-card p {
-      margin: 0;
-      color: var(--text-muted);
-      line-height: 1.6;
-      font-size: 0.9rem;
-    }
-    .about-team-grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 12px;
-      margin-top: 12px;
-    }
-    .about-team-card {
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 14px;
-      background: var(--card2);
-    }
-    .about-team-card strong {
-      display: block;
-      color: var(--white);
-      margin-bottom: 4px;
-    }
-    .about-team-card span {
-      color: var(--text-muted);
-      font-size: 0.84rem;
-    }
-    .about-testimonials {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
-      margin-top: 12px;
-    }
-    .about-quote {
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 14px;
-      background: var(--card);
-    }
-    .about-quote p {
-      margin: 0 0 10px;
-      color: var(--text-muted);
-      line-height: 1.65;
-      font-size: 0.9rem;
-    }
-    .about-quote strong {
-      color: var(--white);
-      font-size: 0.88rem;
-    }
-    .about-contact-cta {
-      margin-top: 16px;
-      border: 1px solid rgba(16, 185, 129, 0.35);
-      background: linear-gradient(155deg, rgba(16, 185, 129, 0.14), rgba(139, 92, 246, 0.12));
-      border-radius: 16px;
-      padding: 16px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-    }
-    .about-contact-cta p {
-      margin: 0;
-      color: var(--text-muted);
-      font-size: 0.9rem;
-    }
-    @media (max-width: 860px) {
-      .about-stats {
-        grid-template-columns: 1fr;
-      }
-      .about-grid-3,
-      .about-team-grid,
-      .about-testimonials {
-        grid-template-columns: 1fr;
-      }
-      .about-contact-cta {
-        flex-direction: column;
-        align-items: flex-start;
-      }
-    }
-  </style>
+  
 </head>
 <body class="index-page about-page">
-  <div class="cursor-dot" id="cursorDot"></div>
-  <div class="cursor-ring" id="cursorRing"></div>
   <div class="bg-scene"><div class="blob blob-1"></div><div class="blob blob-2"></div><div class="grid-lines"></div></div>
 
   <?php
@@ -226,15 +63,17 @@ $allProducts = products_fetch_all($pdo);
   <main class="page-main">
     <div class="container">
       <div class="page-header">
-        <h1>About Us</h1>
+        <h1><?= h($cmsAbout['hero_title'] !== '' ? $cmsAbout['hero_title'] : 'About Us') ?></h1>
         <a href="index.php" class="continue-link">← Back to home</a>
       </div>
 
-      <div class="about-breadcrumb"><a href="index.php">Home</a><span>/</span><span>About Us</span></div>
+      <div class="about-breadcrumb"><a href="index.php">Home</a><span>/</span><span><?= h($cmsAbout['hero_title'] !== '' ? $cmsAbout['hero_title'] : 'About Us') ?></span></div>
 
       <section class="about-hero">
-        <h2>About Software Agency Style Commerce Team</h2>
-        <p>At LUXE, we combine product curation, engineering, and design thinking to build a premium shopping experience. From startup sellers to growing brands, we help businesses reach customers through a clean, high-performing commerce platform.</p>
+        <?php if (($cmsAbout['hero_kicker'] ?? '') !== ''): ?>
+          <h2><?= h($cmsAbout['hero_kicker']) ?></h2>
+        <?php endif; ?>
+        <p><?= nl2br(h($cmsAbout['hero_lead'])) ?></p>
         <div class="about-stats">
           <div class="about-stat"><strong>6+ Years</strong><span>eCommerce excellence</span></div>
           <div class="about-stat"><strong>120k+</strong><span>Happy shoppers served</span></div>
@@ -244,6 +83,11 @@ $allProducts = products_fetch_all($pdo);
 
       <div class="cart-layout">
         <section class="cart-items-col">
+          <?php if (trim((string) $cmsAbout['body_html']) !== ''): ?>
+            <article class="about-panel about-panel--cms">
+              <?= $cmsAbout['body_html'] ?>
+            </article>
+          <?php else: ?>
           <article class="about-panel">
             <h3>Years of eCommerce Excellence</h3>
             <p style="margin:0;">For years, LUXE has helped customers discover trusted products with transparent pricing, fast checkout, and reliable delivery. Our approach is user-first, data-driven, and built for long-term growth.</p>
@@ -294,6 +138,7 @@ $allProducts = products_fetch_all($pdo);
             <p>Have a project, collaboration idea, or support query? Our team is ready to help.</p>
             <a href="contact-us.php" class="checkout-btn" style="max-width:200px;">Contact Us</a>
           </div>
+          <?php endif; ?>
         </section>
         <aside class="summary-col">
           <div class="summary-card">

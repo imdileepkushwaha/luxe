@@ -6,7 +6,7 @@ require_once __DIR__ . '/../includes/bootstrap.php';
 $pdo = db();
 $user = auth_user($pdo);
 if (!$user) {
-    header('Location: login.php?redirect=' . rawurlencode('theme-1/address.php'));
+    header('Location: login.php?redirect=' . rawurlencode('address.php'));
     exit;
 }
 
@@ -27,7 +27,7 @@ $isLoggedIn = true;
 $userInitials = $initial;
 $userName = $fullName;
 $userEmail = trim((string) ($user['email'] ?? ''));
-$theme1LoginHref = 'login.php?redirect=' . rawurlencode('theme-1/address.php');
+$theme1LoginHref = 'login.php?redirect=' . rawurlencode('address.php');
 
 $theme1HeaderCategories = ["Men's Fashion", "Women's Fashion", "Kid's Fashion", 'Footwear'];
 $theme1HeaderCompareCount = 0;
@@ -49,7 +49,7 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Inter:wght@400;500;600;700;800&family=Jost:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="<?= h(luxe_theme_asset('css/styles.css')) ?>">
 </head>
 <body class="profile-page-wrap">
   <?php require __DIR__ . '/partials/header.php'; ?>
@@ -108,6 +108,7 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
 
   <script>
     (function () {
+      const LUXE_ACT = <?= json_encode(luxe_actions_root_url(), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES) ?>;
       var addresses = <?= json_encode($addresses, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;
       var grid = document.getElementById("addressesGrid");
       var modal = document.getElementById("addressModal");
@@ -191,7 +192,7 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
         };
         saveBtn.disabled = true;
         try {
-          var res = await fetch("../actions/save-address.php", {
+          var res = await fetch(LUXE_ACT + "save-address.php", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             credentials: "same-origin",

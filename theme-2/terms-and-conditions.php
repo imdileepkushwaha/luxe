@@ -3,18 +3,33 @@ declare(strict_types=1);
 
 require __DIR__ . '/partials/theme1-page-context.php';
 $lastUpdated = 'April 28, 2026';
+$cmsTermsT2 = cms_page_get($pdo, 'terms', [
+    'hero_kicker' => 'Legal',
+    'hero_title' => 'Terms & Conditions',
+    'hero_lead' => 'Please read these terms carefully. They govern your access to LUXE and your relationship with us and with independent sellers on the platform.',
+    'meta_description' => 'Terms and conditions for using the LUXE marketplace and services.',
+]);
+$siteBrandT2Terms = site_brand_name($pdo);
+$siteContactT2Terms = site_contact_bundle($pdo);
+if (!empty($cmsTermsT2['updated_at'])) {
+    try {
+        $lastUpdated = (new DateTimeImmutable((string) $cmsTermsT2['updated_at']))->format('F j, Y');
+    } catch (Throwable $e) {
+        /* keep default */
+    }
+}
 ?>
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Terms &amp; Conditions — LUXE</title>
-  <meta name="description" content="Terms and conditions for using the LUXE marketplace and services.">
+  <title><?= h($cmsTermsT2['hero_title'] !== '' ? $cmsTermsT2['hero_title'] : 'Terms & Conditions') ?> — <?= h($siteBrandT2Terms) ?></title>
+  <meta name="description" content="<?= h($cmsTermsT2['meta_description']) ?>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Inter:wght@400;500;600;700;800&family=Jost:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="<?= h(luxe_theme_asset('css/styles.css')) ?>">
 </head>
 <body class="t1-static-body">
   <?php require __DIR__ . '/partials/header.php'; ?>
@@ -23,10 +38,12 @@ $lastUpdated = 'April 28, 2026';
     <section class="t1-static-hero t1-static-hero--compact" aria-labelledby="t1-terms-title">
       <div class="container t1-static-hero-inner t1-static-hero-inner--compact">
         <div class="t1-static-hero-copy">
-          <p class="t1-static-kicker script-accent">Legal</p>
-          <h1 id="t1-terms-title" class="t1-static-title">Terms &amp; Conditions</h1>
+          <?php if (($cmsTermsT2['hero_kicker'] ?? '') !== ''): ?>
+            <p class="t1-static-kicker script-accent"><?= h($cmsTermsT2['hero_kicker']) ?></p>
+          <?php endif; ?>
+          <h1 id="t1-terms-title" class="t1-static-title"><?= h($cmsTermsT2['hero_title'] !== '' ? $cmsTermsT2['hero_title'] : 'Terms & Conditions') ?></h1>
           <p class="t1-static-lead">
-            Please read these terms carefully. They govern your access to LUXE and your relationship with us and with independent sellers on the platform.
+            <?= nl2br(h($cmsTermsT2['hero_lead'])) ?>
           </p>
         </div>
       </div>
@@ -58,6 +75,9 @@ $lastUpdated = 'April 28, 2026';
         <article class="t1-legal-doc">
           <p class="t1-legal-meta">Last updated: <?= h($lastUpdated) ?></p>
 
+          <?php if (trim((string) $cmsTermsT2['body_html']) !== ''): ?>
+            <div class="t1-legal-cms-body"><?= $cmsTermsT2['body_html'] ?></div>
+          <?php else: ?>
           <section id="accept" class="t1-legal-section">
             <h2>Acceptance</h2>
             <p class="t1-static-p">These Terms &amp; Conditions (“Terms”) form a binding agreement between you and LUXE when you access or use our website, apps, or services (collectively, the “Platform”). If you do not agree, do not use the Platform.</p>
@@ -110,8 +130,25 @@ $lastUpdated = 'April 28, 2026';
 
           <section id="contact" class="t1-legal-section">
             <h2>Contact</h2>
-            <p class="t1-static-p">Questions about these Terms: <a href="contact-us.php" class="t1-inline-link">Contact us</a> or email <a href="mailto:info@luxe.com" class="t1-inline-link">info@luxe.com</a>.</p>
+            <?php $legalEmailTermsT2 = trim((string) ($siteContactT2Terms['email'] ?? '')); ?>
+            <div class="t1-legal-chat-cta" role="group" aria-label="Chat support">
+              <a href="contact-us.php" class="t1-legal-chat-link">
+                <span class="t1-legal-chat-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" focusable="false" aria-hidden="true">
+                    <path d="M7.5 8.25h9m-9 3.5h6m-9.25 8.75 1.05-3.15a8 8 0 1 1 2.02 1.03L4.25 20.5Z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </span>
+                <span>
+                  <strong>Chat now</strong>
+                  <small>Our support team is here to help.</small>
+                </span>
+              </a>
+            </div>
+            <?php if ($legalEmailTermsT2 !== ''): ?>
+              <p class="t1-static-p t1-legal-contact-email">Prefer email? Reach us at <a href="mailto:<?= h($legalEmailTermsT2) ?>" class="t1-inline-link"><?= h($legalEmailTermsT2) ?></a>.</p>
+            <?php endif; ?>
           </section>
+          <?php endif; ?>
         </article>
       </div>
     </div>

@@ -3,20 +3,6 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/includes/bootstrap.php';
 
-function luxe_public_product_card_image(array $p): string
-{
-    $raw = trim((string) ($p['image_path'] ?? ''));
-    if ($raw !== '' && strcasecmp($raw, 'default') !== 0) {
-        if (preg_match('#^https?://#i', $raw)) {
-            return $raw;
-        }
-
-        return $raw;
-    }
-
-    return 'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=600&q=80';
-}
-
 $pdo = db();
 $sellerId = isset($_GET['id']) ? (int) $_GET['id'] : 0;
 $seller = $sellerId > 0 ? seller_fetch_public_profile($pdo, $sellerId) : null;
@@ -27,11 +13,6 @@ if (!$seller) {
 }
 
 $products = products_fetch_by_seller_for_store($pdo, $sellerId);
-$user = auth_user($pdo);
-$cartNavCount = 0;
-foreach ($_SESSION['cart'] ?? [] as $ci) {
-    $cartNavCount += (int) ($ci['qty'] ?? 1);
-}
 
 $displayName = trim((string) ($seller['business_name'] ?? ''));
 if ($displayName === '') {
@@ -87,9 +68,6 @@ $productCount = count($products);
 </head>
 <body class="index-page ss-page">
 
-  <div class="cursor-dot" id="cursorDot"></div>
-  <div class="cursor-ring" id="cursorRing"></div>
-
   <div class="bg-scene" aria-hidden="true">
     <div class="blob blob-1"></div>
     <div class="blob blob-2"></div>
@@ -98,28 +76,9 @@ $productCount = count($products);
 
   <?php
   $header = [
-      'user' => $user,
-      'cart_count' => $cartNavCount,
-      'top_text' => 'New arrivals every week',
-      'top_highlight' => 'Free shipping above ₹999',
-      'top_links' => [
-          ['label' => "Today's Deals", 'href' => 'index.php#deals'],
-          ['label' => 'Top Brands', 'href' => 'index.php#brands'],
-      ],
-      'menu_links' => [
-          ['label' => 'Home', 'href' => 'index.php'],
-          ['label' => 'Shop', 'href' => 'product-list.php'],
-          ['label' => 'Collections', 'href' => 'index.php#collections'],
-          ['label' => 'Trending', 'href' => 'index.php#trending'],
-          ['label' => 'Deals', 'href' => 'index.php#deals'],
-          ['label' => 'Brands', 'href' => 'index.php#brands'],
-      ],
-      'wishlist_href' => $user
-          ? 'profile.php?tab=wishlist'
-          : 'login.php?redirect=' . rawurlencode('profile.php?tab=wishlist'),
       'search_lead' => 'Search by product name, brand, or category — matches show below.',
   ];
-  require __DIR__ . '/includes/user_header.php';
+  require __DIR__ . '/partials/default-header.php';
   ?>
 
   <header class="ss-hero" aria-labelledby="ssHeroTitle">
@@ -249,13 +208,7 @@ $productCount = count($products);
     </div>
   </main>
 
-  <?php
-  $footer = [
-      'deals_href' => 'index.php#deals',
-      'year' => '2026',
-  ];
-  require __DIR__ . '/includes/user_footer.php';
-  ?>
+  <?php require __DIR__ . '/partials/default-footer.php'; ?>
 
   <script>
     window.__PRODUCTS__ = <?= json_encode(products_fetch_all($pdo), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) ?>;

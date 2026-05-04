@@ -1,6 +1,10 @@
 <?php
 declare(strict_types=1);
 
+if (!function_exists('site_contact_bundle')) {
+    require_once __DIR__ . '/bootstrap.php';
+}
+
 if (!function_exists('h')) {
     return;
 }
@@ -8,13 +12,30 @@ if (!function_exists('h')) {
 $footer = $footer ?? [];
 $footerDealsHref = (string) ($footer['deals_href'] ?? 'index.php#deals');
 $footerYear = (string) ($footer['year'] ?? '2026');
+
+$footerSiteBrand = 'LUXE';
+$footerSiteLogo = '';
+if (function_exists('site_contact_bundle') && function_exists('db')) {
+    try {
+        $sb = site_contact_bundle(db());
+        $footerSiteBrand = $sb['brand'] !== '' ? $sb['brand'] : $footerSiteBrand;
+        $footerSiteLogo = $sb['logo'];
+    } catch (Throwable $e) {
+        /* fall back to defaults above */
+    }
+}
+$footerLogoUrl = $footerSiteLogo !== '' ? ltrim($footerSiteLogo, '/') : '';
 ?>
 <footer class="footer">
   <div class="container">
     <div class="footer-top">
       <div class="footer-brand">
-        <span class="footer-logo">LUXE</span>
-        <p>Your premium destination for fashion, tech & lifestyle. Shop with confidence.</p>
+        <?php if ($footerLogoUrl !== ''): ?>
+          <span class="footer-logo"><img src="<?= h($footerLogoUrl) ?>" alt="<?= h($footerSiteBrand) ?>" class="footer-logo__img"></span>
+        <?php else: ?>
+          <span class="footer-logo"><?= h($footerSiteBrand) ?></span>
+        <?php endif; ?>
+        <p>Your premium destination for fashion, tech &amp; lifestyle. Shop with confidence.</p>
         <div class="social-links">
           <a href="#" class="social-link" aria-label="Instagram">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8.59916 0.656738C9.43179 0.658114 9.85373 0.662524 10.2183 0.673378L10.3619 0.678068C10.5278 0.683965 10.6915 0.691364 10.8888 0.700612C11.6761 0.736991 12.2131 0.861531 12.6848 1.04465C13.1724 1.2327 13.5843 1.48671 13.9955 1.89795C14.4061 2.30919 14.6602 2.72227 14.8489 3.20873C15.0313 3.67977 15.1559 4.21741 15.1929 5.00473C15.2017 5.20203 15.2088 5.36569 15.2147 5.53159L15.2193 5.67519C15.2301 6.03975 15.2351 6.46176 15.2366 7.29442L15.2372 7.84606C15.2373 7.91346 15.2373 7.98301 15.2373 8.05477L15.2372 8.26349L15.2368 8.8152C15.2354 9.64783 15.231 10.0699 15.2201 10.4344L15.2154 10.578C15.2095 10.7439 15.2022 10.9076 15.1929 11.1048C15.1565 11.8922 15.0313 12.4292 14.8489 12.9008C14.6608 13.3886 14.4061 13.8004 13.9955 14.2116C13.5843 14.6223 13.1706 14.8763 12.6848 15.0649C12.2131 15.2474 11.6761 15.372 10.8888 15.409C10.6915 15.4178 10.5278 15.4249 10.3619 15.4307L10.2183 15.4354C9.85373 15.4462 9.43179 15.4511 8.59916 15.4528L8.04745 15.4534C7.98005 15.4534 7.9105 15.4534 7.83874 15.4534H7.63002L7.07831 15.4528C6.24568 15.4515 5.82368 15.4471 5.45912 15.4362L5.31552 15.4315C5.14961 15.4256 4.98596 15.4182 4.78867 15.409C4.00133 15.3726 3.46494 15.2474 2.99267 15.0649C2.50559 14.8769 2.09312 14.6223 1.68189 14.2116C1.27065 13.8004 1.01725 13.3867 0.828588 12.9008C0.645474 12.4292 0.521548 11.8922 0.484555 11.1048C0.475766 10.9076 0.468596 10.7439 0.462788 10.578L0.458135 10.4344C0.447311 10.0699 0.442376 9.64783 0.440778 8.8152L0.440681 7.29442C0.442058 6.46176 0.44646 6.03975 0.457313 5.67519L0.462012 5.53159C0.467908 5.36569 0.475307 5.20203 0.484555 5.00473C0.520926 4.21679 0.645474 3.68039 0.828588 3.20873C1.01663 2.72166 1.27065 2.30919 1.68189 1.89795C2.09312 1.48671 2.50621 1.23331 2.99267 1.04465C3.46432 0.861531 4.00072 0.737605 4.78867 0.700612C4.98596 0.69183 5.14961 0.684661 5.31552 0.678853L5.45912 0.674199C5.82368 0.663367 6.24568 0.658433 7.07831 0.656834L8.59916 0.656738ZM7.83874 4.35551C5.79457 4.35551 4.13944 6.01244 4.13944 8.05477C4.13944 10.0989 5.79637 11.7541 7.83874 11.7541C9.88288 11.7541 11.538 10.0972 11.538 8.05477C11.538 6.01064 9.88103 4.35551 7.83874 4.35551ZM7.83874 5.83522C9.0646 5.83522 10.0583 6.82861 10.0583 8.05477C10.0583 9.28064 9.0649 10.2743 7.83874 10.2743C6.61287 10.2743 5.61915 9.28101 5.61915 8.05477C5.61915 6.8289 6.6125 5.83522 7.83874 5.83522ZM11.723 3.24572C11.213 3.24572 10.7982 3.65998 10.7982 4.16991C10.7982 4.67986 11.2124 5.09475 11.723 5.09475C12.2329 5.09475 12.6478 4.68051 12.6478 4.16991C12.6478 3.65998 12.2322 3.24509 11.723 3.24572Z" fill="currentColor"></path></svg>
@@ -49,14 +70,14 @@ $footerYear = (string) ($footer['year'] ?? '2026');
         <h4>Company</h4>
         <ul>
           <li><a href="about-us.php">About LUXE</a></li>
-          <li><a href="login.php">Sign In / Register</a></li>
-          <li><a href="index.php#collections">Blog</a></li>
-          <li><a href="index.php#brands">Press</a></li>
+          <li><a href="terms-and-conditions.php">Terms &amp; Conditions</a></li>
+          <li><a href="privacy-policy.php">Privacy Policy</a></li>
+          <li><a href="return-policy.php">Return Policy</a></li>
         </ul>
       </div>
     </div>
     <div class="footer-bottom">
-      <p>© <?= h($footerYear) ?> LUXE. All rights reserved.</p>
+      <p>© <?= h($footerYear) ?> <?= h($footerSiteBrand) ?>. All rights reserved.</p>
       <div class="payment-icons">
         <span class="pay-icon"><img src="images/payment/1.svg" alt="Payment Icon"></span>
         <span class="pay-icon"><img src="images/payment/2.svg" alt="Payment Icon"></span>

@@ -3,18 +3,33 @@ declare(strict_types=1);
 
 require __DIR__ . '/partials/theme1-page-context.php';
 $lastUpdated = 'April 28, 2026';
+$cmsPrivacyT2 = cms_page_get($pdo, 'privacy', [
+    'hero_kicker' => 'Legal',
+    'hero_title' => 'Privacy Policy',
+    'hero_lead' => 'We respect your privacy. This policy explains what we collect, why we collect it, and the choices you have when you shop or use LUXE.',
+    'meta_description' => 'How LUXE collects, uses and protects your personal information.',
+]);
+$siteBrandT2Privacy = site_brand_name($pdo);
+$siteContactT2Privacy = site_contact_bundle($pdo);
+if (!empty($cmsPrivacyT2['updated_at'])) {
+    try {
+        $lastUpdated = (new DateTimeImmutable((string) $cmsPrivacyT2['updated_at']))->format('F j, Y');
+    } catch (Throwable $e) {
+        /* keep default */
+    }
+}
 ?>
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Privacy Policy — LUXE</title>
-  <meta name="description" content="How LUXE collects, uses and protects your personal information.">
+  <title><?= h($cmsPrivacyT2['hero_title'] !== '' ? $cmsPrivacyT2['hero_title'] : 'Privacy Policy') ?> — <?= h($siteBrandT2Privacy) ?></title>
+  <meta name="description" content="<?= h($cmsPrivacyT2['meta_description']) ?>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Inter:wght@400;500;600;700;800&family=Jost:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="<?= h(luxe_theme_asset('css/styles.css')) ?>">
 </head>
 <body class="t1-static-body">
   <?php require __DIR__ . '/partials/header.php'; ?>
@@ -23,10 +38,12 @@ $lastUpdated = 'April 28, 2026';
     <section class="t1-static-hero t1-static-hero--compact" aria-labelledby="t1-privacy-title">
       <div class="container t1-static-hero-inner t1-static-hero-inner--compact">
         <div class="t1-static-hero-copy">
-          <p class="t1-static-kicker script-accent">Legal</p>
-          <h1 id="t1-privacy-title" class="t1-static-title">Privacy Policy</h1>
+          <?php if (($cmsPrivacyT2['hero_kicker'] ?? '') !== ''): ?>
+            <p class="t1-static-kicker script-accent"><?= h($cmsPrivacyT2['hero_kicker']) ?></p>
+          <?php endif; ?>
+          <h1 id="t1-privacy-title" class="t1-static-title"><?= h($cmsPrivacyT2['hero_title'] !== '' ? $cmsPrivacyT2['hero_title'] : 'Privacy Policy') ?></h1>
           <p class="t1-static-lead">
-            We respect your privacy. This policy explains what we collect, why we collect it, and the choices you have when you shop or use LUXE.
+            <?= nl2br(h($cmsPrivacyT2['hero_lead'])) ?>
           </p>
         </div>
       </div>
@@ -58,6 +75,9 @@ $lastUpdated = 'April 28, 2026';
         <article class="t1-legal-doc">
           <p class="t1-legal-meta">Last updated: <?= h($lastUpdated) ?></p>
 
+          <?php if (trim((string) $cmsPrivacyT2['body_html']) !== ''): ?>
+            <div class="t1-legal-cms-body"><?= $cmsPrivacyT2['body_html'] ?></div>
+          <?php else: ?>
           <section id="intro" class="t1-legal-section">
             <h2>Introduction</h2>
             <p class="t1-static-p">LUXE (“we”, “us”, “our”) operates an online marketplace that connects shoppers with sellers. This Privacy Policy describes how we handle personal information when you use our website, mobile experiences, or related services.</p>
@@ -120,8 +140,17 @@ $lastUpdated = 'April 28, 2026';
 
           <section id="contact" class="t1-legal-section">
             <h2>Contact us</h2>
-            <p class="t1-static-p">Questions about this policy or your data: email <a href="mailto:info@luxe.com" class="t1-inline-link">info@luxe.com</a> or use our <a href="contact-us.php" class="t1-inline-link">contact form</a>.</p>
+            <?php $legalEmailPrivacyT2 = trim((string) ($siteContactT2Privacy['email'] ?? '')); ?>
+            <p class="t1-static-p">Questions about this policy or your data:
+              <?php if ($legalEmailPrivacyT2 !== ''): ?>
+                email <a href="mailto:<?= h($legalEmailPrivacyT2) ?>" class="t1-inline-link"><?= h($legalEmailPrivacyT2) ?></a> or use our
+              <?php else: ?>
+                use our
+              <?php endif; ?>
+              <a href="contact-us.php" class="t1-inline-link">contact form</a>.
+            </p>
           </section>
+          <?php endif; ?>
         </article>
       </div>
     </div>

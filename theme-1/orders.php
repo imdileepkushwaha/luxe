@@ -6,7 +6,7 @@ require_once __DIR__ . '/../includes/bootstrap.php';
 $pdo = db();
 $user = auth_user($pdo);
 if (!$user) {
-    header('Location: login.php?redirect=' . rawurlencode('theme-1/orders.php'));
+    header('Location: login.php?redirect=' . rawurlencode('orders.php'));
     exit;
 }
 
@@ -74,7 +74,7 @@ $isLoggedIn = true;
 $userInitials = $initial;
 $userName = $fullName;
 $userEmail = trim((string) ($user['email'] ?? ''));
-$theme1LoginHref = 'login.php?redirect=' . rawurlencode('theme-1/orders.php');
+$theme1LoginHref = 'login.php?redirect=' . rawurlencode('orders.php');
 $theme1HeaderCategories = ["Men's Fashion", "Women's Fashion", "Kid's Fashion", 'Footwear'];
 $theme1HeaderCompareCount = 0;
 $theme1HeaderCartCount = $cartCount;
@@ -95,7 +95,7 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Inter:wght@400;500;600;700;800&family=Jost:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="<?= h(luxe_theme_asset('css/styles.css')) ?>">
 </head>
 <body class="profile-page-wrap">
   <?php require __DIR__ . '/partials/header.php'; ?>
@@ -216,7 +216,7 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
                           } elseif (str_starts_with($rawImg, '../')) {
                               $itemImg = $rawImg;
                           } else {
-                              $itemImg = '../' . ltrim($rawImg, '/');
+                              $itemImg = luxe_public_href(ltrim($rawImg, '/'));
                           }
                       }
                     ?>
@@ -331,7 +331,7 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
                       <?php if ($hasUnreturnedItems): ?>
                         <button type="button" class="t1-order-btn t1-order-btn-outline">Return</button>
                       <?php endif; ?>
-                      <a href="../download-invoice.php?order_ref=<?= urlencode((string)$ord['id']) ?>" target="_blank" class="t1-order-btn t1-order-btn-outline t1-order-invoice-link">Download Invoice</a>
+                      <a href="download-invoice.php?order_ref=<?= urlencode((string)$ord['id']) ?>" target="_blank" class="t1-order-btn t1-order-btn-outline t1-order-invoice-link">Download Invoice</a>
                     <?php endif; ?>
                     <button type="button" class="t1-order-btn t1-order-btn-primary" onclick="document.getElementById('modal-<?= $ord['id'] ?>').classList.remove('hidden')">View Details →</button>
                   </div>
@@ -439,6 +439,7 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
   </div>
 
   <script>
+    const LUXE_ACT = <?= json_encode(luxe_actions_root_url(), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES) ?>;
     var reviewModal = document.getElementById('reviewModal');
     var reviewOrderRef = document.getElementById('reviewOrderRef');
     var reviewProductId = document.getElementById('reviewProductId');
@@ -479,7 +480,7 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
         reviewSubmitBtn.textContent = 'Submitting...';
 
         try {
-          var res = await fetch('../actions/submit-review.php', {
+          var res = await fetch(LUXE_ACT + 'submit-review.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ order_ref: orderRef, product_id: productId, rating: rating, review_text: reviewText })
@@ -578,7 +579,7 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
         cancelSubmitBtn.textContent = 'Submitting...';
 
         try {
-          var res = await fetch('../actions/order-cancel.php', {
+          var res = await fetch(LUXE_ACT + 'order-cancel.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ order_ref: orderRef, reason: reason, details: details })

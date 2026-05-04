@@ -10,6 +10,16 @@ foreach ($_SESSION['cart'] ?? [] as $ci) {
     $cartNavCount += (int) ($ci['qty'] ?? 1);
 }
 $allProducts = products_fetch_all($pdo);
+
+$cmsFaqPage = cms_page_get($pdo, 'faq', [
+    'hero_kicker' => 'Help centre',
+    'hero_title' => 'Frequently Asked Questions',
+    'hero_lead' => 'Find answers to the most frequently asked questions about our services and products. If you have any additional queries, please contact our support team.',
+    'meta_description' => 'Frequently asked questions about orders, shipping, returns, and account support on LUXE.',
+]);
+$siteContactFaq = site_contact_bundle($pdo);
+$contactPhoneHrefFaq = site_contact_phone_href($siteContactFaq['phone']);
+$cmsFaqItems = cms_faqs_all($pdo, true);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -17,8 +27,8 @@ $allProducts = products_fetch_all($pdo);
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <?php require __DIR__ . '/includes/luxe_theme_head.php'; ?>
-  <title>FAQ — LUXE</title>
-  <meta name="description" content="Frequently asked questions about orders, shipping, returns, and account support on LUXE." />
+  <title><?= h($cmsFaqPage['hero_title'] !== '' ? $cmsFaqPage['hero_title'] : 'FAQ') ?> — <?= h($siteContactFaq['brand']) ?></title>
+  <meta name="description" content="<?= h($cmsFaqPage['meta_description']) ?>" />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,700;1,400&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/luxe.css" />
   <style>
@@ -136,7 +146,7 @@ $allProducts = products_fetch_all($pdo);
       font-family: inherit;
       font-size: 0.76rem;
       font-weight: 600;
-      cursor: none;
+      cursor: pointer;
       transition:
         background 0.2s ease,
         border-color 0.2s ease,
@@ -165,8 +175,6 @@ $allProducts = products_fetch_all($pdo);
   </style>
 </head>
 <body class="index-page faq-page">
-  <div class="cursor-dot" id="cursorDot"></div>
-  <div class="cursor-ring" id="cursorRing"></div>
   <div class="bg-scene"><div class="blob blob-1"></div><div class="blob blob-2"></div><div class="grid-lines"></div></div>
 
   <?php
@@ -198,57 +206,41 @@ $allProducts = products_fetch_all($pdo);
   <main class="page-main">
     <div class="container">
       <div class="page-header">
-        <h1>Frequently Asked Questions</h1>
+        <h1><?= h($cmsFaqPage['hero_title'] !== '' ? $cmsFaqPage['hero_title'] : 'Frequently Asked Questions') ?></h1>
         <a href="contact-us.php" class="continue-link">Need help? Contact us →</a>
       </div>
 
-      <div class="faq-breadcrumb"><a href="index.php">Home</a><span>/</span><span>FAQ</span></div>
+      <div class="faq-breadcrumb"><a href="index.php">Home</a><span>/</span><span><?= h($cmsFaqPage['hero_kicker'] !== '' ? $cmsFaqPage['hero_kicker'] : 'FAQ') ?></span></div>
 
       <section class="faq-hero">
-        <h2>FAQs</h2>
-        <p>Find answers to the most frequently asked questions about our services and products. If you have any additional queries, please contact our support team.</p>
+        <?php if (($cmsFaqPage['hero_kicker'] ?? '') !== ''): ?>
+          <h2><?= h($cmsFaqPage['hero_kicker']) ?></h2>
+        <?php endif; ?>
+        <p><?= nl2br(h($cmsFaqPage['hero_lead'])) ?></p>
         <div class="faq-contact-strip">
-          <div class="faq-contact-chip">Email: <a href="mailto:contact@luxe.local">contact@luxe.local</a></div>
-          <div class="faq-contact-chip">Phone: <a href="tel:+915202452465">520-245-2465</a></div>
+          <?php if ($siteContactFaq['email'] !== ''): ?>
+            <div class="faq-contact-chip">Email: <a href="mailto:<?= h($siteContactFaq['email']) ?>"><?= h($siteContactFaq['email']) ?></a></div>
+          <?php endif; ?>
+          <?php if ($siteContactFaq['phone'] !== ''): ?>
+            <div class="faq-contact-chip">Phone: <a href="tel:<?= h($contactPhoneHrefFaq) ?>"><?= h($siteContactFaq['phone']) ?></a></div>
+          <?php endif; ?>
         </div>
       </section>
 
       <section class="faq-list">
-        <details class="faq-item" open>
-          <summary>How can I track my order status and delivery timeline?</summary>
-          <div class="faq-item__content">
-            <p class="faq-item__body">You can track every order from `orders.php`. Open any order card to view real-time status, order milestones, and delivery timeline. If the order is delivered, return or review actions also appear there.</p>
-            <div class="faq-helpful">Helpful? <button type="button">Yes</button><button type="button">No</button></div>
-          </div>
-        </details>
-        <details class="faq-item">
-          <summary>How do returns and refunds work on LUXE?</summary>
-          <div class="faq-item__content">
-            <p class="faq-item__body">Delivered orders can be requested for return inside the return window. Go to `orders.php`, open order details, choose the eligible item, and submit your return reason. Refund status and pickup progress are shown in the same flow.</p>
-            <div class="faq-helpful">Helpful? <button type="button">Yes</button><button type="button">No</button></div>
-          </div>
-        </details>
-        <details class="faq-item">
-          <summary>Can I cancel an order after placing it?</summary>
-          <div class="faq-item__content">
-            <p class="faq-item__body">Yes. Cancel request is available before the order reaches out-for-delivery stage. You can submit it from order details. Once approved, the order status updates and refund rules are applied automatically.</p>
-            <div class="faq-helpful">Helpful? <button type="button">Yes</button><button type="button">No</button></div>
-          </div>
-        </details>
-        <details class="faq-item">
-          <summary>Which payment methods are supported at checkout?</summary>
-          <div class="faq-item__content">
-            <p class="faq-item__body">LUXE supports cards, UPI, net banking, and COD where available. Payment methods depend on cart value, seller settings, and delivery location. You will see all applicable methods during checkout.</p>
-            <div class="faq-helpful">Helpful? <button type="button">Yes</button><button type="button">No</button></div>
-          </div>
-        </details>
-        <details class="faq-item">
-          <summary>Where can I update profile, addresses, and preferences?</summary>
-          <div class="faq-item__content">
-            <p class="faq-item__body">Open `profile.php` to update personal details, wishlist, settings, and saved addresses. During checkout, you can also add a new address directly from the address section.</p>
-            <div class="faq-helpful">Helpful? <button type="button">Yes</button><button type="button">No</button></div>
-          </div>
-        </details>
+        <?php if ($cmsFaqItems === []): ?>
+          <p class="faq-empty">Abhi koi FAQ uplabdh nahi hai.</p>
+        <?php else: ?>
+          <?php foreach ($cmsFaqItems as $i => $faqItem): ?>
+            <details class="faq-item"<?= $i === 0 ? ' open' : '' ?>>
+              <summary><?= h($faqItem['question']) ?></summary>
+              <div class="faq-item__content">
+                <p class="faq-item__body"><?= nl2br(h($faqItem['answer'])) ?></p>
+                <div class="faq-helpful">Helpful? <button type="button">Yes</button><button type="button">No</button></div>
+              </div>
+            </details>
+          <?php endforeach; ?>
+        <?php endif; ?>
       </section>
     </div>
   </main>

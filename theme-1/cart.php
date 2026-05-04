@@ -150,7 +150,7 @@ function t1_cart_thumb(array $line): string {
     $img = trim((string) ($line['image'] ?? $line['image_path'] ?? ''));
     if ($img === '' || strcasecmp($img, 'default') === 0) return '';
     if (!preg_match('#^(https?:)?//#i', $img) && !str_starts_with($img, '/')) {
-        $img = '../' . ltrim($img, '/');
+        $img = luxe_public_href(ltrim($img, '/'));
     }
     return $img;
 }
@@ -184,7 +184,7 @@ $isLoggedIn = $user !== null;
 $userInitials = $initial;
 $userName = $fullName;
 $userEmail = trim((string)($user['email'] ?? ''));
-$theme1LoginHref        = 'login.php?redirect=' . rawurlencode('theme-1/cart.php');
+$theme1LoginHref        = 'login.php?redirect=' . rawurlencode('cart.php');
 $theme1HeaderCategories = ["Men's Fashion", "Women's Fashion", "Kid's Fashion", 'Footwear'];
 $theme1HeaderCompareCount = 0;
 $theme1HeaderCartCount  = $cartCount;
@@ -198,7 +198,7 @@ $theme1FooterCategories = $theme1HeaderCategories;
   <title>My Cart — LUXE</title>
   <meta name="description" content="Review your cart and proceed to checkout on LUXE.">
   <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Inter:wght@400;500;600;700;800&family=Jost:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="<?= h(luxe_theme_asset('css/styles.css')) ?>">
   
 </head>
 <body class="profile-page-wrap t1-cart-page">

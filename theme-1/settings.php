@@ -6,7 +6,7 @@ require_once __DIR__ . '/../includes/bootstrap.php';
 $pdo = db();
 $user = auth_user($pdo);
 if (!$user) {
-    header('Location: login.php?redirect=' . rawurlencode('theme-1/settings.php'));
+    header('Location: login.php?redirect=' . rawurlencode('settings.php'));
     exit;
 }
 
@@ -21,7 +21,7 @@ $isLoggedIn = true;
 $userInitials = $initial;
 $userName = $fullName;
 $userEmail = trim((string) ($user['email'] ?? ''));
-$theme1LoginHref = 'login.php?redirect=' . rawurlencode('theme-1/settings.php');
+$theme1LoginHref = 'login.php?redirect=' . rawurlencode('settings.php');
 $theme1HeaderCategories = ["Men's Fashion", "Women's Fashion", "Kid's Fashion", 'Footwear'];
 $theme1HeaderCompareCount = 0;
 $theme1HeaderCartCount = $cartCount;
@@ -41,7 +41,7 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Inter:wght@400;500;600;700;800&family=Jost:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="<?= h(luxe_theme_asset('css/styles.css')) ?>">
   <style>
     /* ── Settings cards layout uses profile-shell grid ── */
     .st-cards {
@@ -280,7 +280,7 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
               <strong>Active Sessions</strong>
               <span>You are currently logged in on this device.</span>
             </div>
-            <a href="../actions/logout.php?redirect=theme-1/login.php" class="st-btn st-btn--secondary">
+            <a href="<?= h(luxe_action_href('logout.php?redirect=' . rawurlencode('login.php'))) ?>" class="st-btn st-btn--secondary">
               🚪 Logout
             </a>
           </div>
@@ -406,6 +406,7 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
 
   <script>
   (function () {
+    const LUXE_ACT = <?= json_encode(luxe_actions_root_url(), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES) ?>;
     /* ─── helpers ─── */
     function openModal(id)  { document.getElementById(id).classList.add('is-open'); }
     function closeModal(id) { document.getElementById(id).classList.remove('is-open'); }
@@ -437,7 +438,7 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
       if (nxt !== cfm) { setMsg(msg, '❌ New passwords do not match.', false); return; }
       btn.disabled = true; btn.textContent = 'Updating…';
       try {
-        var res  = await fetch('../actions/change-password.php', {
+        var res  = await fetch(LUXE_ACT + 'change-password.php', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ current_password: cur, new_password: nxt })
@@ -480,7 +481,7 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
       if (!pwd) { setMsg(msg, '❌ Please enter your password.', false); return; }
       btn.disabled = true; btn.textContent = 'Deleting…';
       try {
-        var res  = await fetch('../actions/delete-account.php', {
+        var res  = await fetch(LUXE_ACT + 'delete-account.php', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ password: pwd })
@@ -488,7 +489,7 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
         var data = await res.json();
         if (data.ok) {
           setMsg(msg, '✅ Account deleted. Redirecting…', true);
-          setTimeout(function () { window.location.href = '../theme-1/index.php'; }, 1800);
+          setTimeout(function () { window.location.href = 'index.php'; }, 1800);
         } else {
           setMsg(msg, '❌ ' + (data.message || 'Could not delete account.'), false);
           btn.disabled = false; btn.textContent = '🗑️ Delete My Account';

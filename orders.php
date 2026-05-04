@@ -340,8 +340,6 @@ $ordersData = $uid ? orders_fetch_for_user($pdo, $uid) : [];
   </style>
 </head>
 <body class="index-page orders-page">
-  <div class="cursor-dot" id="cursorDot"></div>
-  <div class="cursor-ring" id="cursorRing"></div>
   <div class="bg-scene"><div class="blob blob-1"></div><div class="blob blob-2"></div><div class="grid-lines"></div></div>
 
   <?php

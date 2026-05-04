@@ -26,10 +26,6 @@ if (isset($_GET['redirect'])) {
 </head>
 <body>
 
-  <!-- Custom Cursor -->
-  <div class="cursor-dot" id="cursorDot"></div>
-  <div class="cursor-ring" id="cursorRing"></div>
-
   <!-- Background -->
   <div class="bg-scene">
     <div class="blob blob-1"></div>

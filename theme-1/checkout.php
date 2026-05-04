@@ -7,7 +7,7 @@ require_once __DIR__ . '/../includes/coupons.php';
 $pdo  = db();
 $user = auth_user($pdo);
 if (!$user) {
-    header('Location: login.php?redirect=' . rawurlencode('theme-1/checkout.php'));
+    header('Location: login.php?redirect=' . rawurlencode('checkout.php'));
     exit;
 }
 
@@ -50,7 +50,7 @@ $theme1HeaderCompareCount = 0; $theme1HeaderCartCount = $cartCount; $theme1Foote
 function t1co_thumb(array $line): string {
     $img = trim((string)($line['image']??$line['image_path']??''));
     if ($img===''||strcasecmp($img,'default')===0) return '';
-    if (!preg_match('#^(https?:)?//#i',$img)&&!str_starts_with($img,'/')) $img='../'.$img;
+    if (!preg_match('#^(https?:)?//#i',$img)&&!str_starts_with($img,'/')) $img=luxe_public_href(ltrim($img,'/'));
     return $img;
 }
 ?>
@@ -61,7 +61,7 @@ function t1co_thumb(array $line): string {
 <title>Checkout — LUXE</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Inter:wght@400;500;600;700;800&family=Jost:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/styles.css">
+<link rel="stylesheet" href="<?= h(luxe_theme_asset('css/styles.css')) ?>">
 </head>
 <body class="profile-page-wrap t1-co-page">
 <?php require __DIR__.'/partials/header.php'; ?>
@@ -296,6 +296,7 @@ const SAMEDAY_FEE = <?= (int)$sameDayFeeRu ?>;
 const COUPON_DEFS = <?= json_encode($couponDefsJs, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_UNESCAPED_UNICODE) ?>;
 const ITEMS       = <?= json_encode($checkoutPayload, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_UNESCAPED_UNICODE) ?>;
 const ADDRESSES   = <?= json_encode($addresses, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_UNESCAPED_UNICODE) ?>;
+const LUXE_ACT = <?= json_encode(luxe_actions_root_url(), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES) ?>;
 
 let couponDisc = 0;
 let currentStep = 1;
@@ -441,7 +442,7 @@ async function placeOrder() {
   if (msg) msg.style.display='none';
   try {
     const coupon = (()=>{ try{return sessionStorage.getItem('luxeCheckoutCoupon')||'';}catch(_){return '';} })();
-    const res = await fetch('../actions/place-order.php', {
+    const res = await fetch(LUXE_ACT + 'place-order.php', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({items:ITEMS, address_id:parseInt(addr.value,10), payment_method: pay?.value||'COD', delivery_speed: speed?.value||'standard', coupon_code: coupon})
     });
@@ -469,7 +470,7 @@ async function saveAddr(e) {
   const btn = e.target.querySelector('button[type="submit"]');
   btn.disabled=true; btn.textContent='Saving…';
   try {
-    const res = await fetch('../actions/save-address.php', {method:'POST',body:fd});
+    const res = await fetch(LUXE_ACT + 'save-address.php', {method:'POST',body:fd});
     const data = await res.json();
     if (data.ok) { toast('Address saved!'); closeAddrModal(); location.reload(); }
     else toast(data.message||'Could not save',true);
@@ -480,7 +481,7 @@ async function saveAddr(e) {
 
 async function setDefaultAddr(id) {
   try {
-    const res = await fetch('../actions/set-default-address.php', {
+    const res = await fetch(LUXE_ACT + 'set-default-address.php', {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({id})
     });
@@ -493,7 +494,7 @@ async function setDefaultAddr(id) {
 async function deleteAddr(id) {
   if (!confirm('Are you sure you want to delete this address?')) return;
   try {
-    const res = await fetch('../actions/delete-address.php', {
+    const res = await fetch(LUXE_ACT + 'delete-address.php', {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({id})
     });

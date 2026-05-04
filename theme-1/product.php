@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/seller_product_catalog.php';
+require_once __DIR__ . '/../includes/product_page_helpers.php';
 
 if (!headers_sent()) {
     header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
@@ -32,79 +33,6 @@ if (!$product) {
 }
 
 $searchCatalogProducts = products_fetch_all($pdo);
-
-function product_parse_options_csv(string $csv): array
-{
-    $csv = str_replace(["\r\n", "\r", "\n", "\t", ';', '|', '،'], ',', $csv);
-    $parts = array_map('trim', explode(',', $csv));
-    $parts = array_values(array_filter($parts, static fn($v) => $v !== ''));
-    return array_values(array_unique($parts));
-}
-
-function product_swatch_style(int $idx): string
-{
-    $palette = [
-        'linear-gradient(135deg,#8b5cf6,#ec4899)',
-        'linear-gradient(135deg,#1e40af,#0ea5e9)',
-        'linear-gradient(135deg,#064e3b,#10b981)',
-        'linear-gradient(135deg,#1c1c1c,#475569)',
-        'linear-gradient(135deg,#7f1d1d,#ef4444)',
-        'linear-gradient(135deg,#7c2d12,#f97316)',
-    ];
-    return $palette[$idx % count($palette)];
-}
-
-function product_swatch_style_for_color(string $colorName, int $idx): string
-{
-    $lower = mb_strtolower(trim($colorName));
-    if ($lower === '' || $lower === 'default') {
-        return 'linear-gradient(135deg,#8b5cf6,#ec4899)';
-    }
-    if (preg_match('/\b(white|off[\s-]?white|ivory|pearl|cream|snow|frost)\b/u', $lower)) {
-        return 'linear-gradient(140deg,#ffffff 0%,#f1f5f9 50%,#e2e8f0 100%)';
-    }
-    if (preg_match('/\b(black|jet|charcoal|midnight)\b/u', $lower)) {
-        return 'linear-gradient(135deg,#0f172a,#1e293b)';
-    }
-    if (preg_match('/\b(red|crimson|maroon|burgundy)\b/u', $lower)) {
-        return 'linear-gradient(135deg,#991b1b,#ef4444)';
-    }
-    if (preg_match('/\b(blue|navy|indigo|azure)\b/u', $lower)) {
-        return 'linear-gradient(135deg,#1e40af,#0ea5e9)';
-    }
-    if (preg_match('/\b(teal|cyan|aqua)\b/u', $lower)) {
-        return 'linear-gradient(135deg,#0f766e,#22d3ee)';
-    }
-    if (preg_match('/\b(green|olive|forest|emerald|mint)\b/u', $lower)) {
-        return 'linear-gradient(135deg,#064e3b,#10b981)';
-    }
-    if (preg_match('/\b(yellow|gold|mustard|amber)\b/u', $lower)) {
-        return 'linear-gradient(135deg,#ca8a04,#fbbf24)';
-    }
-    if (preg_match('/\b(orange|coral|peach)\b/u', $lower)) {
-        return 'linear-gradient(135deg,#c2410c,#fb923c)';
-    }
-    if (preg_match('/\b(pink|rose|magenta|purple|violet|lavender)\b/u', $lower)) {
-        return 'linear-gradient(135deg,#8b5cf6,#ec4899)';
-    }
-    if (preg_match('/\b(gray|grey|silver)\b/u', $lower)) {
-        return 'linear-gradient(135deg,#64748b,#94a3b8)';
-    }
-    if (preg_match('/\b(brown|tan|beige|khaki|camel)\b/u', $lower)) {
-        return 'linear-gradient(135deg,#78350f,#d97706)';
-    }
-
-    return product_swatch_style($idx);
-}
-
-function product_format_units_sold_label(int $units): string
-{
-    if ($units <= 0) return '';
-    if ($units >= 1_000_000) return number_format($units / 1_000_000, 1) . 'M+ sold';
-    if ($units >= 1_000) return number_format($units / 1_000, 1) . 'K+ sold';
-    if ($units >= 100) return number_format($units) . '+ sold';
-    return $units . ' sold';
-}
 
 $currentUserId = auth_user_id();
 $currentUser = auth_user($pdo);
@@ -283,7 +211,7 @@ if ($userName === '') $userName = trim((string) ($currentUser['name'] ?? 'Guest 
 $userInitials = strtoupper(substr(preg_replace('/[^A-Za-z]/', '', $userName) ?: 'GU', 0, 2));
 $userEmail = trim((string) ($currentUser['email'] ?? ''));
 $isLoggedIn = $currentUser !== null;
-$theme1LoginHref = 'login.php?redirect=' . rawurlencode('theme-1/product.php?slug=' . h((string)$product['slug']));
+$theme1LoginHref = 'login.php?redirect=' . rawurlencode('product.php?slug=' . (string) ($product['slug'] ?? ''));
 
 $theme1HeaderCategories = [];
 $theme1HeaderCompareCount = 0;
@@ -299,7 +227,9 @@ function theme1_url(array $p): string { return luxe_product_url((int) ($p['id'] 
 function theme1_thumb_url(array $p): string {
     $path = trim((string) ($p['image_path'] ?? ''));
     if ($path === '' || strcasecmp($path, 'default') === 0) return '';
-    if (!preg_match('#^(?:https?:)?//#i', $path) && !str_starts_with($path, '/')) return '../' . ltrim($path, '/');
+    if (!preg_match('#^(?:https?:)?//#i', $path) && !str_starts_with($path, '/')) {
+        return luxe_public_href(ltrim($path, '/'));
+    }
     return $path;
 }
 function theme1_thumb_style(array $p): string {
@@ -316,7 +246,7 @@ function theme1_thumb_style(array $p): string {
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Inter:wght@400;500;600;700;800&family=Jost:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="<?= h(luxe_theme_asset('css/styles.css')) ?>">
 </head>
 <body>
   <?php require __DIR__ . '/partials/header.php'; ?>
@@ -325,7 +255,7 @@ function theme1_thumb_style(array $p): string {
     <!-- Breadcrumb -->
     <div class="t1-breadcrumb container">
       <a href="index.php">Home</a> <span>/</span>
-      <a href="../product-list.php?category=<?= urlencode((string)$product['category']) ?>"><?= h(ucwords((string)$product['category'])) ?></a> <span>/</span>
+      <a href="product-list.php?category=<?= urlencode((string)$product['category']) ?>"><?= h(ucwords((string)$product['category'])) ?></a> <span>/</span>
       <span class="current"><?= h((string)$product['name']) ?></span>
     </div>
 
@@ -888,7 +818,7 @@ function theme1_thumb_style(array $p): string {
       if (col) fd.append('color', col);
 
       try {
-        const res = await fetch('actions/cart-add.php', { method: 'POST', body: fd });
+        const res = await fetch(<?= json_encode(luxe_theme_cart_add_url(), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES) ?>, { method: 'POST', body: fd });
         const data = await res.json();
 
         if (data.ok) {

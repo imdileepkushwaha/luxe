@@ -1281,6 +1281,30 @@ function db_ensure_site_settings_table(PDO $pdo): void
     }
 }
 
+/**
+ * Widen setting_value so CRM contact address/body-length settings are not clipped at 255 chars.
+ */
+function db_ensure_site_settings_value_text_column(PDO $pdo): void
+{
+    try {
+        $dbName = (string) $pdo->query('SELECT DATABASE()')->fetchColumn();
+        if ($dbName === '') {
+            return;
+        }
+        $chk = $pdo->prepare(
+            'SELECT DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ? LIMIT 1'
+        );
+        $chk->execute([$dbName, 'site_settings', 'setting_value']);
+        $type = strtolower((string) ($chk->fetchColumn() ?: ''));
+        if ($type === 'varchar') {
+            $pdo->exec('ALTER TABLE site_settings MODIFY COLUMN setting_value TEXT NOT NULL');
+        }
+    } catch (Throwable) {
+        // Missing permissions or non-MySQL
+    }
+}
+
 function db_config(): array
 {
     $cfg = luxe_app_config();
@@ -1331,6 +1355,7 @@ function db(): PDO
     db_ensure_user_order_cancel_requests_table($pdo);
     db_ensure_user_order_enquiries_table($pdo);
     db_ensure_site_settings_table($pdo);
+    db_ensure_site_settings_value_text_column($pdo);
     db_ensure_orders_platform_fee_column($pdo);
     db_ensure_orders_admin_commission_column($pdo);
     db_ensure_orders_delivered_at_column($pdo);

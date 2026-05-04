@@ -45,6 +45,22 @@ if ($headerUserName === '') {
     $headerUserName = trim((string) ($headerUser['name'] ?? 'Member'));
 }
 $headerUserEmail = trim((string) ($headerUser['email'] ?? ''));
+
+$headerSiteBrand = '';
+$headerSiteLogo = '';
+if (function_exists('site_brand_name') && function_exists('db')) {
+    try {
+        $headerSiteBrand = site_brand_name(db());
+        $headerSiteLogo = site_logo_path(db());
+    } catch (Throwable $e) {
+        $headerSiteBrand = '';
+        $headerSiteLogo = '';
+    }
+}
+if ($headerSiteBrand === '') {
+    $headerSiteBrand = 'LUXE';
+}
+$headerLogoUrl = $headerSiteLogo !== '' ? ltrim($headerSiteLogo, '/') : '';
 ?>
 <nav class="navbar navbar-kart" id="navbar">
   <div class="nav-kart-topbar">
@@ -60,7 +76,13 @@ $headerUserEmail = trim((string) ($headerUser['email'] ?? ''));
   <div class="nav-container nav-kart-main">
     <div class="nav-brand-cluster">
       <?php require __DIR__ . '/nav_hamburger_btn.php'; ?>
-      <a href="index.php" class="nav-logo">LUXE</a>
+      <a href="index.php" class="nav-logo">
+        <?php if ($headerLogoUrl !== ''): ?>
+          <img src="<?= h($headerLogoUrl) ?>" alt="<?= h($headerSiteBrand) ?>" class="nav-logo__img">
+        <?php else: ?>
+          <?= h($headerSiteBrand) ?>
+        <?php endif; ?>
+      </a>
     </div>
     <form class="nav-kart-search" id="headerQuickSearch" role="search" aria-label="Quick product search">
       <span class="nav-kart-search__icon" aria-hidden="true">

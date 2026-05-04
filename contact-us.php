@@ -11,6 +11,15 @@ foreach ($_SESSION['cart'] ?? [] as $ci) {
 }
 $allProducts = products_fetch_all($pdo);
 
+$cmsContact = cms_page_get($pdo, 'contact', [
+    'hero_kicker' => 'We are here to help',
+    'hero_title' => 'Contact Us',
+    'hero_lead' => 'Share your question about orders, payments, returns, or account settings. Our support team reviews every message and responds as quickly as possible during working hours.',
+    'meta_description' => 'Get in touch with LUXE support for order help, account issues, and general questions.',
+]);
+$siteContact = site_contact_bundle($pdo);
+$contactPhoneHref = site_contact_phone_href($siteContact['phone']);
+
 $formSent = false;
 $contactName = '';
 $contactEmail = '';
@@ -32,8 +41,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <?php require __DIR__ . '/includes/luxe_theme_head.php'; ?>
-  <title>Contact Us — LUXE</title>
-  <meta name="description" content="Get in touch with LUXE support for order help, account issues, and general questions." />
+  <title><?= h($cmsContact['hero_title'] !== '' ? $cmsContact['hero_title'] : 'Contact Us') ?> — <?= h($siteContact['brand']) ?></title>
+  <meta name="description" content="<?= h($cmsContact['meta_description']) ?>" />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,700;1,400&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/luxe.css" />
   <style>
@@ -108,8 +117,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   </style>
 </head>
 <body class="index-page contact-page">
-  <div class="cursor-dot" id="cursorDot"></div>
-  <div class="cursor-ring" id="cursorRing"></div>
   <div class="bg-scene"><div class="blob blob-1"></div><div class="blob blob-2"></div><div class="grid-lines"></div></div>
 
   <?php
@@ -141,13 +148,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <main class="page-main">
     <div class="container">
       <div class="page-header">
-        <h1>Contact Us</h1>
+        <h1><?= h($cmsContact['hero_title'] !== '' ? $cmsContact['hero_title'] : 'Contact Us') ?></h1>
         <a href="faq.php" class="continue-link">View FAQs →</a>
       </div>
 
       <section class="contact-hero">
-        <h2>We are here to help</h2>
-        <p>Share your question about orders, payments, returns, or account settings. Our support team reviews every message and responds as quickly as possible during working hours.</p>
+        <?php if (($cmsContact['hero_kicker'] ?? '') !== ''): ?>
+          <h2><?= h($cmsContact['hero_kicker']) ?></h2>
+        <?php endif; ?>
+        <p><?= nl2br(h($cmsContact['hero_lead'])) ?></p>
       </section>
 
       <?php if ($formSent): ?>
@@ -172,20 +181,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <div class="summary-card">
             <h3 class="summary-title">Support Desk</h3>
             <div class="contact-info-list">
-              <div class="contact-info-item">
-                <span>Email</span>
-                <strong>support@luxe.local</strong>
-              </div>
-              <div class="contact-info-item">
-                <span>Working Hours</span>
-                <strong>9 AM - 8 PM (Mon-Sat)</strong>
-              </div>
+              <?php if ($siteContact['email'] !== ''): ?>
+                <div class="contact-info-item">
+                  <span>Email</span>
+                  <a href="mailto:<?= h($siteContact['email']) ?>"><?= h($siteContact['email']) ?></a>
+                </div>
+              <?php endif; ?>
+              <?php if ($siteContact['phone'] !== ''): ?>
+                <div class="contact-info-item">
+                  <span>Phone</span>
+                  <a href="tel:<?= h($contactPhoneHref) ?>"><?= h($siteContact['phone']) ?></a>
+                </div>
+              <?php endif; ?>
+              <?php if ($siteContact['address'] !== ''): ?>
+                <div class="contact-info-item">
+                  <span>Address</span>
+                  <strong><?= nl2br(h($siteContact['address'])) ?></strong>
+                </div>
+              <?php endif; ?>
+              <?php if ($siteContact['hours'] !== ''): ?>
+                <div class="contact-info-item">
+                  <span>Working Hours</span>
+                  <strong><?= h($siteContact['hours']) ?></strong>
+                </div>
+              <?php endif; ?>
               <div class="contact-info-item">
                 <span>Order Support</span>
                 <a href="orders.php">Open order center</a>
               </div>
               <div class="contact-info-item">
-                <span>Returns & Cancellations</span>
+                <span>Returns &amp; Cancellations</span>
                 <a href="faq.php">Read policy FAQs</a>
               </div>
             </div>
