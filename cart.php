@@ -58,8 +58,6 @@ foreach ($couponFeaturedCodes as $c) {
   <link rel="stylesheet" href="css/luxe.css" />
 </head>
 <body class="index-page cart-page">
-  <div class="cursor-dot" id="cursorDot"></div>
-  <div class="cursor-ring" id="cursorRing"></div>
   <div class="bg-scene"><div class="blob blob-1"></div><div class="blob blob-2"></div><div class="grid-lines"></div></div>
 
   <?php

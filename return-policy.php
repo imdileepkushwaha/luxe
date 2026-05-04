@@ -14,9 +14,6 @@ require_once __DIR__ . '/includes/bootstrap.php';
 </head>
 <body class="static-page index-page">
 
-  <div class="cursor-dot" id="cursorDot"></div>
-  <div class="cursor-ring" id="cursorRing"></div>
-
   <?php
   $header = ['top_text' => 'Hassle-Free Returns'];
   require __DIR__ . '/includes/user_header.php';

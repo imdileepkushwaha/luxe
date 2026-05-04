@@ -68,9 +68,6 @@ $productCount = count($products);
 </head>
 <body class="index-page ss-page">
 
-  <div class="cursor-dot" id="cursorDot"></div>
-  <div class="cursor-ring" id="cursorRing"></div>
-
   <div class="bg-scene" aria-hidden="true">
     <div class="blob blob-1"></div>
     <div class="blob blob-2"></div>

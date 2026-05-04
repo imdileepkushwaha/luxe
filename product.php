@@ -519,10 +519,6 @@ $pageProduct = [
 </head>
 <body class="index-page page-product">
 
-  <!-- Cursor -->
-  <div class="cursor-dot" id="cursorDot"></div>
-  <div class="cursor-ring" id="cursorRing"></div>
-
   <!-- Background -->
   <div class="bg-scene">
     <div class="blob blob-1"></div>

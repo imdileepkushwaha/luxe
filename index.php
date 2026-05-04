@@ -21,10 +21,6 @@ foreach ($_SESSION['cart'] ?? [] as $ci) {
 </head>
 <body class="index-page">
 
-  <!-- Cursor Dot -->
-  <div class="cursor-dot" id="cursorDot"></div>
-  <div class="cursor-ring" id="cursorRing"></div>
-
   <!-- Loader -->
   <div class="loader" id="loader" role="status" aria-live="polite" aria-busy="true" aria-label="Loading page">
     <div class="loader-backdrop" aria-hidden="true"></div>

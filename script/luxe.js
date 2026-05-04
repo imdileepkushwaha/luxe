@@ -559,69 +559,6 @@ function luxeCartLineDomId(it) {
   }
 }
 
-// ===================== SHARED: CURSOR =====================
-const dot = document.getElementById("cursorDot");
-const ring = document.getElementById("cursorRing");
-let mx = 0, my = 0, rx = 0, ry = 0;
-let cursorReady = false;
-let cursorHoverBound = false;
-const CURSOR_TARGET_SELECTOR = "a, button, input, select, label, .product-card, .collection-card, .brand-logo, .tag, .strip-item, .filter-btn, .ctag, .action-btn, .smenu-item, .wishlist-item, .address-card, .order-card, .cart-item, .thumb, .swatch, .size-btn, .review-card, .perk-item, .delivery-card, .ptab, .spec-row, .f-card, .nav-menu-btn, .nav-drawer__close, .btn-share, .product-filters-open-btn, .product-filters__close-btn";
-
-if (dot && ring && window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
-  document.addEventListener("pointermove", e => {
-    mx = e.clientX;
-    my = e.clientY;
-    if (!cursorReady) {
-      cursorReady = true;
-      rx = mx;
-      ry = my;
-      dot.classList.add("is-visible");
-      ring.classList.add("is-visible");
-    }
-    dot.style.left = mx + "px";
-    dot.style.top = my + "px";
-  }, { passive: true });
-
-  document.addEventListener("pointerdown", () => ring.classList.add("pressed"), { passive: true });
-  document.addEventListener("pointerup", () => ring.classList.remove("pressed"), { passive: true });
-  document.addEventListener("pointercancel", () => ring.classList.remove("pressed"), { passive: true });
-
-  document.addEventListener("mouseleave", () => {
-    dot.classList.remove("is-visible");
-    ring.classList.remove("is-visible");
-  });
-  document.addEventListener("mouseenter", () => {
-    if (cursorReady) {
-      dot.classList.add("is-visible");
-      ring.classList.add("is-visible");
-    }
-  });
-
-  (function animCursor() {
-    rx += (mx - rx) * 0.18;
-    ry += (my - ry) * 0.18;
-    ring.style.left = rx + "px";
-    ring.style.top = ry + "px";
-    requestAnimationFrame(animCursor);
-  })();
-}
-
-function refreshCursorTargets() {
-  if (!ring || cursorHoverBound) return;
-  cursorHoverBound = true;
-
-  document.addEventListener("mouseover", e => {
-    if (e.target && e.target.closest && e.target.closest(CURSOR_TARGET_SELECTOR)) {
-      ring.classList.add("hover");
-    }
-  });
-  document.addEventListener("mouseout", e => {
-    if (e.target && e.target.closest && e.target.closest(CURSOR_TARGET_SELECTOR)) {
-      ring.classList.remove("hover");
-    }
-  });
-}
-
 // ===================== SHARED: TOAST =====================
 const toast = document.getElementById("toast");
 let toastTimeout;
@@ -692,7 +629,6 @@ function observeReveal() {
 }
 function observeAll() {
   observeReveal();
-  refreshCursorTargets();
 }
 
 function initSearchOverlay() {
@@ -1182,10 +1118,6 @@ function initThemeToggle() {
     });
 
     observeReveal();
-    grid.querySelectorAll(".product-card, button").forEach(el => {
-      el.addEventListener("mouseenter", () => ring?.classList.add("hover"));
-      el.addEventListener("mouseleave", () => ring?.classList.remove("hover"));
-    });
   }
 
   function luxeProductListSyncUrlCategory(filter) {
@@ -2664,7 +2596,6 @@ function initThemeToggle() {
     document.querySelectorAll(".reveal, .delivery-card, .offer-pill, .desc-stat, .review-card, .product-card").forEach(el => {
       el.classList.add("reveal"); revealObserver.observe(el);
     });
-    refreshCursorTargets();
     hydrateProductCartCount();
     if (typeof changeQty === "function") changeQty(0);
   });
@@ -2951,7 +2882,6 @@ function initThemeToggle() {
         </div>
       </div>
     `).join("");
-    refreshCursorTargets();
   }
 
   async function persistCartState() {
@@ -3727,7 +3657,6 @@ function initThemeToggle() {
     btn.classList.add("active");
     const panel = document.getElementById("tab-" + btn.dataset.tab);
     if (panel) { panel.classList.remove("hidden"); panel.classList.add("active"); }
-    refreshCursorTargets();
   };
 
   // ---- Edit Profile ----
@@ -4152,7 +4081,6 @@ function initThemeToggle() {
       btn.addEventListener("click", () => deleteAddress(Number(btn.getAttribute("data-addr-delete"), 10)));
     });
     document.getElementById("addAddrCardBtn")?.addEventListener("click", () => showAddressModal());
-    refreshCursorTargets();
   }
 
   function resetAddressForm() {
@@ -4412,7 +4340,6 @@ function initThemeToggle() {
         <p class="wishlist-empty__text">Heart items on trending or product pages — they sync here instantly.</p>
         <a href="index.php" class="wishlist-empty__cta">Discover products</a>
       </div>`;
-      refreshCursorTargets();
       syncProfileWishlistStat();
       return;
     }
@@ -4440,7 +4367,6 @@ function initThemeToggle() {
         </div>
       </article>`;
     }).join("");
-    refreshCursorTargets();
     syncProfileWishlistStat();
   }
 
@@ -4593,13 +4519,10 @@ function initThemeToggle() {
       }
       renderWishlist();
       renderRewards();
-      refreshCursorTargets();
       setTimeout(() => {
         const bar = document.getElementById("rewardsProgressFill") || document.querySelector(".points-fill");
         if (bar) { const w = bar.style.width; bar.style.width = "0"; setTimeout(() => { bar.style.width = w; }, 100); }
       }, 300);
-    } else {
-      refreshCursorTargets();
     }
   });
 })();
@@ -4610,6 +4533,5 @@ function initThemeToggle() {
 // ================================================================
 document.addEventListener("DOMContentLoaded", () => {
   initThemeToggle();
-  refreshCursorTargets();
   observeAll();
 });

@@ -39,9 +39,6 @@ $metaDesc = $initialCategory === 'all'
 </head>
 <body class="index-page product-list-page" data-page="product-list">
 
-  <div class="cursor-dot" id="cursorDot"></div>
-  <div class="cursor-ring" id="cursorRing"></div>
-
   <?php
   $header = [
       'user' => $user,

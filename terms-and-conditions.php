@@ -14,10 +14,6 @@ require_once __DIR__ . '/includes/bootstrap.php';
 </head>
 <body class="static-page index-page">
 
-  <!-- Cursor Dot -->
-  <div class="cursor-dot" id="cursorDot"></div>
-  <div class="cursor-ring" id="cursorRing"></div>
-
   <?php
   $header = [
       'breadcrumb' => [

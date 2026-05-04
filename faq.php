@@ -146,7 +146,7 @@ $cmsFaqItems = cms_faqs_all($pdo, true);
       font-family: inherit;
       font-size: 0.76rem;
       font-weight: 600;
-      cursor: none;
+      cursor: pointer;
       transition:
         background 0.2s ease,
         border-color 0.2s ease,
@@ -175,8 +175,6 @@ $cmsFaqItems = cms_faqs_all($pdo, true);
   </style>
 </head>
 <body class="index-page faq-page">
-  <div class="cursor-dot" id="cursorDot"></div>
-  <div class="cursor-ring" id="cursorRing"></div>
   <div class="bg-scene"><div class="blob blob-1"></div><div class="blob blob-2"></div><div class="grid-lines"></div></div>
 
   <?php
