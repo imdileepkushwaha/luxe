@@ -113,6 +113,7 @@ function theme1_thumb_url(array $p): string
     }
     return $path;
 }
+
 ?>
 <!doctype html>
 <html lang="en">

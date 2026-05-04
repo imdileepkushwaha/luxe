@@ -31,6 +31,7 @@ if (function_exists('site_brand_name') && function_exists('db')) {
 }
 $t2HeaderLogoUrl = $t2HeaderLogo !== '' ? luxe_public_href(ltrim($t2HeaderLogo, '/')) : '';
 ?>
+<?php require __DIR__ . '/page-loader.php'; ?>
 <div class="header-promo-bar" role="region" aria-label="Announcements">
   <div class="container header-promo-inner">
     <p class="header-promo-text">

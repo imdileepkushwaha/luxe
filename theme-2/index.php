@@ -275,18 +275,17 @@ function theme1_split_star_filled(array $p): int
 {
     return 3 + ((int) ($p['id'] ?? 0) % 3);
 }
+
+$t2HomeBrand = trim(site_setting_get($pdo, 'site_brand_name', 'LUXE'));
+if ($t2HomeBrand === '') {
+    $t2HomeBrand = 'LUXE';
+}
 ?>
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <?php
-  $t2HomeBrand = trim(site_setting_get($pdo, 'site_brand_name', 'LUXE'));
-  if ($t2HomeBrand === '') {
-      $t2HomeBrand = 'LUXE';
-  }
-  ?>
   <title>Home — <?= h($t2HomeBrand) ?></title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

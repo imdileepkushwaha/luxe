@@ -118,3 +118,4 @@ $t1FooterLogoUrl = $t1FooterLogo !== '' ? luxe_public_href(ltrim($t1FooterLogo, 
     </div>
   </div>
 </footer>
+<script src="<?= h(luxe_theme_asset('js/page-loader.js')) ?>" defer></script>

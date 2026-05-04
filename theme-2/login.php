@@ -77,6 +77,7 @@ $t2LoginLogoUrl = $t2LoginLogoPath !== '' ? luxe_public_href(ltrim($t2LoginLogoP
   <link rel="stylesheet" href="<?= h(luxe_theme_asset('css/styles.css')) ?>">
 </head>
 <body class="t2-login-page">
+  <?php require __DIR__ . '/partials/page-loader.php'; ?>
   <div class="t2-login-bg" aria-hidden="true"></div>
 
   <header class="t2-login-topbar">
@@ -307,5 +308,6 @@ $t2LoginLogoUrl = $t2LoginLogoPath !== '' ? luxe_public_href(ltrim($t2LoginLogoP
       });
     })();
   </script>
+  <script src="<?= h(luxe_theme_asset('js/page-loader.js')) ?>" defer></script>
 </body>
 </html>

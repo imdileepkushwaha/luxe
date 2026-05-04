@@ -13,29 +13,25 @@ require_once __DIR__ . '/includes/bootstrap.php';
   <link rel="stylesheet" href="css/luxe.css" />
 </head>
 <body class="static-page index-page">
+<div class="bg-scene"><div class="blob blob-1"></div><div class="blob blob-2"></div><div class="grid-lines"></div></div>
 
   <?php
   $header = ['top_text' => 'Your Privacy Matters'];
   require __DIR__ . '/includes/user_header.php';
   ?>
 
-  <main>
-    <section class="static-hero" aria-labelledby="static-privacy-title">
-      <div class="container static-hero-inner">
-        <div class="static-hero-copy">
-          <p class="static-kicker">Data Protection</p>
-          <h1 id="static-privacy-title" class="static-title">Privacy Policy</h1>
-          <p class="static-lead">We are committed to protecting your personal data. This policy explains our practices regarding your information.</p>
-        </div>
+<main class="page-main">
+  <div class="container">
+  <div class="page-header">
+        <h1>Privacy Policy</h1>
+        <a href="index.php" class="continue-link">← Back to home</a>
       </div>
-    </section>
 
-    <div class="container static-wrap">
-      <nav class="static-breadcrumb" aria-label="Breadcrumb">
-        <a href="index.php">Home</a>
-        <span aria-hidden="true"> / </span>
-        <span class="current">Privacy Policy</span>
-      </nav>
+      <div class="about-breadcrumb"><a href="index.php">Home</a><span>/</span><span>Privacy Policy</span></div>
+
+
+    <div class=" static-wrap">
+     
 
       <div class="static-content-wrap">
         <aside class="static-aside" aria-label="On this page">
@@ -100,6 +96,8 @@ require_once __DIR__ . '/includes/bootstrap.php';
         </article>
       </div>
     </div>
+  </div>
+  
   </main>
 
   <?php require __DIR__ . '/includes/user_footer.php'; ?>

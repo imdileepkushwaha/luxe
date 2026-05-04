@@ -345,6 +345,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   </style>
 </head>
 <body>
+  <?php require __DIR__ . '/partials/page-loader.php'; ?>
   <div class="theme1-auth-wrap">
     
     <!-- Left Banner -->
@@ -561,5 +562,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       });
     })();
   </script>
+  <script src="<?= h(luxe_theme_asset('js/page-loader.js')) ?>" defer></script>
 </body>
 </html>

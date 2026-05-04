@@ -31,6 +31,7 @@ if (function_exists('site_brand_name') && function_exists('db')) {
 }
 $t1HeaderLogoUrl = $t1HeaderLogo !== '' ? luxe_public_href(ltrim($t1HeaderLogo, '/')) : '';
 ?>
+<?php require __DIR__ . '/page-loader.php'; ?>
 <header class="site-header">
   <div class="container header-inner">
     

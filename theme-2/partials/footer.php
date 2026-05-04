@@ -93,9 +93,7 @@ $t2WishlistHref = luxe_public_href('profile.php?tab=wishlist');
                     </div>
                 </div>
             </div>
-            <?php if ($t2FooterAddress !== ''): ?>
-            <p class="footer-brand-address"><?= h($t2FooterAddress) ?></p>
-            <?php endif; ?>
+            
             <div class="footer-social footer-social--round">
                 <a href="#" class="footer-social-btn" aria-label="Facebook"
                     ><svg xmlns="http://www.w3.org/2000/svg" width="8" height="16" viewBox="0 0 8 16" fill="none">
@@ -251,3 +249,4 @@ $t2WishlistHref = luxe_public_href('profile.php?tab=wishlist');
         sync();
     })();
 </script>
+<script src="<?= h(luxe_theme_asset('js/page-loader.js')) ?>" defer></script>

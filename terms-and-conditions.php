@@ -1,5 +1,14 @@
 <?php
 require_once __DIR__ . '/includes/bootstrap.php';
+
+$pdo = db();
+$siteContactTerms = site_contact_bundle($pdo);
+$termsContactEmail = trim((string) ($siteContactTerms['email'] ?? ''));
+$termsContactPhone = trim((string) ($siteContactTerms['phone'] ?? ''));
+$termsContactAddress = trim((string) ($siteContactTerms['address'] ?? ''));
+$termsContactHours = trim((string) ($siteContactTerms['hours'] ?? ''));
+$termsContactPhoneHref = $termsContactPhone !== '' ? site_contact_phone_href($termsContactPhone) : '';
+$termsHasContactDetails = $termsContactEmail !== '' || $termsContactPhone !== '' || $termsContactAddress !== '' || $termsContactHours !== '';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -7,44 +16,30 @@ require_once __DIR__ . '/includes/bootstrap.php';
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <?php require __DIR__ . '/includes/luxe_theme_head.php'; ?>
-  <title><?= h($docTitle) ?></title>
-  <meta name="description" content="<?= h($metaDesc) ?>" />
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,700;1,400&display=swap" rel="stylesheet" />
+  <title>Terms & Conditions — LUXE</title>
+  <meta name="description" content="Read our terms and conditions. Understand your rights and responsibilities when using the LUXE platform." />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/luxe.css" />
 </head>
 <body class="static-page index-page">
+<div class="bg-scene"><div class="blob blob-1"></div><div class="blob blob-2"></div><div class="grid-lines"></div></div>
 
   <?php
-  $header = [
-      'breadcrumb' => [
-          'home_href' => 'index.php',
-          'home_label' => 'Home',
-          'title' => 'Shop Grid',
-          'current' => 'Shop',
-      ],
-      'search_lead' => 'Search by product name, brand, or category — results update in the grid below.',
-  ];
+  $header = ['top_text' => 'Legal Framework'];
   require __DIR__ . '/includes/user_header.php';
   ?>
 
-  <main>
-    <section class="static-hero" aria-labelledby="static-terms-title">
-      <div class="container static-hero-inner">
-        <div class="static-hero-copy">
-          <p class="static-kicker">Legal Framework</p>
-          <h1 id="static-terms-title" class="static-title">Terms & Conditions</h1>
-          <p class="static-lead">Please read these terms carefully before using our platform. They govern your relationship with LUXE and its independent sellers.</p>
-        </div>
+  <main class="page-main">
+    <div class="container">
+    <div class="page-header">
+        <h1>Terms & Conditions</h1>
+        <a href="index.php" class="continue-link">← Back to home</a>
       </div>
-    </section>
 
-    <div class="container static-wrap">
-      <nav class="static-breadcrumb" aria-label="Breadcrumb">
-        <a href="index.php">Home</a>
-        <span aria-hidden="true"> / </span>
-        <span class="current">Terms &amp; Conditions</span>
-      </nav>
+      <div class="about-breadcrumb"><a href="index.php">Home</a><span>/</span><span>Terms & Conditions</span></div>
 
+      <div class="static-wrap">
+     
       <div class="static-content-wrap">
         <aside class="static-aside" aria-label="On this page">
           <p class="aside-title">On this page</p>
@@ -123,16 +118,33 @@ require_once __DIR__ . '/includes/bootstrap.php';
 
           <section id="contact" class="static-section">
             <h2>Contact Us</h2>
-            <p class="static-p">If you have any questions about these Terms, please contact us at:</p>
-            <ul class="static-list">
-              <li>Email: legal@luxe.com</li>
-              <li>Phone: +91 1800-LUXE-00</li>
-              <li>Address: Luxe Headquarters, Level 5, Tech Park, Bengaluru.</li>
-            </ul>
+            <p class="static-p">If you have any questions about these Terms, please reach us using the details below or via our <a href="contact-us.php" class="static-link">Contact</a> page.</p>
+            <?php if ($termsHasContactDetails): ?>
+              <ul class="static-list">
+                <?php if ($termsContactEmail !== ''): ?>
+                  <li>Email: <a href="mailto:<?= h($termsContactEmail) ?>" class="static-link"><?= h($termsContactEmail) ?></a></li>
+                <?php endif; ?>
+                <?php if ($termsContactPhone !== ''): ?>
+                  <li>Phone: <?php if ($termsContactPhoneHref !== ''): ?><a href="tel:<?= h($termsContactPhoneHref) ?>" class="static-link"><?= h($termsContactPhone) ?></a><?php else: ?><?= h($termsContactPhone) ?><?php endif; ?></li>
+                <?php endif; ?>
+                <?php if ($termsContactAddress !== ''): ?>
+                  <li>Address: <?= h($termsContactAddress) ?></li>
+                <?php endif; ?>
+                <?php if ($termsContactHours !== ''): ?>
+                  <li>Support hours: <?= h($termsContactHours) ?></li>
+                <?php endif; ?>
+              </ul>
+            <?php else: ?>
+              <p class="static-p">Please use our <a href="contact-us.php" class="static-link">Contact</a> page so we can route your message to the right team.</p>
+            <?php endif; ?>
           </section>
         </article>
       </div>
     </div>
+    </div>
+    
+
+    
   </main>
 
   <?php require __DIR__ . '/includes/user_footer.php'; ?>
