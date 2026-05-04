@@ -10,6 +10,7 @@ $cmsPrivacyT2 = cms_page_get($pdo, 'privacy', [
     'meta_description' => 'How LUXE collects, uses and protects your personal information.',
 ]);
 $siteBrandT2Privacy = site_brand_name($pdo);
+$siteContactT2Privacy = site_contact_bundle($pdo);
 if (!empty($cmsPrivacyT2['updated_at'])) {
     try {
         $lastUpdated = (new DateTimeImmutable((string) $cmsPrivacyT2['updated_at']))->format('F j, Y');
@@ -139,7 +140,15 @@ if (!empty($cmsPrivacyT2['updated_at'])) {
 
           <section id="contact" class="t1-legal-section">
             <h2>Contact us</h2>
-            <p class="t1-static-p">Questions about this policy or your data: email <a href="mailto:info@luxe.com" class="t1-inline-link">info@luxe.com</a> or use our <a href="contact-us.php" class="t1-inline-link">contact form</a>.</p>
+            <?php $legalEmailPrivacyT2 = trim((string) ($siteContactT2Privacy['email'] ?? '')); ?>
+            <p class="t1-static-p">Questions about this policy or your data:
+              <?php if ($legalEmailPrivacyT2 !== ''): ?>
+                email <a href="mailto:<?= h($legalEmailPrivacyT2) ?>" class="t1-inline-link"><?= h($legalEmailPrivacyT2) ?></a> or use our
+              <?php else: ?>
+                use our
+              <?php endif; ?>
+              <a href="contact-us.php" class="t1-inline-link">contact form</a>.
+            </p>
           </section>
           <?php endif; ?>
         </article>

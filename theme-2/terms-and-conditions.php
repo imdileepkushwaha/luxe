@@ -10,6 +10,7 @@ $cmsTermsT2 = cms_page_get($pdo, 'terms', [
     'meta_description' => 'Terms and conditions for using the LUXE marketplace and services.',
 ]);
 $siteBrandT2Terms = site_brand_name($pdo);
+$siteContactT2Terms = site_contact_bundle($pdo);
 if (!empty($cmsTermsT2['updated_at'])) {
     try {
         $lastUpdated = (new DateTimeImmutable((string) $cmsTermsT2['updated_at']))->format('F j, Y');
@@ -129,7 +130,23 @@ if (!empty($cmsTermsT2['updated_at'])) {
 
           <section id="contact" class="t1-legal-section">
             <h2>Contact</h2>
-            <p class="t1-static-p">Questions about these Terms: <a href="contact-us.php" class="t1-inline-link">Contact us</a> or email <a href="mailto:info@luxe.com" class="t1-inline-link">info@luxe.com</a>.</p>
+            <?php $legalEmailTermsT2 = trim((string) ($siteContactT2Terms['email'] ?? '')); ?>
+            <div class="t1-legal-chat-cta" role="group" aria-label="Chat support">
+              <a href="contact-us.php" class="t1-legal-chat-link">
+                <span class="t1-legal-chat-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" focusable="false" aria-hidden="true">
+                    <path d="M7.5 8.25h9m-9 3.5h6m-9.25 8.75 1.05-3.15a8 8 0 1 1 2.02 1.03L4.25 20.5Z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </span>
+                <span>
+                  <strong>Chat now</strong>
+                  <small>Our support team is here to help.</small>
+                </span>
+              </a>
+            </div>
+            <?php if ($legalEmailTermsT2 !== ''): ?>
+              <p class="t1-static-p t1-legal-contact-email">Prefer email? Reach us at <a href="mailto:<?= h($legalEmailTermsT2) ?>" class="t1-inline-link"><?= h($legalEmailTermsT2) ?></a>.</p>
+            <?php endif; ?>
           </section>
           <?php endif; ?>
         </article>

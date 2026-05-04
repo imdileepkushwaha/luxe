@@ -48,6 +48,23 @@ function luxe_product_url(int $id, string $slug = ''): string
 }
 
 /**
+ * Product card image URL for public seller store / listings (root + themed storefronts).
+ */
+function luxe_public_product_card_image(array $p): string
+{
+    $raw = trim((string) ($p['image_path'] ?? ''));
+    if ($raw !== '' && strcasecmp($raw, 'default') !== 0) {
+        if (preg_match('#^(?:https?:)?//#i', $raw) || str_starts_with($raw, '/')) {
+            return $raw;
+        }
+
+        return luxe_public_href(ltrim($raw, '/'));
+    }
+
+    return 'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=600&q=80';
+}
+
+/**
  * Full app config (includes/db.php uses ['db'] via db_config()).
  *
  * @return array<string, mixed>
@@ -81,6 +98,27 @@ function luxe_web_path_prefix(): string
     $dir = dirname($scriptName);
     if ($dir === '/' || $dir === '.' || $dir === '\\') {
         return '';
+    }
+
+    // Scripts under `…/actions/` share the storefront app root. Using dirname(SCRIPT_NAME) alone
+    // would yield `…/actions`, so luxe_public_href('index.php') wrongly becomes `…/actions/index.php`
+    // (e.g. after logout). Walk up one level for those requests.
+    if (preg_match('#/actions$#', $dir)) {
+        $dir = dirname($dir);
+        if ($dir === '/' || $dir === '.' || $dir === '\\') {
+            return '';
+        }
+    }
+
+    $dirNorm = trim(str_replace('\\', '/', $dir), '/');
+    // Theme PHP lives under …/theme-1|theme-2/*.php — app root is the parent so /actions/ resolves correctly.
+    if ($dirNorm !== '' && preg_match('#(?:^|/)(theme-[12])$#', $dirNorm)) {
+        $parent = dirname($dirNorm);
+        if ($parent === '.' || $parent === '') {
+            return '';
+        }
+
+        return trim(str_replace('\\', '/', $parent), '/');
     }
 
     return trim($dir, '/');
@@ -187,4 +225,35 @@ function luxe_theme_cart_add_url(): string
     return luxe_storefront_theme_slug() !== ''
         ? luxe_theme_asset('actions/cart-add.php')
         : 'actions/cart-add.php';
+}
+
+/**
+ * Five-star row HTML for product cards (matches `.pcard__star` / `.pcard__stars` in theme CSS).
+ */
+function luxe_pcard_stars_html(float $rating): string
+{
+    $filled = (int) round(max(0.0, min(5.0, $rating)));
+    $label = $filled . ' out of 5 stars';
+    $out = '<span class="pcard__stars" aria-label="' . h($label) . '">';
+    for ($i = 1; $i <= 5; $i++) {
+        $full = $i <= $filled;
+        $cls = $full ? 'pcard__star pcard__star--full' : 'pcard__star';
+        $glyph = $full ? '★' : '☆';
+        $out .= '<span class="' . h($cls) . '">' . h($glyph) . '</span>';
+    }
+    $out .= '</span>';
+
+    return $out;
+}
+
+/** Discount percent for product card "Save X%" badge, or null if no discount. */
+function luxe_pcard_save_percent(array $p): ?int
+{
+    $orig = (float) ($p['original'] ?? 0);
+    $curr = (float) ($p['price'] ?? 0);
+    if ($orig > $curr && $orig > 0) {
+        return (int) round((($orig - $curr) / $orig) * 100);
+    }
+
+    return null;
 }

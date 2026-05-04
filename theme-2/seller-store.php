@@ -3,18 +3,6 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 
-function luxe_public_product_card_image(array $p): string
-{
-    $raw = trim((string) ($p['image_path'] ?? ''));
-    if ($raw !== '' && strcasecmp($raw, 'default') !== 0) {
-        if (!preg_match('#^(?:https?:)?//#i', $raw) && !str_starts_with($raw, '/')) {
-            return luxe_public_href(ltrim($raw, '/'));
-        }
-        return $raw;
-    }
-    return 'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=600&q=80';
-}
-
 $pdo = db();
 $sellerId = isset($_GET['id']) ? (int) $_GET['id'] : 0;
 $seller = $sellerId > 0 ? seller_fetch_public_profile($pdo, $sellerId) : null;
@@ -124,14 +112,14 @@ $sellerReviewsCount = (int)($seller['reviews_count'] ?? 124);
   <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Inter:wght@400;500;600;700;800&family=Jost:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="<?= h(luxe_theme_asset('css/styles.css')) ?>">
 </head>
-<body class="t1-seller-page">
+<body class="t1-seller-page t2-seller-store">
   <?php require __DIR__ . '/partials/header.php'; ?>
 
   <!-- Seller Hero -->
   <section class="t1-seller-hero" <?= $bannerPath !== '' ? 'style="background-image:url(\''.h($bannerPath).'\')"' : '' ?>>
     <div class="t1-seller-hero-overlay"></div>
     <div class="container t1-seller-hero-inner">
-      <div class="t1-seller-info-card">
+      <div class="t1-seller-info-card t2-seller-info-card" role="region" aria-label="Seller profile">
         <div class="t1-seller-logo">
           <?php if ($logoPath !== ''): ?>
             <img src="<?= h($logoPath) ?>" alt="<?= h($displayName) ?>" />
@@ -203,7 +191,7 @@ $sellerReviewsCount = (int)($seller['reviews_count'] ?? 124);
 
     <!-- Products Grid -->
     <section class="block block--products">
-      <div class="block-head" style="margin-bottom:24px;">
+      <div class="block-head t2-seller-block-head">
         <h2>Products from <?= h($displayName) ?></h2>
       </div>
       <?php if ($products === []): ?>
@@ -211,35 +199,54 @@ $sellerReviewsCount = (int)($seller['reviews_count'] ?? 124);
       <?php else: ?>
         <div class="product-grid four">
           <?php foreach ($products as $p): ?>
+            <?php
+              $pcardRating = (float) ($p['rating'] ?? 0);
+              $pcardSavePct = luxe_pcard_save_percent((array) $p);
+              $pcardCat = strtoupper(trim((string) ($p['category'] ?? 'General')));
+            ?>
             <article class="pcard">
               <div class="pcard__media">
-                <div class="pcard__badges">
-                  <?php if (!empty($p['badge'])): ?><span class="pcard__badge pcard__badge--new"><?= h((string) $p['badge']) ?></span><?php endif; ?>
+                <div class="pcard__toolbar">
+                  <div class="pcard__toolbar-left">
+                    <div class="pcard__badges">
+                      <?php if (!empty($p['badge'])): ?><span class="pcard__badge pcard__badge--new"><?= h((string) $p['badge']) ?></span><?php endif; ?>
+                    </div>
+                    <span class="pcard__category"><?= h($pcardCat) ?></span>
+                  </div>
+                  <button
+                    type="button"
+                    class="pcard__wish-toggle"
+                    aria-label="Toggle wishlist"
+                    data-wishlist-btn="1"
+                    data-id="<?= (int) ($p['id'] ?? 0) ?>"
+                    data-name="<?= h((string) ($p['name'] ?? 'Product')) ?>"
+                    data-emoji="<?= h((string) ($p['emoji'] ?? '🛍')) ?>"
+                    data-price="<?= (int) ($p['price'] ?? 0) ?>"
+                    data-orig="<?= (int) ($p['original'] ?? 0) ?>"
+                    data-image="<?= h(theme1_thumb_url((array)$p)) ?>"
+                  ><svg class="heart-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg></button>
                 </div>
-                <button
-                  type="button"
-                  class="pcard__wish-toggle"
-                  aria-label="Toggle wishlist"
-                  data-wishlist-btn="1"
-                  data-id="<?= (int) ($p['id'] ?? 0) ?>"
-                  data-name="<?= h((string) ($p['name'] ?? 'Product')) ?>"
-                  data-emoji="<?= h((string) ($p['emoji'] ?? '🛍')) ?>"
-                  data-price="<?= (int) ($p['price'] ?? 0) ?>"
-                  data-orig="<?= (int) ($p['original'] ?? 0) ?>"
-                  data-image="<?= h(theme1_thumb_url((array)$p)) ?>"
-                ><svg class="heart-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg></button>
-                <div class="thumb" role="img" aria-hidden="true" style="<?= h(theme1_thumb_style((array)$p)) ?>"></div>
-                <div class="pcard__overlay">
-                  <a href="<?= h(theme1_url((array)$p)) ?>" class="pcard__btn--buy">Buy Now</a>
+                <div class="pcard__image-frame">
+                  <div class="thumb" role="img" aria-hidden="true" style="<?= h(theme1_thumb_style((array)$p)) ?>"></div>
+                  <div class="pcard__overlay">
+                    <a href="<?= h(theme1_url((array)$p)) ?>" class="pcard__btn--buy">Buy Now</a>
+                  </div>
                 </div>
               </div>
               <div class="pcard__body">
                 <h3 class="pcard__title"><?= h((string) ($p['name'] ?? 'Product')) ?></h3>
-                <div class="pcard__price">
-                  <span class="pcard__price-current"><?= h(theme1_price((array)$p)) ?></span>
-                  <?php if (theme1_old_price((array)$p) !== ''): ?><del class="pcard__price-old"><?= h(theme1_old_price((array)$p)) ?></del><?php endif; ?>
+                <div class="pcard__rating">
+                  <?= luxe_pcard_stars_html($pcardRating) ?>
+                  <span class="pcard__rating-num"><?= h(number_format($pcardRating, 1)) ?></span>
+                  <span class="pcard__reviews"><?= (int) ($p['reviews'] ?? 0) ?> reviews</span>
                 </div>
-                <div class="pcard__rating"><span class="pcard__reviews">(<?= (int) ($p['reviews'] ?? 0) ?> Reviews)</span></div>
+                <div class="pcard__price-row">
+                  <div class="pcard__price-stack">
+                    <span class="pcard__price-current"><?= h(theme1_price((array)$p)) ?></span>
+                    <?php if (theme1_old_price((array)$p) !== ''): ?><del class="pcard__price-old"><?= h(theme1_old_price((array)$p)) ?></del><?php endif; ?>
+                  </div>
+                  <?php if ($pcardSavePct !== null): ?><span class="pcard__save-badge">Save <?= $pcardSavePct ?>%</span><?php endif; ?>
+                </div>
                 <div class="pcard__actions">
                   <a class="pcard__btn pcard__btn--view" href="<?= h(theme1_url((array)$p)) ?>">View</a>
                   <a class="pcard__btn pcard__btn--cart" href="<?= h(theme1_url((array)$p)) ?>">Add to Cart</a>
@@ -254,35 +261,24 @@ $sellerReviewsCount = (int)($seller['reviews_count'] ?? 124);
 
   <?php require __DIR__ . '/partials/footer.php'; ?>
   
-  <div id="toastContainer" style="position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:12px;"></div>
+  <div id="toastContainer" class="t2-seller-toast-host" aria-live="polite"></div>
 
   <script>
     function showToast(msg) {
       const container = document.getElementById('toastContainer');
       const toast = document.createElement('div');
-      toast.style.background = 'rgba(15, 23, 42, 0.9)';
-      toast.style.color = '#fff';
-      toast.style.padding = '12px 20px';
-      toast.style.borderRadius = '8px';
-      toast.style.fontSize = '14px';
-      toast.style.boxShadow = '0 10px 25px rgba(0,0,0,0.2)';
-      toast.style.backdropFilter = 'blur(10px)';
-      toast.style.opacity = '0';
-      toast.style.transform = 'translateY(20px)';
-      toast.style.transition = 'all 0.3s ease';
+      toast.className = 't2-seller-toast';
       toast.textContent = msg;
 
       container.appendChild(toast);
-      
-      requestAnimationFrame(() => {
-        toast.style.opacity = '1';
-        toast.style.transform = 'translateY(0)';
+
+      requestAnimationFrame(function () {
+        toast.classList.add('is-visible');
       });
 
-      setTimeout(() => {
-        toast.style.opacity = '0';
-        toast.style.transform = 'translateY(20px)';
-        setTimeout(() => toast.remove(), 300);
+      setTimeout(function () {
+        toast.classList.remove('is-visible');
+        setTimeout(function () { toast.remove(); }, 300);
       }, 3000);
     }
 

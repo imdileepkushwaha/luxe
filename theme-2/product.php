@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/seller_product_catalog.php';
+require_once __DIR__ . '/../includes/product_page_helpers.php';
 
 if (!headers_sent()) {
     header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
@@ -32,79 +33,6 @@ if (!$product) {
 }
 
 $searchCatalogProducts = products_fetch_all($pdo);
-
-function product_parse_options_csv(string $csv): array
-{
-    $csv = str_replace(["\r\n", "\r", "\n", "\t", ';', '|', '،'], ',', $csv);
-    $parts = array_map('trim', explode(',', $csv));
-    $parts = array_values(array_filter($parts, static fn($v) => $v !== ''));
-    return array_values(array_unique($parts));
-}
-
-function product_swatch_style(int $idx): string
-{
-    $palette = [
-        'linear-gradient(135deg,#8b5cf6,#ec4899)',
-        'linear-gradient(135deg,#1e40af,#0ea5e9)',
-        'linear-gradient(135deg,#064e3b,#10b981)',
-        'linear-gradient(135deg,#1c1c1c,#475569)',
-        'linear-gradient(135deg,#7f1d1d,#ef4444)',
-        'linear-gradient(135deg,#7c2d12,#f97316)',
-    ];
-    return $palette[$idx % count($palette)];
-}
-
-function product_swatch_style_for_color(string $colorName, int $idx): string
-{
-    $lower = mb_strtolower(trim($colorName));
-    if ($lower === '' || $lower === 'default') {
-        return 'linear-gradient(135deg,#8b5cf6,#ec4899)';
-    }
-    if (preg_match('/\b(white|off[\s-]?white|ivory|pearl|cream|snow|frost)\b/u', $lower)) {
-        return 'linear-gradient(140deg,#ffffff 0%,#f1f5f9 50%,#e2e8f0 100%)';
-    }
-    if (preg_match('/\b(black|jet|charcoal|midnight)\b/u', $lower)) {
-        return 'linear-gradient(135deg,#0f172a,#1e293b)';
-    }
-    if (preg_match('/\b(red|crimson|maroon|burgundy)\b/u', $lower)) {
-        return 'linear-gradient(135deg,#991b1b,#ef4444)';
-    }
-    if (preg_match('/\b(blue|navy|indigo|azure)\b/u', $lower)) {
-        return 'linear-gradient(135deg,#1e40af,#0ea5e9)';
-    }
-    if (preg_match('/\b(teal|cyan|aqua)\b/u', $lower)) {
-        return 'linear-gradient(135deg,#0f766e,#22d3ee)';
-    }
-    if (preg_match('/\b(green|olive|forest|emerald|mint)\b/u', $lower)) {
-        return 'linear-gradient(135deg,#064e3b,#10b981)';
-    }
-    if (preg_match('/\b(yellow|gold|mustard|amber)\b/u', $lower)) {
-        return 'linear-gradient(135deg,#ca8a04,#fbbf24)';
-    }
-    if (preg_match('/\b(orange|coral|peach)\b/u', $lower)) {
-        return 'linear-gradient(135deg,#c2410c,#fb923c)';
-    }
-    if (preg_match('/\b(pink|rose|magenta|purple|violet|lavender)\b/u', $lower)) {
-        return 'linear-gradient(135deg,#8b5cf6,#ec4899)';
-    }
-    if (preg_match('/\b(gray|grey|silver)\b/u', $lower)) {
-        return 'linear-gradient(135deg,#64748b,#94a3b8)';
-    }
-    if (preg_match('/\b(brown|tan|beige|khaki|camel)\b/u', $lower)) {
-        return 'linear-gradient(135deg,#78350f,#d97706)';
-    }
-
-    return product_swatch_style($idx);
-}
-
-function product_format_units_sold_label(int $units): string
-{
-    if ($units <= 0) return '';
-    if ($units >= 1_000_000) return number_format($units / 1_000_000, 1) . 'M+ sold';
-    if ($units >= 1_000) return number_format($units / 1_000, 1) . 'K+ sold';
-    if ($units >= 100) return number_format($units) . '+ sold';
-    return $units . ' sold';
-}
 
 $currentUserId = auth_user_id();
 $currentUser = auth_user($pdo);
@@ -320,7 +248,7 @@ function theme1_thumb_style(array $p): string {
   <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Inter:wght@400;500;600;700;800&family=Jost:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="<?= h(luxe_theme_asset('css/styles.css')) ?>">
 </head>
-<body>
+<body class="t2-product-page">
   <?php require __DIR__ . '/partials/header.php'; ?>
 
   <main>
@@ -358,7 +286,7 @@ function theme1_thumb_style(array $p): string {
 
       <!-- Info Column -->
       <div class="t1-product-info">
-        <div class="t1-product-glass-card">
+        <div class="t1-product-glass-card t2-product-glass-card">
           <div class="t1-product-meta">
             <span class="t1-brand"><?= h((string)($product['brand'] ?? 'LUXE Exclusive')) ?></span>
             <div class="t1-rating">
@@ -371,19 +299,24 @@ function theme1_thumb_style(array $p): string {
           </div>
 
           <h1 class="t1-product-title"><?= h((string)$product['name']) ?></h1>
-          <p style="font-size: 14px; color: #64748b; margin-top: -4px; margin-bottom: 16px;">
-             Sold by <a href="seller-store.php?id=<?= (int)$product['seller_id'] ?>" style="color: #3b82f6; font-weight: 600; text-decoration: none;"><?= h((string)($product['seller_name'] ?? 'LUXE Store')) ?></a>
+          <p class="t2-product-seller-line">
+             Sold by <a class="t2-product-seller-link" href="seller-store.php?id=<?= (int)$product['seller_id'] ?>"><?= h((string)($product['seller_name'] ?? 'LUXE Store')) ?></a>
           </p>
           
           <!-- Flash Deal -->
-          <div class="t1-flash-deal">
+          <div class="t1-flash-deal t2-flash-deal" role="status" aria-live="polite" aria-label="Flash deal countdown">
             <div class="t1-flash-deal-label">
-              <span class="t1-flash-deal-icon">⚡</span>
-              FLASH DEAL ENDS IN
+              <span class="t1-flash-deal-icon" aria-hidden="true">⚡</span>
+              <span class="t2-flash-deal-label-text">
+                <span class="t2-flash-deal-kicker">Limited time</span>
+                <span class="t2-flash-deal-line">Flash deal ends in</span>
+              </span>
             </div>
             <div class="t1-flash-deal-timer" id="flashDealTimer">
-              <span class="timer-unit">00</span>:
-              <span class="timer-unit">00</span>:
+              <span class="timer-unit">00</span>
+              <span class="timer-sep" aria-hidden="true">:</span>
+              <span class="timer-unit">00</span>
+              <span class="timer-sep" aria-hidden="true">:</span>
               <span class="timer-unit">00</span>
             </div>
           </div>
@@ -435,12 +368,12 @@ function theme1_thumb_style(array $p): string {
                         data-size="<?= h($sz) ?>" onclick="selectProductSize(this)"><?= h($sz) ?></button>
               <?php endforeach; ?>
             </div>
-            <div id="stockAvailability" class="t1-stock-text" style="margin-top: 8px; font-size: 13px; font-weight: 500;"></div>
+            <div id="stockAvailability" class="t1-stock-text t2-product-stock-line"></div>
           </div>
           <?php endif; ?>
 
           <!-- Bank Offers -->
-          <div class="t1-seller-offers">
+          <div class="t1-seller-offers t2-seller-offers">
             <div class="t1-offer-card">
               <div class="t1-offer-icon">💳</div>
               <div class="t1-offer-details">
@@ -477,21 +410,21 @@ function theme1_thumb_style(array $p): string {
             </button>
           </div>
           
-          <div class="t1-product-perks">
-             <div class="t1-perk-item">
-               <div class="t1-perk-icon">
+          <div class="t1-product-perks t2-product-perks" role="list" aria-label="Shopping benefits">
+             <div class="t1-perk-item" role="listitem">
+               <div class="t1-perk-icon" aria-hidden="true">
                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>
                </div>
                <span class="t1-perk-text">Free Delivery</span>
              </div>
-             <div class="t1-perk-item">
-               <div class="t1-perk-icon">
+             <div class="t1-perk-item" role="listitem">
+               <div class="t1-perk-icon" aria-hidden="true">
                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
                </div>
                <span class="t1-perk-text">30 Days Return</span>
              </div>
-             <div class="t1-perk-item">
-               <div class="t1-perk-icon">
+             <div class="t1-perk-item" role="listitem">
+               <div class="t1-perk-icon" aria-hidden="true">
                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
                </div>
                <span class="t1-perk-text">Secure Payment</span>
@@ -519,7 +452,7 @@ function theme1_thumb_style(array $p): string {
               </div>
             </div>
             <div class="t1-desc-stats-col">
-              <div class="t1-desc-highlights">
+              <div class="t1-desc-highlights t2-desc-highlights" role="group" aria-label="Product highlights">
                 <div class="t1-desc-highlight-card">
                   <strong><?= number_format($displayRating, 1) ?></strong>
                   <span>Rating</span>
@@ -547,7 +480,7 @@ function theme1_thumb_style(array $p): string {
             <tr><th>Category</th><td><?= h(ucwords((string)($product['category'] ?? '-'))) ?></td></tr>
             <tr><th>Product type</th><td><?= h(ucwords((string)($product['product_type'] ?? 'General'))) ?></td></tr>
             <tr><th>Shipping</th><td><?= h(ucwords(str_replace('_', ' ', (string)($product['shipping_class'] ?? 'Standard')))) ?></td></tr>
-            <tr><th>Seller</th><td><a href="seller-store.php?id=<?= (int)$product['seller_id'] ?>" style="color: #3b82f6; font-weight: 500; text-decoration: none;"><?= h((string)($product['seller_name'] ?? 'LUXE Store')) ?></a></td></tr>
+            <tr><th>Seller</th><td><a href="seller-store.php?id=<?= (int)$product['seller_id'] ?>"><?= h((string)($product['seller_name'] ?? 'LUXE Store')) ?></a></td></tr>
             <tr><th>Sizes Available</th><td><?= !empty($sizeOptions) ? h(implode(', ', $sizeOptions)) : '-' ?></td></tr>
             <tr><th>Colors Available</th><td><?= !empty($colorOptions) ? h(implode(', ', $colorOptions)) : '-' ?></td></tr>
             <tr><th>Stock</th><td id="specStockQty"><?= $initialSpecStockQty ?> units (selected variant)</td></tr>
@@ -556,21 +489,17 @@ function theme1_thumb_style(array $p): string {
           </table>
         </div>
         <div id="tab-mfg" class="t1-tab-content">
-          <div style="padding: 24px; background: rgba(255,255,255,0.4); border-radius: 12px; border: 1px solid rgba(255,255,255,0.6);">
-            <h4 style="margin:0 0 16px;font-size:18px;color:#0f172a;">Manufacturer Details</h4>
-            
-            <div style="display:grid;grid-template-columns:1fr 2fr;gap:12px;margin-bottom:16px;">
-              <strong style="color:#475569;">Generic Name:</strong>
-              <span style="color:#0f172a;"><?= $mfgGenericName !== '' ? h($mfgGenericName) : h((string)($product['name'])) ?></span>
-              
-              <strong style="color:#475569;">Country of Origin:</strong>
-              <span style="color:#0f172a;"><?= $mfgCountry !== '' ? h($mfgCountry) : 'India' ?></span>
-              
-              <strong style="color:#475569;">Manufacturer Name & Address:</strong>
-              <span style="color:#0f172a; line-height: 1.5;"><?= $mfgNameAddress !== '' ? nl2br(h($mfgNameAddress)) : 'Not provided by seller.' ?></span>
+          <div class="t1-mfg-panel">
+            <h4 class="t1-mfg-title">Manufacturer Details</h4>
+            <div class="t1-mfg-grid">
+              <strong class="t1-mfg-label">Generic Name:</strong>
+              <span class="t1-mfg-value"><?= $mfgGenericName !== '' ? h($mfgGenericName) : h((string)($product['name'])) ?></span>
+              <strong class="t1-mfg-label">Country of Origin:</strong>
+              <span class="t1-mfg-value"><?= $mfgCountry !== '' ? h($mfgCountry) : 'India' ?></span>
+              <strong class="t1-mfg-label">Manufacturer Name & Address:</strong>
+              <span class="t1-mfg-value t1-mfg-value--multiline"><?= $mfgNameAddress !== '' ? nl2br(h($mfgNameAddress)) : 'Not provided by seller.' ?></span>
             </div>
-
-            <p style="color:#64748b; font-size: 13px; margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(0,0,0,0.05);">For customer support related to this product, please contact the seller via the LUXE platform or refer to the manufacturer details above.</p>
+            <p class="t1-mfg-footnote">For customer support related to this product, please contact the seller via the LUXE platform or refer to the manufacturer details above.</p>
           </div>
         </div>
         <div id="tab-rev" class="t1-tab-content">
@@ -602,7 +531,7 @@ function theme1_thumb_style(array $p): string {
                     $rInit = strtoupper(substr($rName, 0, 1));
                     $rRating = (int)($rev['rating'] ?? 5);
                   ?>
-                    <div class="t1-review-item">
+                    <div class="t1-review-item t2-review-item">
                       <div class="t1-review-head">
                         <div class="t1-review-avatar"><?= h($rInit) ?></div>
                         <div class="t1-review-author-info">
@@ -637,33 +566,53 @@ function theme1_thumb_style(array $p): string {
       <div class="block-head"><h2>Related Products</h2></div>
       <div class="product-grid four">
         <?php foreach ($related as $p): ?>
+          <?php
+            $pcardRating = (float) ($p['rating'] ?? 0);
+            $pcardSavePct = luxe_pcard_save_percent((array) $p);
+            $pcardCat = strtoupper(trim((string) ($p['category'] ?? 'General')));
+          ?>
           <article class="pcard">
             <div class="pcard__media">
-              <div class="pcard__badges">
-                <?php if (!empty($p['badge'])): ?><span class="pcard__badge pcard__badge--new"><?= h((string) $p['badge']) ?></span><?php endif; ?>
+              <div class="pcard__toolbar">
+                <div class="pcard__toolbar-left">
+                  <div class="pcard__badges">
+                    <?php if (!empty($p['badge'])): ?><span class="pcard__badge pcard__badge--new"><?= h((string) $p['badge']) ?></span><?php endif; ?>
+                  </div>
+                  <span class="pcard__category"><?= h($pcardCat) ?></span>
+                </div>
+                <button
+                  type="button"
+                  class="pcard__wish-toggle"
+                  aria-label="Toggle wishlist"
+                  data-wishlist-btn="1"
+                  data-id="<?= (int) ($p['id'] ?? 0) ?>"
+                  data-name="<?= h((string) ($p['name'] ?? 'Product')) ?>"
+                  data-emoji="<?= h((string) ($p['emoji'] ?? '🛍')) ?>"
+                  data-price="<?= (int) ($p['price'] ?? 0) ?>"
+                  data-orig="<?= (int) ($p['original'] ?? 0) ?>"
+                  data-image="<?= h(theme1_thumb_url((array)$p)) ?>"
+                ><svg class="heart-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg></button>
               </div>
-              <button
-                type="button"
-                class="pcard__wish-toggle"
-                aria-label="Toggle wishlist"
-                data-wishlist-btn="1"
-                data-id="<?= (int) ($p['id'] ?? 0) ?>"
-                data-name="<?= h((string) ($p['name'] ?? 'Product')) ?>"
-                data-emoji="<?= h((string) ($p['emoji'] ?? '🛍')) ?>"
-                data-price="<?= (int) ($p['price'] ?? 0) ?>"
-                data-orig="<?= (int) ($p['original'] ?? 0) ?>"
-                data-image="<?= h(theme1_thumb_url((array)$p)) ?>"
-              ><svg class="heart-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg></button>
-              <div class="thumb" role="img" aria-hidden="true" style="<?= h(theme1_thumb_style((array)$p)) ?>"></div>
-              <div class="pcard__overlay">
-                <a href="<?= h(theme1_url((array)$p)) ?>" class="pcard__btn--buy">Buy Now</a>
+              <div class="pcard__image-frame">
+                <div class="thumb" role="img" aria-hidden="true" style="<?= h(theme1_thumb_style((array)$p)) ?>"></div>
+                <div class="pcard__overlay">
+                  <a href="<?= h(theme1_url((array)$p)) ?>" class="pcard__btn--buy">Buy Now</a>
+                </div>
               </div>
             </div>
             <div class="pcard__body">
               <h3 class="pcard__title"><?= h((string) ($p['name'] ?? 'Product')) ?></h3>
-              <div class="pcard__price">
-                <span class="pcard__price-current"><?= h(theme1_price((array)$p)) ?></span>
-                <?php if (theme1_old_price((array)$p) !== ''): ?><del class="pcard__price-old"><?= h(theme1_old_price((array)$p)) ?></del><?php endif; ?>
+              <div class="pcard__rating">
+                <?= luxe_pcard_stars_html($pcardRating) ?>
+                <span class="pcard__rating-num"><?= h(number_format($pcardRating, 1)) ?></span>
+                <span class="pcard__reviews"><?= (int) ($p['reviews'] ?? 0) ?> reviews</span>
+              </div>
+              <div class="pcard__price-row">
+                <div class="pcard__price-stack">
+                  <span class="pcard__price-current"><?= h(theme1_price((array)$p)) ?></span>
+                  <?php if (theme1_old_price((array)$p) !== ''): ?><del class="pcard__price-old"><?= h(theme1_old_price((array)$p)) ?></del><?php endif; ?>
+                </div>
+                <?php if ($pcardSavePct !== null): ?><span class="pcard__save-badge">Save <?= $pcardSavePct ?>%</span><?php endif; ?>
               </div>
               <div class="pcard__actions">
                 <a class="pcard__btn pcard__btn--view" href="<?= h(theme1_url((array)$p)) ?>">View</a>

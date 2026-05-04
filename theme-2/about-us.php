@@ -41,7 +41,9 @@ $siteBrandT2About = site_brand_name($pdo);
             <a class="btn-hero btn-hero-outline" href="contact-us.php">Talk to us</a>
           </div>
         </div>
-        <div class="t1-static-hero-visual t1-static-hero-visual--about" aria-hidden="true"></div>
+        <div class="t1-static-hero-visual t1-static-hero-visual--about" aria-hidden="true">
+          <img src="theme-2/images/features-2.jpg" alt="About Us">
+        </div>
       </div>
     </section>
 

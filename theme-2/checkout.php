@@ -47,6 +47,14 @@ $userEmail = trim((string)($user['email']??''));
 $theme1LoginHref = 'login.php'; $theme1HeaderCategories = ["Men's Fashion","Women's Fashion","Kid's Fashion",'Footwear'];
 $theme1HeaderCompareCount = 0; $theme1HeaderCartCount = $cartCount; $theme1FooterCategories = $theme1HeaderCategories;
 
+$defaultShipState = '';
+foreach ($addresses as $a) {
+    if ((int) ($a['id'] ?? 0) === $defAddrId) {
+        $defaultShipState = trim((string) ($a['state'] ?? ''));
+        break;
+    }
+}
+
 function t1co_thumb(array $line): string {
     $img = trim((string)($line['image']??$line['image_path']??''));
     if ($img===''||strcasecmp($img,'default')===0) return '';
@@ -63,7 +71,7 @@ function t1co_thumb(array $line): string {
 <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Inter:wght@400;500;600;700;800&family=Jost:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="<?= h(luxe_theme_asset('css/styles.css')) ?>">
 </head>
-<body class="profile-page-wrap t1-co-page">
+<body class="profile-page-wrap t1-co-page t2-account-layout t2-cart-checkout">
 <?php require __DIR__.'/partials/header.php'; ?>
 <main>
    <div class="cart-main-wrap">
@@ -207,7 +215,7 @@ function t1co_thumb(array $line): string {
 
       <!-- Delivery Speed -->
       <div class="t1-co-speed-box">
-        <div class="t1-co-speed-lbl">📦 Delivery Speed</div>
+        <div class="t1-co-speed-lbl t2-shipping-heading">Shipping</div>
         <?php if ($subtotal >= 1000): ?>
         <div class="ti-co-speed-free">
           🎉 FREE delivery on orders above ₹1,000!
@@ -232,6 +240,16 @@ function t1co_thumb(array $line): string {
         </div>
       </div>
 
+      <div class="t2-co-ship-to">
+        <p class="t2-co-ship-to-line">
+          <span id="coShipToText"><?= $defaultShipState !== '' ? 'Shipping to ' . h($defaultShipState) . '.' : ($addresses === [] ? 'Add a delivery address to see shipping.' : 'Select a delivery address.') ?></span>
+        </p>
+        <button type="button" class="t2-co-change-addr" onclick="goStep(1); window.scrollTo({ top: 0, behavior: 'smooth' });">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          Change address
+        </button>
+      </div>
+
       <!-- Fee Breakdown -->
       <div class="t1-co-fee-rows">
         <div class="t1-co-fee-row"><span>Subtotal</span><span id="summarySubtotal">₹<?= number_format($subtotal) ?></span></div>
@@ -247,9 +265,8 @@ function t1co_thumb(array $line): string {
         <div class="t1-co-fee-row total"><span>Total Amount</span><span id="feeTotal">₹<?= number_format($initialTotal) ?></span></div>
       </div>
 
-      <button class="t1-co-place-btn" id="placeBtnSum" onclick="placeOrder()">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
-         Place Order — ₹<span id="payAmtSum"><?= number_format($initialTotal) ?></span>
+      <button type="button" class="t1-co-place-btn t2-cart-checkout-btn" id="placeBtnSum" onclick="placeOrder()">
+        Place Order — ₹<span id="payAmtSum"><?= number_format($initialTotal) ?></span>
       </button>
       <div class="t1-co-secure">🔒 Secured by 256-bit SSL encryption</div>
     </div>
@@ -335,6 +352,19 @@ function renderReview() {
   const speed = document.querySelector('input[name="co_speed"]:checked');
   const speedMap = {standard:'Standard (3–5 days)',express:'Express (1–2 days)',same_day:'Same Day'};
   document.getElementById('rvSpeed').textContent = speedMap[speed?.value||'standard']||'Standard';
+  updateShipToLine();
+}
+
+function updateShipToLine() {
+  const el = document.getElementById('coShipToText');
+  if (!el) return;
+  const addr = document.querySelector('input[name="co_addr"]:checked');
+  if (!addr) {
+    el.textContent = ADDRESSES.length ? 'Select a delivery address.' : 'Add a delivery address.';
+    return;
+  }
+  const a = ADDRESSES.find(x => String(x.id) === String(addr.value));
+  el.textContent = (a && a.state) ? ('Shipping to ' + a.state + '.') : 'Delivery address selected.';
 }
 
 // Render coupon tags (sync with cart)
@@ -527,6 +557,9 @@ function editAddr(id) {
   document.querySelector('#addrModal h3').textContent = 'Edit Address';
   openAddrModal();
 }
+
+document.querySelectorAll('input[name="co_addr"]').forEach(r => r.addEventListener('change', updateShipToLine));
+updateShipToLine();
 
 refreshTotal();
 </script>

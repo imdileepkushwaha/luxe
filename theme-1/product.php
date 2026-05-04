@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/seller_product_catalog.php';
+require_once __DIR__ . '/../includes/product_page_helpers.php';
 
 if (!headers_sent()) {
     header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
@@ -32,79 +33,6 @@ if (!$product) {
 }
 
 $searchCatalogProducts = products_fetch_all($pdo);
-
-function product_parse_options_csv(string $csv): array
-{
-    $csv = str_replace(["\r\n", "\r", "\n", "\t", ';', '|', '،'], ',', $csv);
-    $parts = array_map('trim', explode(',', $csv));
-    $parts = array_values(array_filter($parts, static fn($v) => $v !== ''));
-    return array_values(array_unique($parts));
-}
-
-function product_swatch_style(int $idx): string
-{
-    $palette = [
-        'linear-gradient(135deg,#8b5cf6,#ec4899)',
-        'linear-gradient(135deg,#1e40af,#0ea5e9)',
-        'linear-gradient(135deg,#064e3b,#10b981)',
-        'linear-gradient(135deg,#1c1c1c,#475569)',
-        'linear-gradient(135deg,#7f1d1d,#ef4444)',
-        'linear-gradient(135deg,#7c2d12,#f97316)',
-    ];
-    return $palette[$idx % count($palette)];
-}
-
-function product_swatch_style_for_color(string $colorName, int $idx): string
-{
-    $lower = mb_strtolower(trim($colorName));
-    if ($lower === '' || $lower === 'default') {
-        return 'linear-gradient(135deg,#8b5cf6,#ec4899)';
-    }
-    if (preg_match('/\b(white|off[\s-]?white|ivory|pearl|cream|snow|frost)\b/u', $lower)) {
-        return 'linear-gradient(140deg,#ffffff 0%,#f1f5f9 50%,#e2e8f0 100%)';
-    }
-    if (preg_match('/\b(black|jet|charcoal|midnight)\b/u', $lower)) {
-        return 'linear-gradient(135deg,#0f172a,#1e293b)';
-    }
-    if (preg_match('/\b(red|crimson|maroon|burgundy)\b/u', $lower)) {
-        return 'linear-gradient(135deg,#991b1b,#ef4444)';
-    }
-    if (preg_match('/\b(blue|navy|indigo|azure)\b/u', $lower)) {
-        return 'linear-gradient(135deg,#1e40af,#0ea5e9)';
-    }
-    if (preg_match('/\b(teal|cyan|aqua)\b/u', $lower)) {
-        return 'linear-gradient(135deg,#0f766e,#22d3ee)';
-    }
-    if (preg_match('/\b(green|olive|forest|emerald|mint)\b/u', $lower)) {
-        return 'linear-gradient(135deg,#064e3b,#10b981)';
-    }
-    if (preg_match('/\b(yellow|gold|mustard|amber)\b/u', $lower)) {
-        return 'linear-gradient(135deg,#ca8a04,#fbbf24)';
-    }
-    if (preg_match('/\b(orange|coral|peach)\b/u', $lower)) {
-        return 'linear-gradient(135deg,#c2410c,#fb923c)';
-    }
-    if (preg_match('/\b(pink|rose|magenta|purple|violet|lavender)\b/u', $lower)) {
-        return 'linear-gradient(135deg,#8b5cf6,#ec4899)';
-    }
-    if (preg_match('/\b(gray|grey|silver)\b/u', $lower)) {
-        return 'linear-gradient(135deg,#64748b,#94a3b8)';
-    }
-    if (preg_match('/\b(brown|tan|beige|khaki|camel)\b/u', $lower)) {
-        return 'linear-gradient(135deg,#78350f,#d97706)';
-    }
-
-    return product_swatch_style($idx);
-}
-
-function product_format_units_sold_label(int $units): string
-{
-    if ($units <= 0) return '';
-    if ($units >= 1_000_000) return number_format($units / 1_000_000, 1) . 'M+ sold';
-    if ($units >= 1_000) return number_format($units / 1_000, 1) . 'K+ sold';
-    if ($units >= 100) return number_format($units) . '+ sold';
-    return $units . ' sold';
-}
 
 $currentUserId = auth_user_id();
 $currentUser = auth_user($pdo);

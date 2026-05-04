@@ -3,18 +3,6 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 
-function luxe_public_product_card_image(array $p): string
-{
-    $raw = trim((string) ($p['image_path'] ?? ''));
-    if ($raw !== '' && strcasecmp($raw, 'default') !== 0) {
-        if (!preg_match('#^(?:https?:)?//#i', $raw) && !str_starts_with($raw, '/')) {
-            return luxe_public_href(ltrim($raw, '/'));
-        }
-        return $raw;
-    }
-    return 'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=600&q=80';
-}
-
 $pdo = db();
 $sellerId = isset($_GET['id']) ? (int) $_GET['id'] : 0;
 $seller = $sellerId > 0 ? seller_fetch_public_profile($pdo, $sellerId) : null;

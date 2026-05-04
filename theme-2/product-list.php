@@ -313,37 +313,56 @@ function theme1_thumb_url(array $p): string
             <?php else: ?>
               <?php foreach ($allProducts as $product): ?>
                 <?php $thumb = theme1_thumb_url($product); ?>
+              <?php
+                $pcardRating = (float) ($product['rating'] ?? 0);
+                $pcardSavePct = luxe_pcard_save_percent($product);
+                $pcardCat = strtoupper(trim((string) ($product['category'] ?? 'General')));
+              ?>
               <article class="pcard">
                 <div class="pcard__media">
-                  <div class="pcard__badges">
-                    <?php if (!empty($product['badge'])): ?><span class="pcard__badge pcard__badge--new"><?= h((string) $product['badge']) ?></span><?php endif; ?>
+                  <div class="pcard__toolbar">
+                    <div class="pcard__toolbar-left">
+                      <div class="pcard__badges">
+                        <?php if (!empty($product['badge'])): ?><span class="pcard__badge pcard__badge--new"><?= h((string) $product['badge']) ?></span><?php endif; ?>
+                      </div>
+                      <span class="pcard__category"><?= h($pcardCat) ?></span>
+                    </div>
+                    <button
+                      type="button"
+                      class="pcard__wish-toggle"
+                      aria-label="Toggle wishlist"
+                      data-wishlist-btn="1"
+                      data-id="<?= (int) ($product['id'] ?? 0) ?>"
+                      data-name="<?= h((string) ($product['name'] ?? 'Product')) ?>"
+                      data-emoji="<?= h((string) ($product['emoji'] ?? '🛍')) ?>"
+                      data-price="<?= (int) ($product['price'] ?? 0) ?>"
+                      data-orig="<?= (int) ($product['original'] ?? 0) ?>"
+                      data-image="<?= h($thumb) ?>"
+                    >
+                      <svg class="heart-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    class="pcard__wish-toggle"
-                    aria-label="Toggle wishlist"
-                    data-wishlist-btn="1"
-                    data-id="<?= (int) ($product['id'] ?? 0) ?>"
-                    data-name="<?= h((string) ($product['name'] ?? 'Product')) ?>"
-                    data-emoji="<?= h((string) ($product['emoji'] ?? '🛍')) ?>"
-                    data-price="<?= (int) ($product['price'] ?? 0) ?>"
-                    data-orig="<?= (int) ($product['original'] ?? 0) ?>"
-                    data-image="<?= h($thumb) ?>"
-                  >
-                    <svg class="heart-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
-                  </button>
-                  <a href="<?= h(theme1_url($product)) ?>" class="thumb" style="background-image:url('<?= h($thumb) ?>');background-size:cover;background-position:center;display:block;width:100%;height:100%;"></a>
-                  <div class="pcard__overlay">
-                    <a href="<?= h(theme1_url($product)) ?>" class="pcard__btn--buy">Buy Now</a>
+                  <div class="pcard__image-frame">
+                    <a href="<?= h(theme1_url($product)) ?>" class="thumb" style="background-image:url('<?= h($thumb) ?>');background-size:cover;background-position:center;"></a>
+                    <div class="pcard__overlay">
+                      <a href="<?= h(theme1_url($product)) ?>" class="pcard__btn--buy">Buy Now</a>
+                    </div>
                   </div>
                 </div>
                 <div class="pcard__body">
                   <h3 class="pcard__title"><?= h((string) ($product['name'] ?? 'Product')) ?></h3>
-                  <div class="pcard__price">
-                    <span class="pcard__price-current"><?= h(theme1_price($product)) ?></span>
-                    <?php if (theme1_old_price($product) !== ''): ?><del class="pcard__price-old"><?= h(theme1_old_price($product)) ?></del><?php endif; ?>
+                  <div class="pcard__rating">
+                    <?= luxe_pcard_stars_html($pcardRating) ?>
+                    <span class="pcard__rating-num"><?= h(number_format($pcardRating, 1)) ?></span>
+                    <span class="pcard__reviews"><?= (int) ($product['reviews'] ?? 0) ?> reviews</span>
                   </div>
-                  <div class="pcard__rating"><span class="pcard__reviews">(<?= (int) ($product['reviews'] ?? 0) ?> Reviews)</span></div>
+                  <div class="pcard__price-row">
+                    <div class="pcard__price-stack">
+                      <span class="pcard__price-current"><?= h(theme1_price($product)) ?></span>
+                      <?php if (theme1_old_price($product) !== ''): ?><del class="pcard__price-old"><?= h(theme1_old_price($product)) ?></del><?php endif; ?>
+                    </div>
+                    <?php if ($pcardSavePct !== null): ?><span class="pcard__save-badge">Save <?= $pcardSavePct ?>%</span><?php endif; ?>
+                  </div>
                   <div class="pcard__actions">
                     <a class="pcard__btn pcard__btn--view" href="<?= h(theme1_url($product)) ?>">View</a>
                     <a class="pcard__btn pcard__btn--cart" href="<?= h(theme1_url($product)) ?>">Add to Cart</a>

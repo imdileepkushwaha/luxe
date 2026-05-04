@@ -147,12 +147,14 @@ if ($createdAt !== '' && strtotime($createdAt) !== false) {
         grid.innerHTML = addresses.map(function (a) {
           var line2 = (a.line2 || "").trim() ? ", " + esc(a.line2) : "";
           return '<div class="theme1-address-card">' +
+            '<div class="theme1-address-card-inner">' +
             '<div class="theme1-address-top"><span class="theme1-address-type">' + esc(a.type || "Home") + '</span>' + (a.isDefault ? '<span class="theme1-address-default">Default</span>' : '') + '</div>' +
             '<strong>' + esc(a.name || "") + '</strong>' +
             '<p>' + esc(a.line1 || "") + line2 + ', ' + esc(a.city || "") + ', ' + esc(a.state || "") + ' - ' + esc(a.pin || "") + '</p>' +
             '<p>' + (a.phone ? ('Phone: ' + esc(a.phone)) : '') + '</p>' +
+            '</div>' +
             '<div class="theme1-address-actions">' +
-            '<button type="button" data-edit-id="' + Number(a.id || 0) + '">Edit</button>' +
+            '<button type="button" class="theme1-action-btn is-edit" data-edit-id="' + Number(a.id || 0) + '">Edit</button>' +
             '</div>' +
             '</div>';
         }).join("");
