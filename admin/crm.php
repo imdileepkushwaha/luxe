@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'save_storefront_theme') {
         $pick = trim((string) ($_POST['storefront_theme'] ?? ''));
-        if (!in_array($pick, ['default', 'theme-1', 'theme-2'], true)) {
+        if (!in_array($pick, ['default', 'theme-1', 'theme-2', 'theme-3'], true)) {
             header('Location: crm.php?msg=theme_invalid&tab=theme');
             exit;
         }
@@ -184,7 +184,7 @@ foreach (CMS_PAGE_KEYS as $key) {
 $faqs = cms_faqs_all($pdo, false);
 
 $storefrontThemeCurrent = trim(site_setting_get($pdo, 'storefront_theme', 'default'));
-if (!in_array($storefrontThemeCurrent, ['default', 'theme-1', 'theme-2'], true)) {
+if (!in_array($storefrontThemeCurrent, ['default', 'theme-1', 'theme-2', 'theme-3'], true)) {
     $storefrontThemeCurrent = 'default';
 }
 
@@ -317,7 +317,8 @@ require __DIR__ . '/partials/shell-top.php';
                     <strong>
                       <?php
                         $activeThemeLabel = $storefrontThemeCurrent === 'default' ? 'Theme (Default)'
-                          : ($storefrontThemeCurrent === 'theme-1' ? 'Theme 1' : 'Theme 2');
+                          : ($storefrontThemeCurrent === 'theme-1' ? 'Theme 1' 
+                          : ($storefrontThemeCurrent === 'theme-2' ? 'Theme 2' : 'Theme 3'));
                         echo h($activeThemeLabel);
                       ?>
                     </strong>
@@ -354,6 +355,12 @@ require __DIR__ . '/partials/shell-top.php';
                         'desc' => 'High-end glassmorphic skin with vibrant gradients and smooth interactions.',
                         'chips' => ['Premium', 'High-end', 'Visual'],
                         'gradient' => 'linear-gradient(135deg, #ef4444, #f97316)'
+                    ],
+                    'theme-3' => [
+                        'title' => 'Elite Dark',
+                        'desc' => 'Exclusive midnight glassmorphism with high-contrast accents and premium shadows.',
+                        'chips' => ['Bold', 'Modern', 'Trendy'],
+                        'gradient' => 'linear-gradient(135deg, #1e1b4b, #4338ca)'
                     ],
                 ];
                 foreach ($themeOptions as $tk => $meta):
