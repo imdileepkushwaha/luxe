@@ -112,7 +112,7 @@ function luxe_web_path_prefix(): string
 
     $dirNorm = trim(str_replace('\\', '/', $dir), '/');
     // Theme PHP lives under …/theme-1|theme-2/*.php — app root is the parent so /actions/ resolves correctly.
-    if ($dirNorm !== '' && preg_match('#(?:^|/)(theme-[12])$#', $dirNorm)) {
+    if ($dirNorm !== '' && preg_match('#(?:^|/)(theme-[123])$#', $dirNorm)) {
         $parent = dirname($dirNorm);
         if ($parent === '.' || $parent === '') {
             return '';
