@@ -52,4 +52,12 @@ return [
         // true = online checkout bina Razorpay (dev only). Production: false + keys.
         'dev_skip_gateway' => false,
     ],
+    // CAPTCHA: builtin = simple math check (no Google keys). recaptcha = Google reCAPTCHA v2.
+    'captcha' => [
+        'provider' => 'builtin',
+        'enabled' => true,
+        'secret_salt' => 'change-this-in-production',
+        'site_key' => '',
+        'secret_key' => '',
+    ],
 ];

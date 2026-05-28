@@ -9,7 +9,7 @@ function storefront_theme_directory(PDO $pdo): string
 {
     $v = trim(site_setting_get($pdo, 'storefront_theme', 'default'));
 
-    return ($v === 'theme-1' || $v === 'theme-2' || $v === 'theme-3') ? $v : '';
+    return ($v === 'theme-1' || $v === 'theme-2' || $v === 'theme-3' || $v === 'theme-4') ? $v : '';
 }
 
 /**

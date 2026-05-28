@@ -568,6 +568,7 @@ function db_ensure_seller_create_requests_table(PDO $pdo): void
                 email VARCHAR(255) NOT NULL,
                 phone VARCHAR(40) NOT NULL DEFAULT '',
                 requested_password_hash VARCHAR(255) NOT NULL DEFAULT '',
+                password_confirmed_at DATETIME NULL DEFAULT NULL,
                 requested_categories VARCHAR(255) NOT NULL DEFAULT '',
                 note VARCHAR(500) NOT NULL DEFAULT '',
                 business_name VARCHAR(150) NOT NULL DEFAULT '',
@@ -610,6 +611,7 @@ function db_ensure_seller_create_requests_table(PDO $pdo): void
 
         $requiredCols = [
             'requested_password_hash' => "ALTER TABLE seller_create_requests ADD COLUMN requested_password_hash VARCHAR(255) NOT NULL DEFAULT '' AFTER phone",
+            'password_confirmed_at' => "ALTER TABLE seller_create_requests ADD COLUMN password_confirmed_at DATETIME NULL DEFAULT NULL AFTER requested_password_hash",
             'business_name' => "ALTER TABLE seller_create_requests ADD COLUMN business_name VARCHAR(150) NOT NULL DEFAULT '' AFTER note",
             'gst_number' => "ALTER TABLE seller_create_requests ADD COLUMN gst_number VARCHAR(20) NOT NULL DEFAULT '' AFTER business_name",
             'pan_number' => "ALTER TABLE seller_create_requests ADD COLUMN pan_number VARCHAR(20) NOT NULL DEFAULT '' AFTER gst_number",

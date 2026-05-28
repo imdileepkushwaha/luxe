@@ -5139,7 +5139,7 @@ html.admin-theme-dark .seller-category-card:has(input:checked) {
 }
 
 .admin-login-card label {
-  display: block;
+  display: flex;
   font-size: 0.8rem;
   font-weight: 600;
   margin: 14px 0 6px;
@@ -5308,7 +5308,7 @@ html.admin-theme-dark .admin-password-toggle:hover {
 }
 
 .admin-login-card button[type="submit"] {
-  margin-top: 20px;
+  margin-top: 0;
   width: 100%;
   padding: 12px;
   border: 0;
@@ -5322,6 +5322,91 @@ html.admin-theme-dark .admin-password-toggle:hover {
 
 .admin-login-card button[type="submit"]:hover {
   background: var(--admin-accent-hover);
+}
+
+.admin-login-card .luxe-captcha-wrap {
+  margin: 4px 0 16px;
+  min-height: 78px;
+  overflow: visible;
+}
+
+.admin-login-card .luxe-captcha-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin: 14px 0 6px;
+  color: var(--admin-text);
+}
+
+.admin-login-card .luxe-captcha-input {
+  width: auto;
+  padding: 11px 14px;
+  border: 1px solid var(--admin-border);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  background: #fff;
+  color: var(--admin-text);
+}
+
+.admin-login-card .luxe-captcha-input:focus {
+  outline: 2px solid var(--admin-accent-soft);
+  border-color: var(--admin-accent);
+}
+
+.admin-login-card .luxe-captcha-q {
+  border-radius: 8px;
+  border: 1px dashed var(--admin-border);
+  background: #f8fafc;
+  color: var(--admin-text);
+  font-size: 0.95rem;
+}
+
+.admin-login-card .luxe-captcha-refresh {
+  border-radius: 8px;
+  border: 1px solid var(--admin-border);
+  background: #fff;
+  color: var(--admin-text-muted);
+}
+
+.admin-login-card .luxe-captcha-refresh:hover {
+  color: var(--admin-text);
+  background: rgba(15, 23, 42, 0.04);
+}
+
+html.admin-theme-dark .admin-login-card .luxe-captcha-label {
+  color: var(--admin-text);
+}
+
+html.admin-theme-dark .admin-login-card .luxe-captcha-input,
+html.admin-theme-dark .admin-login-card .luxe-captcha-refresh {
+  background: #0f172a;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+html.admin-theme-dark .admin-login-card .luxe-captcha-input:focus {
+  outline-color: rgba(248, 113, 113, 0.25);
+  border-color: #f87171;
+}
+
+html.admin-theme-dark .admin-login-card .luxe-captcha-q {
+  background: #1e293b;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+html.admin-theme-dark .admin-login-card .luxe-captcha-refresh:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.admin-login-card .luxe-captcha-mount {
+  transform-origin: left top;
+}
+
+@media (max-width: 480px) {
+  .admin-login-card .luxe-captcha-wrap {
+    transform: scale(0.92);
+    transform-origin: left top;
+  }
 }
 
 .admin-login-card .err {

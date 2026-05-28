@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/_auth.php';
+require_once __DIR__ . '/../includes/captcha.php';
 
 $pdo = db();
 $already = seller_user($pdo);
@@ -30,6 +31,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($email === '' || $password === '') {
         $error = 'Email aur password required hai.';
     } else {
+        $captchaError = luxe_captcha_require_form('luxe-captcha-login');
+        if ($captchaError !== '') {
+            $error = $captchaError;
+        } else {
         $st = $pdo->prepare('SELECT id, password_hash, is_active FROM seller_users WHERE email = ? LIMIT 1');
         $st->execute([$email]);
         $row = $st->fetch();
@@ -46,6 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: index.php');
             exit;
         }
+        }
     }
 }
 ?>
@@ -60,6 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../admin/css/admin.css">
+  <?php require __DIR__ . '/../includes/partials/captcha_assets.php'; ?>
 </head>
 <body class="admin-login admin-app--merchant">
   <div class="admin-login-card">
@@ -89,6 +96,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <input id="password" type="password" name="password" required autocomplete="current-password" placeholder="********">
         <?php require __DIR__ . '/partials/password-toggle-button.php'; ?>
       </div>
+
+      <?php $captchaElementId = 'luxe-captcha-login'; require __DIR__ . '/../includes/partials/captcha_widget.php'; ?>
 
       <button type="submit">Login</button>
     </form>

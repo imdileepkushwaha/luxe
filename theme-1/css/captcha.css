@@ -1,0 +1,45 @@
+/* Theme 1 login — matches .theme1-form-grid input on theme-1/login.php */
+.luxe-captcha-wrap--theme-1 .luxe-captcha-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.luxe-captcha-wrap--theme-1 .luxe-captcha-input {
+  border: 1.5px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 14px 16px;
+  font-size: 15px;
+  background: #fff;
+  color: #0f172a;
+  transition: all 0.2s;
+}
+
+.luxe-captcha-wrap--theme-1 .luxe-captcha-input::placeholder {
+  color: #94a3b8;
+}
+
+.luxe-captcha-wrap--theme-1 .luxe-captcha-input:focus {
+  border-color: #f97316;
+  box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.1);
+}
+
+.luxe-captcha-wrap--theme-1 .luxe-captcha-q {
+  border-radius: 14px;
+  border: 1.5px solid #e2e8f0;
+      background: #fff;
+    color: #0f172a;
+  font-size: 1rem;
+}
+
+.luxe-captcha-wrap--theme-1 .luxe-captcha-refresh {
+  border-radius: 14px;
+  border: 1.5px solid #e2e8f0;
+  background: #fff;
+  color: #64748b;
+}
+
+.luxe-captcha-wrap--theme-1 .luxe-captcha-refresh:hover {
+  border-color: #f97316;
+  color: #ea580c;
+}
