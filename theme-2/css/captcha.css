@@ -1,0 +1,54 @@
+/* Theme 2 login — matches .t2-login-field input on theme-2/css/styles.css */
+.luxe-captcha-wrap--theme-2 .t2-login-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: #4a4540;
+}
+
+.luxe-captcha-wrap--theme-2 .luxe-captcha-input {
+  padding: 14px 16px;
+  font-size: 1rem;
+  color: var(--text, #040404);
+  background: linear-gradient(180deg, #e3ded4 0%, #ebe6de 38%, #f2ede6 100%);
+  border: 1px solid rgba(20, 18, 16, 0.07);
+  border-radius: 11px;
+  box-shadow:
+    inset 0 2px 5px rgba(20, 18, 16, 0.08),
+    0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.luxe-captcha-wrap--theme-2 .luxe-captcha-input::placeholder {
+  color: #8c857b;
+}
+
+.luxe-captcha-wrap--theme-2 .luxe-captcha-input:focus {
+  border-color: rgba(183, 155, 108, 0.55);
+  box-shadow:
+    inset 0 2px 6px rgba(20, 18, 16, 0.06),
+    0 0 0 2px rgba(183, 155, 108, 0.22);
+}
+
+.luxe-captcha-wrap--theme-2 .luxe-captcha-q {
+  border-radius: 11px;
+  border: 1px dashed rgba(183, 155, 108, 0.45);
+  background: linear-gradient(180deg, #ece7df 0%, #f3eee7 100%);
+  color: #4a4540;
+  font-size: 1rem;
+  box-shadow: inset 0 1px 3px rgba(20, 18, 16, 0.06);
+}
+
+.luxe-captcha-wrap--theme-2 .luxe-captcha-refresh {
+  border-radius: 11px;
+  border: 1px solid rgba(20, 18, 16, 0.07);
+  background: linear-gradient(180deg, #e3ded4 0%, #ebe6de 38%, #f2ede6 100%);
+  color: #4a4540;
+  box-shadow:
+    inset 0 2px 5px rgba(20, 18, 16, 0.08),
+    0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.luxe-captcha-wrap--theme-2 .luxe-captcha-refresh:hover {
+  border-color: rgba(183, 155, 108, 0.55);
+  color: var(--theme-red-dark, #c93532);
+}

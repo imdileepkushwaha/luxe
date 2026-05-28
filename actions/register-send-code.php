@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/signup_mail.php';
+require_once __DIR__ . '/../includes/captcha.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -21,6 +22,10 @@ if (!is_array($data)) {
 }
 
 $resend = !empty($data['resend']);
+
+if (!$resend) {
+    luxe_captcha_require_json($data, 'luxe-captcha-register');
+}
 
 if ($resend) {
     $pending = $_SESSION['signup_pending'] ?? null;

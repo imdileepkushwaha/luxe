@@ -1,7 +1,7 @@
 @echo off
 cd /d "%~dp0"
 REM LUXE dev server — fixed port 5000 (XAMPP Apache/phpMyAdmin typically stay on 80)
-set PORT=5000
+set PORT=5001
 echo LUXE dev server: http://localhost:%PORT%/index.php
 echo phpMyAdmin (XAMPP): usually http://localhost/phpmyadmin/  ^(port 80^)
 where php >nul 2>&1

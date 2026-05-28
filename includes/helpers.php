@@ -111,8 +111,8 @@ function luxe_web_path_prefix(): string
     }
 
     $dirNorm = trim(str_replace('\\', '/', $dir), '/');
-    // Theme PHP lives under …/theme-1|theme-2/*.php — app root is the parent so /actions/ resolves correctly.
-    if ($dirNorm !== '' && preg_match('#(?:^|/)(theme-[123])$#', $dirNorm)) {
+    // Theme/seller/admin PHP lives under subfolders — app root is the parent so /script/, /actions/, etc. resolve correctly.
+    if ($dirNorm !== '' && preg_match('#(?:^|/)(theme-\d+|seller|admin)$#', $dirNorm)) {
         $parent = dirname($dirNorm);
         if ($parent === '.' || $parent === '') {
             return '';

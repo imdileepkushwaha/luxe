@@ -99,6 +99,7 @@ CREATE TABLE seller_create_requests (
   email VARCHAR(255) NOT NULL,
   phone VARCHAR(40) NOT NULL DEFAULT '',
   requested_password_hash VARCHAR(255) NOT NULL DEFAULT '',
+  password_confirmed_at DATETIME NULL DEFAULT NULL,
   requested_categories VARCHAR(255) NOT NULL DEFAULT '',
   note VARCHAR(500) NOT NULL DEFAULT '',
   business_name VARCHAR(150) NOT NULL DEFAULT '',

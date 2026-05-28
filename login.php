@@ -23,6 +23,7 @@ if (isset($_GET['redirect'])) {
   <meta name="description" content="Sign in to your LUXE account to access exclusive deals, track orders, and enjoy a premium shopping experience." />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,700;1,500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/luxe.css" />
+  <?php require __DIR__ . '/includes/partials/captcha_assets.php'; ?>
 </head>
 <body>
 
@@ -125,19 +126,7 @@ if (isset($_GET['redirect'])) {
             <p>Enter your credentials to continue</p>
           </div>
 
-          <div class="social-btns">
-            <button class="social-btn" id="googleBtn">
-              <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#EA4335" d="M5.26 9.77A7.5 7.5 0 0 1 12 4.5c1.77 0 3.38.62 4.64 1.64l3.46-3.46A12 12 0 0 0 0 12c0 2.01.5 3.9 1.38 5.57l3.88-3.01A7.47 7.47 0 0 1 5.26 9.77z"/><path fill="#FBBC05" d="M12 4.5c1.77 0 3.38.62 4.64 1.64l3.46-3.46A12 12 0 0 0 12 0c-4.64 0-8.64 2.65-10.62 6.52l3.88 3.01A7.5 7.5 0 0 1 12 4.5z"/><path fill="#4285F4" d="M23.9 12.27c0-.79-.07-1.55-.2-2.27H12v4.3h6.68a5.7 5.7 0 0 1-2.47 3.74l3.86 3A12 12 0 0 0 24 12c0-.24 0-.49-.1-.73z"/><path fill="#34A853" d="M5.26 14.23A7.48 7.48 0 0 1 4.5 12c0-.77.13-1.52.35-2.23L1 6.76A12 12 0 0 0 0 12c0 1.94.46 3.77 1.27 5.4l3.99-3.17z"/><path fill="#EA4335" d="M12 24c3.24 0 5.96-1.07 7.95-2.9l-3.86-3a7.5 7.5 0 0 1-11.04-3.87l-3.99 3.17C3.36 21.35 7.36 24 12 24z"/></svg>
-              Continue with Google
-            </button>
-            <button class="social-btn" id="phoneBtn">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1.27h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.91a16 16 0 0 0 6 6l.91-.9a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21.73 16.92z"/></svg>
-              Continue with Phone
-            </button>
-          </div>
-
-          <div class="divider"><span>or sign in with email</span></div>
-
+          
           <form id="loginFormEl" onsubmit="handleLogin(event)" novalidate>
             <div class="input-group" id="lg-email-group">
               <label for="lg-email">Email Address</label>
@@ -170,6 +159,8 @@ if (isset($_GET['redirect'])) {
                 Remember me for 30 days
               </label>
             </div>
+
+            <?php $captchaElementId = 'luxe-captcha-login'; require __DIR__ . '/includes/partials/captcha_widget.php'; ?>
 
             <button type="submit" class="submit-btn" id="loginSubmitBtn">
               <span class="btn-text">Sign In</span>
@@ -253,6 +244,8 @@ if (isset($_GET['redirect'])) {
                 I agree to the <a href="#" class="text-link-inline">Terms</a> & <a href="#" class="text-link-inline">Privacy Policy</a>
               </label>
             </div>
+
+            <?php $captchaElementId = 'luxe-captcha-register'; require __DIR__ . '/includes/partials/captcha_widget.php'; ?>
 
             <button type="submit" class="submit-btn" id="regSubmitBtn">
               <span class="btn-text">Send verification code</span>

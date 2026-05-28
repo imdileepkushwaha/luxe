@@ -1424,6 +1424,7 @@ function initThemeToggle() {
       tabRegister.classList.add("active");
       indicator.classList.add("right");
       if (typeof window.registerResetFlow === "function") window.registerResetFlow();
+      if (window.LuxeCaptcha) setTimeout(function () { LuxeCaptcha.refreshPending(); }, 50);
     }
     clearErrors();
   };
@@ -1580,6 +1581,15 @@ function initThemeToggle() {
     else if (pass.length < 6) { setError("lg-pass-group", "lg-pass-err", "Password must be at least 6 characters."); valid = false; }
     else { setSuccess("lg-pass-group"); }
     if (!valid) return;
+    let captchaToken = "";
+    try {
+      if (window.LuxeCaptcha && LuxeCaptcha.enabled()) {
+        captchaToken = LuxeCaptcha.requireToken("luxe-captcha-login");
+      }
+    } catch (err) {
+      showToast(err.message || "Please complete the CAPTCHA verification.");
+      return;
+    }
     setLoading("loginSubmitBtn", "loginLoader", true);
     const loginUrl = window.__API_LOGIN__ || "actions/login.php";
     const postRedirect = typeof window.__LOGIN_REDIRECT__ === "string" && window.__LOGIN_REDIRECT__.trim() !== ""
@@ -1589,17 +1599,19 @@ function initThemeToggle() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "same-origin",
-      body: JSON.stringify({ email, password: pass, redirect: postRedirect })
+      body: JSON.stringify({ email, password: pass, redirect: postRedirect, captcha_token: captchaToken, captcha_scope: "luxe-captcha-login" })
     }).then(r => r.json()).then(data => {
       setLoading("loginSubmitBtn", "loginLoader", false);
       if (data.ok) {
         const next = typeof data.redirect === "string" && data.redirect ? data.redirect : (postRedirect || LUXE_URLS.home);
         showSuccess("Welcome back! 🎉", "You've signed in successfully. Redirecting...", next);
       } else {
+        if (window.LuxeCaptcha) LuxeCaptcha.reset("luxe-captcha-login");
         showToast(data.message || "Could not sign in.");
       }
     }).catch(() => {
       setLoading("loginSubmitBtn", "loginLoader", false);
+      if (window.LuxeCaptcha) LuxeCaptcha.reset("luxe-captcha-login");
       showToast("Network error — is PHP running?");
     });
   };
@@ -1626,13 +1638,22 @@ function initThemeToggle() {
     else { setSuccess("rg-confirm-group"); }
     if (!agreed) { showToast("⚠️ Please agree to the Terms & Privacy Policy."); valid = false; }
     if (!valid) return;
+    let captchaToken = "";
+    try {
+      if (window.LuxeCaptcha && LuxeCaptcha.enabled()) {
+        captchaToken = LuxeCaptcha.requireToken("luxe-captcha-register");
+      }
+    } catch (err) {
+      showToast(err.message || "Please complete the CAPTCHA verification.");
+      return;
+    }
     setLoading("regSubmitBtn", "regLoader", true);
     const sendUrl = window.__API_REGISTER_SEND__ || "actions/register-send-code.php";
     fetch(sendUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "same-origin",
-      body: JSON.stringify({ first_name: fname, last_name: lname, email, password: pass })
+      body: JSON.stringify({ first_name: fname, last_name: lname, email, password: pass, captcha_token: captchaToken, captcha_scope: "luxe-captcha-register" })
     }).then(async r => {
       const text = await r.text();
       let data;
@@ -1664,6 +1685,7 @@ function initThemeToggle() {
         }
       } else {
         const msg = data.message || "Could not send verification code.";
+        if (window.LuxeCaptcha) LuxeCaptcha.reset("luxe-captcha-register");
         if (data._httpStatus === 409 || data.code === "email_taken") {
           setError("rg-email-group", "rg-email-err", msg);
         }
@@ -1671,6 +1693,7 @@ function initThemeToggle() {
       }
     }).catch(() => {
       setLoading("regSubmitBtn", "regLoader", false);
+      if (window.LuxeCaptcha) LuxeCaptcha.reset("luxe-captcha-register");
       showToast("Network error — is PHP running?");
     });
   };
