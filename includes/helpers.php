@@ -77,7 +77,7 @@ function luxe_app_config(): array
     }
     $path = __DIR__ . '/config.php';
     if (!is_readable($path)) {
-        throw new RuntimeException('Missing includes/config.php — copy includes/config.example.php');
+        throw new RuntimeException('Missing includes/config.php loader — ensure config.local.php or config.production.php exists.');
     }
     $cfg = require $path;
     if (!is_array($cfg)) {

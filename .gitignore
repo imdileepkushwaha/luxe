@@ -1,1 +1,2 @@
-includes/config.php
+includes/config.local.php
+includes/config.production.php
