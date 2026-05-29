@@ -5024,14 +5024,16 @@ body.admin-login {
   display: grid;
   place-items: center;
   padding: 24px;
+  color: var(--admin-text);
+}
+
+.admin-login-shell {
+  width: 100%;
+  max-width: 440px;
 }
 
 body.admin-login.admin-app--platform {
   background: linear-gradient(145deg, #f3f4fa 0%, #e8eaf5 50%, #e0e7ff 100%);
-}
-
-body.admin-login.admin-app--merchant {
-  background: linear-gradient(145deg, #f8f9fa 0%, #eef0f4 50%, #fde8e8 100%);
 }
 
 html.admin-theme-dark body.admin-login {
@@ -5040,10 +5042,6 @@ html.admin-theme-dark body.admin-login {
 
 html.admin-theme-dark body.admin-login.admin-app--platform {
   background: linear-gradient(160deg, #090b12 0%, #12172a 45%, #1a1d32 100%);
-}
-
-html.admin-theme-dark body.admin-login.admin-app--merchant {
-  background: linear-gradient(160deg, #0c0a09 0%, #1a1412 45%, #221a18 100%);
 }
 
 html.admin-theme-dark .admin-login-card {
@@ -5061,17 +5059,20 @@ html.admin-theme-dark .admin-login-card .hint {
   color: var(--admin-text-muted);
 }
 
-html.admin-theme-dark .admin-login-card label {
+html.admin-theme-dark .admin-login-card label,
+html.admin-theme-dark .admin-login-field label {
   color: var(--admin-text-muted);
 }
 
-html.admin-theme-dark .admin-login-card input {
+html.admin-theme-dark .admin-login-card input,
+html.admin-theme-dark .admin-login-input {
   background: #121212;
   border-color: var(--admin-border);
   color: var(--admin-text);
 }
 
-html.admin-theme-dark .admin-login-card input:focus {
+html.admin-theme-dark .admin-login-card input:focus,
+html.admin-theme-dark .admin-login-input:focus {
   background: #171717;
 }
 
@@ -5081,156 +5082,106 @@ html.admin-theme-dark .admin-login-card .err {
   color: #fecaca;
 }
 
-html.admin-theme-dark .seller-category-card {
-  border-color: var(--admin-border);
-  background: rgba(255, 255, 255, 0.04);
-}
-
-html.admin-theme-dark .seller-category-card:hover {
-  border-color: #4b5563;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
-}
-
-html.admin-theme-dark .seller-category-card__label {
-  color: var(--admin-text);
-}
-
-html.admin-theme-dark .seller-category-card__hint {
-  color: var(--admin-text-muted);
-}
-
-html.admin-theme-dark .seller-category-card__check {
-  border-color: #4b5563;
-  background: #121212;
-}
-
-html.admin-theme-dark .seller-category-card:has(input:checked) {
-  border-color: rgba(248, 113, 113, 0.55);
-  background: rgba(220, 38, 38, 0.12);
-  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
-}
-
 .admin-login-card {
   width: 100%;
-  max-width: 420px;
   background: #fff;
-  border-radius: 12px;
+  border-radius: 16px;
   border: 1px solid var(--admin-border);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.08);
-  padding: 32px;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.08);
+  padding: 32px 32px 28px;
+  position: relative;
+  overflow: hidden;
+}
+
+.admin-login-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--admin-accent), #6366f1);
+}
+
+body.admin-app--platform .admin-login-card::before {
+  background: linear-gradient(90deg, #6366f1, #4f46e5, var(--admin-accent));
 }
 
 .admin-login-card__brand {
   display: flex;
   align-items: center;
   gap: 12px;
+  margin-bottom: 24px;
+}
+
+.admin-login-card__logo {
+  width: 44px;
+  height: 44px;
+}
+
+.admin-login-card__intro {
   margin-bottom: 22px;
 }
 
 .admin-login-card h1 {
   margin: 0 0 8px;
   font-size: 1.35rem;
+  letter-spacing: -0.02em;
 }
 
 .admin-login-card p {
-  margin: 0 0 20px;
+  margin: 0;
   color: var(--admin-text-muted);
   font-size: 0.9rem;
+  line-height: 1.5;
 }
 
-.admin-login-card label {
+.admin-login-form {
   display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.admin-login-field {
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-login-card label,
+.admin-login-field label {
+  display: block;
   font-size: 0.8rem;
   font-weight: 600;
   margin: 14px 0 6px;
   color: var(--admin-text);
 }
 
-.admin-login-card input {
+.admin-login-card input,
+.admin-login-input {
   width: 100%;
   padding: 11px 14px;
   border: 1px solid var(--admin-border);
   border-radius: 8px;
   font-size: 0.95rem;
+  font-family: inherit;
+  background: #fff;
+  color: var(--admin-text);
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, outline-color 0.15s ease, background 0.15s ease;
 }
 
-.admin-login-card input:focus {
+.admin-login-card input::placeholder,
+.admin-login-input::placeholder {
+  color: #9ca3af;
+}
+
+.admin-login-card input:focus,
+.admin-login-input:focus {
   outline: 2px solid var(--admin-accent-soft);
   border-color: var(--admin-accent);
 }
 
-/* Password show/hide — seller login & registration (see seller settings in seller.css) */
-.seller-password-wrap {
-  position: relative;
-  width: 100%;
-}
-
-.admin-login-card .seller-password-wrap>input {
-  padding-right: 2.75rem;
-}
-
-.seller-password-toggle {
-  position: absolute;
-  right: 4px;
-  top: 50%;
-  transform: translateY(-50%);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.25rem;
-  height: 2.25rem;
-  margin: 0;
-  padding: 0;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--admin-text-muted);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.seller-password-toggle:hover {
-  color: var(--admin-text);
-  background: rgba(15, 23, 42, 0.06);
-}
-
-.seller-password-toggle:focus-visible {
-  outline: 2px solid var(--admin-accent);
-  outline-offset: 1px;
-}
-
-.seller-password-toggle__icons {
-  position: relative;
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
-}
-
-.seller-password-toggle__eye {
-  position: absolute;
-  left: 0;
-  top: 0;
-  display: block;
-}
-
-/* Icon state driven by `.seller-password-toggle--on` on the button (no `hidden` on SVG) */
-.seller-password-toggle__eye--closed {
-  display: none;
-}
-
-.seller-password-toggle--on .seller-password-toggle__eye--open {
-  display: none;
-}
-
-.seller-password-toggle--on .seller-password-toggle__eye--closed {
-  display: block;
-}
-
-html.admin-theme-dark .seller-password-toggle:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-/* Password show/hide — auto-wrapped admin-app + admin-login (see admin/js/password-toggle.js) */
+/* Password show/hide — admin login + admin app (see admin/js/password-toggle.js) */
 .admin-password-wrap {
   position: relative;
   width: 100%;
@@ -5243,7 +5194,8 @@ html.admin-theme-dark .seller-password-toggle:hover {
   padding-right: 2.75rem;
 }
 
-.admin-login-card .admin-password-wrap>input {
+.admin-login-card .admin-password-wrap>input,
+.admin-login-card .admin-password-wrap>.admin-login-input {
   padding-right: 2.75rem;
 }
 
@@ -5307,25 +5259,34 @@ html.admin-theme-dark .admin-password-toggle:hover {
   background: rgba(255, 255, 255, 0.08);
 }
 
-.admin-login-card button[type="submit"] {
-  margin-top: 0;
+.admin-login-card button[type="submit"],
+.admin-login-submit {
+  margin-top: 20px;
   width: 100%;
-  padding: 12px;
+  padding: 12px 16px;
   border: 0;
   border-radius: 8px;
   background: var(--admin-accent);
   color: #fff;
   font-weight: 600;
   font-size: 0.95rem;
+  font-family: inherit;
   cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
 }
 
-.admin-login-card button[type="submit"]:hover {
+.admin-login-card button[type="submit"]:hover,
+.admin-login-submit:hover {
   background: var(--admin-accent-hover);
 }
 
+.admin-login-card button[type="submit"]:active,
+.admin-login-submit:active {
+  transform: translateY(1px);
+}
+
 .admin-login-card .luxe-captcha-wrap {
-  margin: 4px 0 16px;
+  margin: 8px 0 4px;
   min-height: 78px;
   overflow: visible;
 }
@@ -5403,6 +5364,15 @@ html.admin-theme-dark .admin-login-card .luxe-captcha-refresh:hover {
 }
 
 @media (max-width: 480px) {
+  body.admin-login {
+    padding: 16px;
+  }
+
+  .admin-login-card {
+    padding: 24px 20px 20px;
+    border-radius: 14px;
+  }
+
   .admin-login-card .luxe-captcha-wrap {
     transform: scale(0.92);
     transform-origin: left top;

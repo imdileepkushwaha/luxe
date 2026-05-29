@@ -11001,14 +11001,14 @@ body.admin-app--merchant .admin-sidebar {
   background: #121212;
 }
 
-body.admin-app--merchant .admin-sidebar__title {
+/* body.admin-app--merchant .admin-sidebar__title {
   color: #f8fafc;
-}
+} */
 
-body.admin-app--merchant .admin-sidebar__subtitle,
+/* body.admin-app--merchant .admin-sidebar__subtitle,
 body.admin-app--merchant .admin-nav__label {
   color: #ffffff;
-}
+} */
 
 body.admin-app--merchant .admin-nav__link {
   color: #a1a1a1;
@@ -11049,4 +11049,405 @@ body.admin-app--merchant .admin-nav__link--active {
 .admin-sidebar__logo {
   background: #1e222c;
   border-color:rgba(243,243,243,0.08);
+}
+
+/* ----- Seller login / onboarding (standalone — not shared with admin login) ----- */
+body.seller-login {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Inter", system-ui, sans-serif;
+  background: linear-gradient(145deg, #f8f9fa 0%, #eef0f4 50%, #fde8e8 100%);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  color: var(--admin-text);
+}
+
+.seller-login-shell {
+  width: 100%;
+  max-width: 440px;
+}
+
+.seller-login-shell--wide {
+  max-width: 760px;
+}
+
+html.admin-theme-dark body.seller-login {
+  background: linear-gradient(160deg, #0c0a09 0%, #1a1412 45%, #221a18 100%);
+}
+
+html.admin-theme-dark .seller-login-card {
+  background: #161618;
+  border-color: var(--admin-border);
+  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.55);
+}
+
+html.admin-theme-dark .seller-login-card h1 {
+  color: var(--admin-text);
+}
+
+html.admin-theme-dark .seller-login-card p,
+html.admin-theme-dark .seller-login-card .hint {
+  color: var(--admin-text-muted);
+}
+
+html.admin-theme-dark .seller-login-card label,
+html.admin-theme-dark .seller-login-field label {
+  color: var(--admin-text-muted);
+}
+
+html.admin-theme-dark .seller-login-card input,
+html.admin-theme-dark .seller-login-input {
+  background: #121212;
+  border-color: var(--admin-border);
+  color: var(--admin-text);
+}
+
+html.admin-theme-dark .seller-login-card input:focus,
+html.admin-theme-dark .seller-login-input:focus {
+  background: #171717;
+}
+
+html.admin-theme-dark .seller-login-card .err {
+  background: rgba(220, 38, 38, 0.14);
+  border-color: rgba(248, 113, 113, 0.45);
+  color: #fecaca;
+}
+
+html.admin-theme-dark .seller-category-card {
+  border-color: var(--admin-border);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+html.admin-theme-dark .seller-category-card:hover {
+  border-color: #4b5563;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+html.admin-theme-dark .seller-category-card__label {
+  color: var(--admin-text);
+}
+
+html.admin-theme-dark .seller-category-card__hint {
+  color: var(--admin-text-muted);
+}
+
+html.admin-theme-dark .seller-category-card__check {
+  border-color: #4b5563;
+  background: #121212;
+}
+
+html.admin-theme-dark .seller-category-card:has(input:checked) {
+  border-color: rgba(248, 113, 113, 0.55);
+  background: rgba(220, 38, 38, 0.12);
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
+}
+
+.seller-login-card {
+  width: 100%;
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid var(--admin-border);
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.08);
+  padding: 32px 32px 28px;
+  position: relative;
+  overflow: hidden;
+}
+
+.seller-login-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--admin-accent), #ea580c);
+}
+
+.seller-login-card__brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.seller-login-card__logo {
+  width: 44px;
+  height: 44px;
+}
+
+.seller-login-card__intro {
+  margin-bottom: 22px;
+}
+
+.seller-login-card h1 {
+  margin: 0 0 8px;
+  font-size: 1.35rem;
+  letter-spacing: -0.02em;
+}
+
+.seller-login-card p {
+  margin: 0;
+  color: var(--admin-text-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.seller-login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.seller-login-field {
+  display: flex;
+  flex-direction: column;
+}
+
+.seller-login-card label,
+.seller-login-field label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin: 14px 0 6px;
+  color: var(--admin-text);
+}
+
+.seller-login-card input,
+.seller-login-input {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1px solid var(--admin-border);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  background: #fff;
+  color: var(--admin-text);
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, outline-color 0.15s ease, background 0.15s ease;
+}
+
+.seller-login-card input::placeholder,
+.seller-login-input::placeholder {
+  color: #9ca3af;
+}
+
+.seller-login-card input:focus,
+.seller-login-input:focus {
+  outline: 2px solid var(--admin-accent-soft);
+  border-color: var(--admin-accent);
+}
+
+.seller-password-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.seller-login-card .seller-password-wrap > input {
+  padding-right: 2.75rem;
+}
+
+.seller-password-toggle {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--admin-text-muted);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.seller-password-toggle:hover {
+  color: var(--admin-text);
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.seller-password-toggle:focus-visible {
+  outline: 2px solid var(--admin-accent);
+  outline-offset: 1px;
+}
+
+.seller-password-toggle__icons {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.seller-password-toggle__eye {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+}
+
+.seller-password-toggle__eye--closed {
+  display: none;
+}
+
+.seller-password-toggle--on .seller-password-toggle__eye--open {
+  display: none;
+}
+
+.seller-password-toggle--on .seller-password-toggle__eye--closed {
+  display: block;
+}
+
+html.admin-theme-dark .seller-password-toggle:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.seller-login-card button[type="submit"],
+.seller-login-submit {
+  margin-top: 20px;
+  width: 100%;
+  padding: 12px 16px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--admin-accent);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.95rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.seller-login-card button[type="submit"]:hover,
+.seller-login-submit:hover {
+  background: var(--admin-accent-hover);
+}
+
+.seller-login-card button[type="submit"]:active,
+.seller-login-submit:active {
+  transform: translateY(1px);
+}
+
+.seller-login-card .luxe-captcha-wrap {
+  margin: 8px 0 4px;
+  min-height: 78px;
+  overflow: visible;
+}
+
+.seller-login-card .luxe-captcha-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin: 14px 0 6px;
+  color: var(--admin-text);
+}
+
+.seller-login-card .luxe-captcha-input {
+  width: auto;
+  padding: 11px 14px;
+  border: 1px solid var(--admin-border);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  background: #fff;
+  color: var(--admin-text);
+}
+
+.seller-login-card .luxe-captcha-input:focus {
+  outline: 2px solid var(--admin-accent-soft);
+  border-color: var(--admin-accent);
+}
+
+.seller-login-card .luxe-captcha-q {
+  border-radius: 8px;
+  border: 1px dashed var(--admin-border);
+  background: #f8fafc;
+  color: var(--admin-text);
+  font-size: 0.95rem;
+}
+
+.seller-login-card .luxe-captcha-refresh {
+  border-radius: 8px;
+  border: 1px solid var(--admin-border);
+  background: #fff;
+  color: var(--admin-text-muted);
+}
+
+.seller-login-card .luxe-captcha-refresh:hover {
+  color: var(--admin-text);
+  background: rgba(15, 23, 42, 0.04);
+}
+
+html.admin-theme-dark .seller-login-card .luxe-captcha-label {
+  color: var(--admin-text);
+}
+
+html.admin-theme-dark .seller-login-card .luxe-captcha-input,
+html.admin-theme-dark .seller-login-card .luxe-captcha-refresh {
+  background: #0f172a;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+html.admin-theme-dark .seller-login-card .luxe-captcha-input:focus {
+  outline-color: rgba(248, 113, 113, 0.25);
+  border-color: #f87171;
+}
+
+html.admin-theme-dark .seller-login-card .luxe-captcha-q {
+  background: #1e293b;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+html.admin-theme-dark .seller-login-card .luxe-captcha-refresh:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.seller-login-card .luxe-captcha-mount {
+  transform-origin: left top;
+}
+
+.seller-login-card .err {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  font-size: 0.85rem;
+}
+
+.seller-login-card .hint {
+  margin-top: 14px;
+  font-size: 0.75rem;
+  color: var(--admin-text-muted);
+}
+
+.seller-login-card .hint a {
+  color: var(--admin-accent);
+  font-weight: 600;
+}
+
+.seller-login-card .hint a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 480px) {
+  body.seller-login {
+    padding: 16px;
+  }
+
+  .seller-login-card {
+    padding: 24px 20px 20px;
+    border-radius: 14px;
+  }
+
+  .seller-login-card .luxe-captcha-wrap {
+    transform: scale(0.92);
+    transform-origin: left top;
+  }
 }

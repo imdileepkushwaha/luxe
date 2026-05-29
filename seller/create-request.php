@@ -258,6 +258,7 @@ if (is_array($pending)) {
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../admin/css/admin.css">
+  <link rel="stylesheet" href="css/seller.css">
   <?php require __DIR__ . '/../includes/partials/captcha_assets.php'; ?>
   <style>
     .seller-category-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:12px}
@@ -287,10 +288,11 @@ if (is_array($pending)) {
     .seller-form-field{min-width:0}
   </style>
 </head>
-<body class="admin-login admin-app--merchant">
-  <div class="admin-login-card" style="max-width:760px">
-    <div class="admin-login-card__brand">
-      <div class="admin-sidebar__logo" style="width:44px;height:44px" aria-hidden="true"><span class="admin-sidebar__logo-bit admin-sidebar__logo-bit--a"></span><span class="admin-sidebar__logo-bit admin-sidebar__logo-bit--b"></span><span class="admin-sidebar__logo-bit admin-sidebar__logo-bit--c"></span></div>
+<body class="seller-login admin-app--merchant">
+  <main class="seller-login-shell seller-login-shell--wide">
+    <div class="seller-login-card">
+      <div class="seller-login-card__brand">
+        <div class="admin-sidebar__logo seller-login-card__logo" aria-hidden="true"><span class="admin-sidebar__logo-bit admin-sidebar__logo-bit--a"></span><span class="admin-sidebar__logo-bit admin-sidebar__logo-bit--b"></span><span class="admin-sidebar__logo-bit admin-sidebar__logo-bit--c"></span></div>
       <div>
         <div class="admin-sidebar__title">LUXE</div>
         <div class="admin-sidebar__subtitle">Seller onboarding</div>
@@ -397,7 +399,8 @@ if (is_array($pending)) {
     <?php endif; ?>
 
     <div class="hint"><a href="login.php">Back to seller login</a></div>
-  </div>
+    </div>
+  </main>
   <script src="js/password-toggle.js?v=2"></script>
   <script>
     (function () {
