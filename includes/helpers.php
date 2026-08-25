@@ -112,7 +112,7 @@ function luxe_web_path_prefix(): string
 
     $dirNorm = trim(str_replace('\\', '/', $dir), '/');
     // Theme/seller/admin PHP lives under subfolders — app root is the parent so /script/, /actions/, etc. resolve correctly.
-    if ($dirNorm !== '' && preg_match('#(?:^|/)(theme-\d+|seller|admin)$#', $dirNorm)) {
+    if ($dirNorm !== '' && preg_match('#(?:^|/)(theme-\d+|seller|admin|api)$#', $dirNorm)) {
         $parent = dirname($dirNorm);
         if ($parent === '.' || $parent === '') {
             return '';
@@ -256,4 +256,38 @@ function luxe_pcard_save_percent(array $p): ?int
     }
 
     return null;
+}
+
+/** Scheme + host for the current request (used by the mobile API). */
+function luxe_request_origin(): string
+{
+    $forwarded = strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''));
+    $https = $forwarded === 'https'
+        || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || ((string) ($_SERVER['SERVER_PORT'] ?? '') === '443');
+    $scheme = $https ? 'https' : 'http';
+    $host = trim((string) ($_SERVER['HTTP_HOST'] ?? 'localhost:5555'));
+    if ($host === '') {
+        $host = 'localhost:5555';
+    }
+
+    return $scheme . '://' . $host;
+}
+
+/** Absolute URL for uploads / images so Expo (web + native) can load them. */
+function luxe_absolute_media_url(string $path): string
+{
+    $path = trim(str_replace('\\', '/', $path));
+    if ($path === '' || strcasecmp($path, 'default') === 0) {
+        return '';
+    }
+    if (preg_match('#^https?://#i', $path)) {
+        return $path;
+    }
+    $href = luxe_public_href(ltrim($path, '/'));
+    if (preg_match('#^https?://#i', $href)) {
+        return $href;
+    }
+
+    return rtrim(luxe_request_origin(), '/') . '/' . ltrim($href, '/');
 }
