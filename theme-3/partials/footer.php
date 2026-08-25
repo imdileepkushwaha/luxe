@@ -191,6 +191,8 @@ $t2WishlistHref = luxe_public_href('profile.php?tab=wishlist');
     </div>
 </footer>
 
+<?php require __DIR__ . '/mobile-app-nav.php'; ?>
+
 <button
     type="button"
     class="scroll-top-btn"

@@ -90,6 +90,15 @@ $t2HeaderLogoUrl = $t2HeaderLogo !== '' ? luxe_public_href(ltrim($t2HeaderLogo, 
           </div>
         </a>
       <?php endif; ?>
+      <button type="button" class="t3-app-header-btn" id="openSearchBtn" aria-label="Search">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4.3-4.3"/></svg>
+      </button>
+      <a href="cart.php" class="t3-app-header-btn t3-app-header-cart" aria-label="Cart">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+        <?php if ($theme1HeaderCartCount > 0): ?>
+          <span class="t3-app-header-badge"><?= (int) $theme1HeaderCartCount ?></span>
+        <?php endif; ?>
+      </a>
       <button type="button" class="mobile-menu-toggle-v3" id="openDrawerBtn" aria-label="Open menu">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
       </button>
@@ -271,13 +280,25 @@ $t2HeaderLogoUrl = $t2HeaderLogo !== '' ? luxe_public_href(ltrim($t2HeaderLogo, 
     window.addEventListener("theme1:wishlist-updated", window.theme1RefreshWishlistBadge);
     
     var closeSearchBtn = document.getElementById('closeSearchBtn');
+    var openSearchBtn = document.getElementById('openSearchBtn');
     var mobileSearchOverlay = document.getElementById('mobileSearchOverlay');
     var mobileSearchInput = document.getElementById('mobileSearchInput');
-    if (closeSearchBtn && mobileSearchOverlay) {
-      closeSearchBtn.addEventListener('click', function() {
-        mobileSearchOverlay.classList.remove('active');
-        document.body.style.overflow = '';
-      });
+    function openMobileSearch() {
+      if (!mobileSearchOverlay) return;
+      mobileSearchOverlay.classList.add('active');
+      document.body.style.overflow = 'hidden';
+      if (mobileSearchInput) mobileSearchInput.focus();
+    }
+    function closeMobileSearch() {
+      if (!mobileSearchOverlay) return;
+      mobileSearchOverlay.classList.remove('active');
+      document.body.style.overflow = '';
+    }
+    if (closeSearchBtn) {
+      closeSearchBtn.addEventListener('click', closeMobileSearch);
+    }
+    if (openSearchBtn) {
+      openSearchBtn.addEventListener('click', openMobileSearch);
     }
 
     var openDrawerBtn = document.getElementById('openDrawerBtn');

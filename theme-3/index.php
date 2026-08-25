@@ -285,7 +285,7 @@ if ($t2HomeBrand === '') {
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1">
   <title>Home — <?= h($t2HomeBrand) ?></title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -293,7 +293,7 @@ if ($t2HomeBrand === '') {
   <link rel="stylesheet" href="<?= h(luxe_theme_asset('css/styles.css')) ?>">
   <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/slick-carousel@1.8.1/slick/slick.css"/>
 </head>
-<body>
+<body class="t3-page-home">
   <?php require __DIR__ . '/partials/header.php'; ?>
 
   <main>
@@ -422,7 +422,7 @@ if ($t2HomeBrand === '') {
       </div>
     </section>
 
-    <section class="top-categories-v3">
+    <section class="top-categories-v3" id="t3-app-categories">
       <div class="container">
         <div class="top-cat-header-v3">
           <div class="top-cat-title-wrap">

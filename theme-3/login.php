@@ -145,7 +145,15 @@ $t2LoginLogoUrl = $t2LoginLogoPath !== '' ? luxe_public_href(ltrim($t2LoginLogoP
               <span class="t2-login-label">Password</span>
               <button type="button" class="t2-login-textbtn" id="openForgotBtn">Forgot?</button>
             </span>
-            <input id="password" name="password" type="password" placeholder="••••••••" autocomplete="current-password" required>
+            <span class="t2-login-pass-wrap">
+              <input id="password" name="password" type="password" placeholder="••••••••" autocomplete="current-password" required>
+              <button type="button" class="t2-login-pass-toggle" aria-label="Show password" aria-pressed="false">
+                <span class="t2-login-pass-toggle__icons" aria-hidden="true">
+                  <svg class="t2-login-pass-toggle__eye t2-login-pass-toggle__eye--open" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/></svg>
+                  <svg class="t2-login-pass-toggle__eye t2-login-pass-toggle__eye--closed" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88"/></svg>
+                </span>
+              </button>
+            </span>
           </label>
           <?php $captchaElementId = 'luxe-captcha-login'; require __DIR__ . '/../includes/partials/captcha_widget.php'; ?>
           <button type="submit" class="t2-login-submit">Enter account</button>
@@ -178,7 +186,15 @@ $t2LoginLogoUrl = $t2LoginLogoPath !== '' ? luxe_public_href(ltrim($t2LoginLogoP
           </label>
           <label class="t2-login-field">
             <span class="t2-login-label">Password</span>
-            <input id="spass" name="password" type="password" placeholder="At least 8 characters" required>
+            <span class="t2-login-pass-wrap">
+              <input id="spass" name="password" type="password" placeholder="At least 8 characters" required>
+              <button type="button" class="t2-login-pass-toggle" aria-label="Show password" aria-pressed="false">
+                <span class="t2-login-pass-toggle__icons" aria-hidden="true">
+                  <svg class="t2-login-pass-toggle__eye t2-login-pass-toggle__eye--open" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/></svg>
+                  <svg class="t2-login-pass-toggle__eye t2-login-pass-toggle__eye--closed" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88"/></svg>
+                </span>
+              </button>
+            </span>
           </label>
           <?php $captchaElementId = 'luxe-captcha-register'; require __DIR__ . '/../includes/partials/captcha_widget.php'; ?>
           <button type="submit" class="t2-login-submit t2-login-submit--outline">Create member account</button>
@@ -329,6 +345,7 @@ $t2LoginLogoUrl = $t2LoginLogoPath !== '' ? luxe_public_href(ltrim($t2LoginLogoP
       });
     })();
   </script>
+  <script src="<?= h(luxe_theme_asset('js/password-toggle.js')) ?>"></script>
   <script src="<?= h(luxe_theme_asset('js/page-loader.js')) ?>" defer></script>
 </body>
 </html>
