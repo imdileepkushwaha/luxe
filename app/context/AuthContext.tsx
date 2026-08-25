@@ -5,6 +5,7 @@ interface AuthContextType {
   user: any | null;
   login: (userData: any) => Promise<void>;
   logout: () => Promise<void>;
+  updateUser: (partial: Record<string, unknown>) => Promise<void>;
   isLoading: boolean;
 }
 
@@ -41,8 +42,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await AsyncStorage.removeItem('luxe_user');
   };
 
+  const updateUser = async (partial: Record<string, unknown>) => {
+    const next = { ...(user || {}), ...partial };
+    setUser(next);
+    await AsyncStorage.setItem('luxe_user', JSON.stringify(next));
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, login, logout, updateUser, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

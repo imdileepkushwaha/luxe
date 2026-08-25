@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, View, ViewStyle, Platform } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useAppTheme } from '@/context/ThemeContext';
 
 interface GlassCardProps {
   children: React.ReactNode;
@@ -21,21 +22,22 @@ export default function GlassCard({
   borderWidth = 1,
 }: GlassCardProps) {
   const isWeb = Platform.OS === 'web';
+  const { isDark, colors } = useAppTheme();
 
   return (
     <View style={[
       styles.container, 
-      { borderRadius }, 
-      isWeb && { boxShadow: '0 4px 30px rgba(0, 0, 0, 0.5)' },
+      { borderRadius, backgroundColor: isDark ? 'rgba(255, 255, 255, 0.02)' : colors.card }, 
+      isWeb && { boxShadow: isDark ? '0 4px 30px rgba(0, 0, 0, 0.5)' : '0 8px 32px rgba(15, 23, 42, 0.07)' },
       style
     ]}>
       <BlurView 
-        intensity={intensity} 
-        tint={tint} 
+        intensity={isDark ? intensity : 10} 
+        tint={isDark ? tint : 'light'} 
         style={[styles.blur, { borderRadius }]}
       >
         <LinearGradient
-          colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
+          colors={isDark ? ['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)'] : ['#ffffff', '#f8fafc']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={[styles.gradient, { borderRadius }]}
@@ -50,7 +52,7 @@ export default function GlassCard({
         { 
           borderRadius, 
           borderWidth,
-          borderColor: 'rgba(255, 255, 255, 0.1)',
+          borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : colors.border,
         }
       ]} />
     </View>

@@ -1,120 +1,81 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { ShoppingBag, Heart, User, Home, Search } from 'lucide-react-native';
-import { View, StyleSheet, Platform } from 'react-native';
-import { BlurView } from 'expo-blur';
-import Colors from '@/constants/Colors';
-import { useColorScheme } from '@/components/useColorScheme';
+import { Heart, User, Home, LayoutGrid } from 'lucide-react-native';
+import { Platform, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import TabIcon from '@/components/TabIcon';
+import { useAppTheme } from '@/context/ThemeContext';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+  const insets = useSafeAreaInsets();
+  const { colors, isDark } = useAppTheme();
+  const bottomPad = Platform.OS === 'web' ? 8 : Math.max(insets.bottom, 8);
+  const barHeight = 64 + bottomPad;
 
   return (
     <Tabs
+      safeAreaInsets={{ bottom: 0 }}
       screenOptions={{
-        tabBarActiveTintColor: '#fff',
-        tabBarInactiveTintColor: 'rgba(255,255,255,0.4)',
         headerShown: false,
-        tabBarStyle: styles.tabBar,
-        tabBarItemStyle: styles.tabBarItem,
-        tabBarBackground: () => (
-          <View style={styles.tabBarBg}>
-            <BlurView intensity={35} tint="dark" style={StyleSheet.absoluteFill} />
-          </View>
-        ),
         tabBarShowLabel: false,
+        tabBarHideOnKeyboard: true,
+        tabBarActiveTintColor: colors.tabActive,
+        tabBarInactiveTintColor: colors.tabInactive,
+        tabBarStyle: {
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: barHeight,
+          paddingTop: 8,
+          paddingBottom: bottomPad,
+          marginHorizontal: 0,
+          backgroundColor: colors.tabBar,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: colors.tabBorder,
+          borderTopLeftRadius: 18,
+          borderTopRightRadius: 18,
+          elevation: 12,
+          shadowColor: colors.shadowColor,
+          shadowOpacity: isDark ? 0.35 : 0.08,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: -4 },
+        },
+        tabBarItemStyle: {
+          height: 54,
+          paddingVertical: 0,
+          justifyContent: 'center',
+        },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          tabBarIcon: ({ color, focused }) => (
-            <View style={styles.iconWrapper}>
-              <Home size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
-              {focused && <View style={styles.activeIndicator} />}
-            </View>
-          ),
+          title: 'Home',
+          tabBarIcon: ({ focused }) => <TabIcon icon={Home} label="Home" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="shop"
         options={{
-          tabBarIcon: ({ color, focused }) => (
-            <View style={styles.iconWrapper}>
-              <ShoppingBag size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
-              {focused && <View style={styles.activeIndicator} />}
-            </View>
-          ),
+          title: 'Shop',
+          tabBarIcon: ({ focused }) => <TabIcon icon={LayoutGrid} label="Shop" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="wishlist"
         options={{
-          tabBarIcon: ({ color, focused }) => (
-            <View style={styles.iconWrapper}>
-              <Heart size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
-              {focused && <View style={styles.activeIndicator} />}
-            </View>
-          ),
+          title: 'Wishlist',
+          tabBarIcon: ({ focused }) => <TabIcon icon={Heart} label="Wishlist" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          tabBarIcon: ({ color, focused }) => (
-            <View style={styles.iconWrapper}>
-              <User size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
-              {focused && <View style={styles.activeIndicator} />}
-            </View>
-          ),
+          title: 'Profile',
+          tabBarIcon: ({ focused }) => <TabIcon icon={User} label="Profile" focused={focused} />,
         }}
       />
     </Tabs>
   );
 }
-
-const styles = StyleSheet.create({
-  tabBar: {
-    position: 'absolute',
-    bottom: 25,
-    left: 20,
-    right: 20,
-    borderTopWidth: 0,
-    backgroundColor: 'transparent',
-    elevation: 0,
-    height: 70,
-    borderRadius: 35,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    paddingBottom: 0,
-  },
-  tabBarItem: {
-    height: 70,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  tabBarBg: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(20, 20, 25, 0.7)',
-  },
-  iconWrapper: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 60,
-    height: 70,
-  },
-  activeIndicator: {
-    position: 'absolute',
-    bottom: 15,
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#8b5cf6',
-    shadowColor: '#8b5cf6',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 8,
-  }
-});

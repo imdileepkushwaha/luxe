@@ -1247,6 +1247,27 @@ function db_ensure_user_loyalty_redeemed_column(PDO $pdo): void
     }
 }
 
+function db_ensure_cart_items_table(PDO $pdo): void
+{
+    try {
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS cart_items (
+                id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                user_id INT UNSIGNED NOT NULL,
+                product_id INT UNSIGNED NOT NULL,
+                qty INT UNSIGNED NOT NULL DEFAULT 1,
+                variant_text VARCHAR(255) NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                KEY idx_cart_user (user_id),
+                KEY idx_cart_user_product (user_id, product_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+    } catch (Throwable) {
+        // Missing permissions or non-MySQL: rely on manual migrations
+    }
+}
+
 function db_ensure_site_settings_table(PDO $pdo): void
 {
     try {
@@ -1356,6 +1377,7 @@ function db(): PDO
     db_ensure_user_return_requests_table($pdo);
     db_ensure_user_order_cancel_requests_table($pdo);
     db_ensure_user_order_enquiries_table($pdo);
+    db_ensure_cart_items_table($pdo);
     db_ensure_site_settings_table($pdo);
     db_ensure_site_settings_value_text_column($pdo);
     db_ensure_orders_platform_fee_column($pdo);

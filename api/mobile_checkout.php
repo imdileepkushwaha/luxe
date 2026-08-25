@@ -13,12 +13,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') exit;
 
 $pdo = db();
 $input = json_decode(file_get_contents('php://input'), true);
-$userId = $input['user_id'] ?? null;
-$address = $input['address'] ?? '';
+if (!is_array($input)) {
+    $input = [];
+}
+$userId = (int) ($input['user_id'] ?? 0);
+$address = trim((string) ($input['address'] ?? ''));
 $paymentMethod = $input['payment_method'] ?? 'COD';
+$addressId = (int) ($input['address_id'] ?? 0);
 
-if (!$userId) {
+if ($userId <= 0) {
     echo json_encode(['ok' => false, 'error' => 'Authentication required']);
+    exit;
+}
+
+if ($addressId > 0) {
+    $saved = addresses_get_for_user($pdo, $userId, $addressId);
+    if (!$saved) {
+        echo json_encode(['ok' => false, 'error' => 'Saved address not found']);
+        exit;
+    }
+    $address = addresses_format_shipping($saved);
+}
+
+if ($address === '') {
+    echo json_encode(['ok' => false, 'error' => 'Delivery address required']);
     exit;
 }
 

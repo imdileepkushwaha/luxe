@@ -6,6 +6,9 @@ require_once __DIR__ . '/includes/bootstrap.php';
 $pdo = db();
 $uid = auth_user_id();
 if ($uid === null) {
+    $uid = isset($_GET['user_id']) ? (int) $_GET['user_id'] : null;
+}
+if ($uid === null || $uid <= 0) {
     header('Location: login.php');
     exit;
 }

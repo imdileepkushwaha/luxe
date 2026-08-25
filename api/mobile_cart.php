@@ -12,6 +12,7 @@ header('Access-Control-Allow-Headers: Content-Type');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') exit;
 
 $pdo = db();
+db_ensure_cart_items_table($pdo);
 $input = json_decode(file_get_contents('php://input'), true);
 $action = $input['action'] ?? ($_GET['action'] ?? '');
 $userId = $input['user_id'] ?? ($_GET['user_id'] ?? null);
@@ -36,9 +37,11 @@ try {
         $count = 0;
         foreach ($items as &$item) {
             $count += (int)$item['qty'];
-            if ($item['image_path'] && !str_starts_with($item['image_path'], 'http')) {
-                $item['image_url'] = 'http://localhost:5000/' . ltrim($item['image_path'], '/');
-            }
+            $item['qty'] = (int) $item['qty'];
+            $item['price'] = (int) $item['price'];
+            $path = trim((string) ($item['image_path'] ?? ''));
+            $item['image_url'] = $path !== '' ? luxe_absolute_media_url($path) : '';
+            unset($item['image_path']);
         }
         
         echo json_encode([

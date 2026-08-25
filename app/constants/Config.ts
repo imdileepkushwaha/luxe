@@ -1,5 +1,17 @@
+/**
+ * PHP storefront + mobile API origin.
+ * Override locally: EXPO_PUBLIC_SITE_ORIGIN=http://localhost:5555
+ */
+const SITE_ORIGIN =
+  process.env.EXPO_PUBLIC_SITE_ORIGIN || 'https://ecommerce.softflipsolutions.com';
+
 export default {
-  API_URL: 'http://localhost:5000/api',
-  // Use your computer's IP address if testing on a physical device with Expo Go
-  // Example: API_URL: 'http://192.168.1.5/luxe/api',
+  SITE_ORIGIN,
+  API_URL: `${SITE_ORIGIN}/api`,
 };
+
+export function mediaUrl(path?: string | null): string {
+  if (!path) return '';
+  if (/^https?:\/\//i.test(path)) return path;
+  return `${SITE_ORIGIN}/${String(path).replace(/^\/+/, '')}`;
+}

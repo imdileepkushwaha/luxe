@@ -81,11 +81,11 @@ function loyalty_summary_for_user(PDO $pdo, int $userId): array
     $redeemed = loyalty_user_redeemed_total($pdo, $userId);
 
     $st = $pdo->prepare(
-        'SELECT o.order_ref, o.total_amount, o.delivered_at
+        'SELECT o.order_ref, o.total_amount, COALESCE(o.delivered_at, o.created_at) AS delivered_at
          FROM orders o
          WHERE o.user_id = ?
-           AND o.status = \'delivered\'
-           AND o.delivered_at IS NOT NULL ORDER BY o.delivered_at DESC
+           AND LOWER(TRIM(o.status)) = \'delivered\'
+         ORDER BY COALESCE(o.delivered_at, o.created_at) DESC
          LIMIT 80'
     );
     $st->execute([$userId]);

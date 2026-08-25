@@ -1,249 +1,236 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, Text, View, ScrollView, Image, TouchableOpacity, Dimensions, ActivityIndicator, SafeAreaView, Platform, RefreshControl, TextInput, FlatList, Animated } from 'react-native';
-import { Search, ShoppingBag, User, Heart, Star, ChevronRight, Zap, X, ArrowRight } from 'lucide-react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  StyleSheet,
+  Text,
+  View,
+  ScrollView,
+  Image,
+  TouchableOpacity,
+  ActivityIndicator,
+  Platform,
+  RefreshControl,
+  TextInput,
+} from 'react-native';
+import { Search, ChevronRight, X, LayoutGrid } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useColorScheme } from '@/components/useColorScheme';
-import Colors from '@/constants/Colors';
-import Config from '@/constants/Config';
-import GlassCard from '@/components/GlassCard';
-import BackgroundScene from '@/components/BackgroundScene';
-import { useAuth } from '@/context/AuthContext';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCart } from '@/context/CartContext';
 import { useWishlist } from '@/context/WishlistContext';
-import { BlurView } from 'expo-blur';
+import BackgroundScene from '@/components/BackgroundScene';
 import LuxeHeader from '@/components/LuxeHeader';
-
-const { width } = Dimensions.get('window');
-const CARD_WIDTH = width * 0.44;
-
-const HERO_SLIDES = [
-  {
-    id: 1,
-    title: "Elegant\nStyle",
-    tag: "CURATED COLLECTION",
-    image: "https://images.unsplash.com/photo-1539109132314-34a936699561?auto=format&fit=crop&w=800&q=80"
-  },
-  {
-    id: 2,
-    title: "Timeless\nLuxury",
-    tag: "NEW ARRIVALS",
-    image: "https://images.unsplash.com/photo-1445205170230-053b830c6050?auto=format&fit=crop&w=800&q=80"
-  },
-  {
-    id: 3,
-    title: "Modern\nClassic",
-    tag: "EXCLUSIVE EDITS",
-    image: "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=800&q=80"
-  }
-];
+import ProductCard from '@/components/ProductCard';
+import EmptyState from '@/components/EmptyState';
+import HeroBanner from '@/components/HeroBanner';
+import OfferSection from '@/components/OfferSection';
+import { fetchProducts, fetchCategories, categoryLabel, type Product } from '@/lib/api';
+import { useAppTheme } from '@/context/ThemeContext';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { user } = useAuth();
-  const { cartCount, addToCart } = useCart();
+  const { colors, isDark } = useAppTheme();
+  const { addToCart } = useCart();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
-  
-  const [products, setProducts] = useState<any[]>([]);
+
+  const [products, setProducts] = useState<Product[]>([]);
+  const [heroSlides, setHeroSlides] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<string[]>(['All']);
+  const [selectedCategory, setSelectedCategory] = useState('All');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
-  
-  const scrollX = useRef(new Animated.Value(0)).current;
-  const [activeSlide, setActiveSlide] = useState(0);
+  const [searchDraft, setSearchDraft] = useState('');
+  const [offerProducts, setOfferProducts] = useState<Product[]>([]);
 
-  useEffect(() => {
-    fetchProducts();
-  }, [searchQuery]);
-
-  const fetchProducts = async () => {
+  const load = useCallback(async () => {
     try {
-      const url = searchQuery 
-        ? `${Config.API_URL}/products.php?search=${encodeURIComponent(searchQuery)}`
-        : `${Config.API_URL}/products.php?limit=8`;
-        
-      const response = await fetch(url);
-      const data = await response.json();
-      if (data.ok) {
-        setProducts(data.products);
-      }
-    } catch (error) {
-      console.error('Fetch error:', error);
+      setError('');
+      const isFiltered = !!searchQuery || selectedCategory !== 'All';
+      const [featuredRes, cats, gridRes, offerRes] = await Promise.all([
+        fetchProducts({ limit: 5 }),
+        fetchCategories(),
+        isFiltered
+          ? fetchProducts({
+              limit: searchQuery ? 24 : 12,
+              search: searchQuery || undefined,
+              category: selectedCategory,
+            })
+          : Promise.resolve(null),
+        fetchProducts({ limit: 10, offers: true }),
+      ]);
+
+      const featured = featuredRes.products.filter((p) => !!p.image_url).slice(0, 5);
+      setHeroSlides(featured.length ? featured : featuredRes.products.slice(0, 5));
+      setCategories(cats);
+      setProducts(gridRes ? gridRes.products : featuredRes.products);
+      setOfferProducts(offerRes.products);
+    } catch (e: any) {
+      setError(e?.message || 'Could not load products');
+      setProducts([]);
+      setOfferProducts([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [searchQuery, selectedCategory]);
+
+  useEffect(() => {
+    setLoading(true);
+    load();
+  }, [load]);
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchProducts();
+    load();
   };
 
-  const renderHeroItem = ({ item }: { item: typeof HERO_SLIDES[0] }) => (
-    <View style={styles.heroSlide}>
-      <GlassCard style={styles.heroCard} intensity={40} borderRadius={40}>
-        <Image source={{ uri: item.image }} style={styles.heroImage} />
-        <LinearGradient 
-          colors={['transparent', 'rgba(0,0,0,0.85)']} 
-          style={styles.heroGradient} 
-        />
-        <View style={styles.heroContent}>
-          <Text style={styles.heroTag}>{item.tag}</Text>
-          <Text style={styles.heroTitle}>{item.title}</Text>
-          <TouchableOpacity 
-            style={styles.heroBtn}
-            onPress={() => router.push('/(tabs)/shop')}
-          >
-            <Text style={styles.heroBtnText}>EXPLORE</Text>
-            <ArrowRight size={14} color="#000" />
-          </TouchableOpacity>
-        </View>
-      </GlassCard>
-    </View>
-  );
+  const isFiltered = !!searchQuery || selectedCategory !== 'All';
+  const gridProducts = products;
+
+  const categoryCovers: Record<string, string> = {};
+  for (const p of [...heroSlides, ...products]) {
+    const key = (p.category || '').toLowerCase();
+    if (key && p.image_url && !categoryCovers[key]) {
+      categoryCovers[key] = p.image_url;
+    }
+  }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.bg }]}>
       <BackgroundScene />
-      
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} edges={['bottom', 'left', 'right']}>
         <LuxeHeader />
 
-        <ScrollView 
+        <ScrollView
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#8b5cf6" />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={isDark ? '#8b5cf6' : '#0f172a'} />}
         >
-          {/* Hero Banner Carousel */}
-          {!isSearching && (
-            <View style={styles.heroWrapper}>
-              <FlatList
-                data={HERO_SLIDES}
-                renderItem={renderHeroItem}
-                keyExtractor={(item) => item.id.toString()}
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                onScroll={Animated.event(
-                  [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-                  { useNativeDriver: false }
-                )}
-                onMomentumScrollEnd={(e) => {
-                  setActiveSlide(Math.round(e.nativeEvent.contentOffset.x / width));
-                }}
+          <View style={styles.searchWrap}>
+            <View style={[styles.searchBox, { backgroundColor: colors.input, borderColor: colors.inputBorder }]}>
+              <Search size={18} color={colors.iconMuted} />
+              <TextInput
+                placeholder="Search LUXE products"
+                placeholderTextColor={colors.placeholder}
+                style={[styles.searchInput, { color: colors.text }]}
+                value={searchDraft}
+                onChangeText={setSearchDraft}
+                returnKeyType="search"
+                onSubmitEditing={() => setSearchQuery(searchDraft.trim())}
               />
-              {/* Pagination Dots */}
-              <View style={styles.pagination}>
-                {HERO_SLIDES.map((_, i) => (
-                  <View 
-                    key={i} 
-                    style={[
-                      styles.dot, 
-                      activeSlide === i ? styles.activeDot : styles.inactiveDot
-                    ]} 
-                  />
-                ))}
-              </View>
+              {searchDraft.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => {
+                    setSearchDraft('');
+                    setSearchQuery('');
+                  }}
+                >
+                  <X size={16} color={colors.iconMuted} />
+                </TouchableOpacity>
+              )}
             </View>
-          )}
+          </View>
 
-          {/* Section Header */}
+          {(heroSlides.length > 0 || !loading) && <HeroBanner slides={heroSlides} />}
+
           <View style={styles.sectionHeader}>
             <View>
-              <Text style={styles.sectionTitle}>{isSearching ? 'SEARCH RESULTS' : 'NEW ARRIVALS'}</Text>
-              <Text style={styles.sectionSubtitle}>
-                {isSearching ? `Found ${products.length} items` : 'The latest from our elite designers'}
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Categories</Text>
+              <Text style={[styles.sectionSubtitle, { color: colors.muted }]}>Shop by collection</Text>
+            </View>
+            <TouchableOpacity style={styles.viewAllBtn} onPress={() => router.push('/(tabs)/shop')}>
+              <Text style={[styles.viewAllText, { color: isDark ? '#a78bfa' : '#ef4444' }]}>View all</Text>
+              <ChevronRight size={14} color={isDark ? '#a78bfa' : '#ef4444'} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.catRow}>
+            {categories.map((cat) => {
+              const active = selectedCategory === cat;
+              const cover = cat !== 'All' ? categoryCovers[cat.toLowerCase()] : '';
+              return (
+                <TouchableOpacity
+                  key={cat}
+                  onPress={() => setSelectedCategory(cat)}
+                  style={[
+                    styles.catCard,
+                    { backgroundColor: colors.card, borderColor: colors.border },
+                    active && { borderColor: isDark ? '#a78bfa' : '#0f172a', borderWidth: 1.5 },
+                  ]}
+                  activeOpacity={0.9}
+                >
+                  {cover ? (
+                    <Image source={{ uri: cover }} style={styles.catImage} />
+                  ) : (
+                    <View style={styles.catImageFallback}>
+                      <LayoutGrid size={22} color={active ? (isDark ? '#ddd6fe' : '#0f172a') : colors.iconMuted} />
+                    </View>
+                  )}
+                  <LinearGradient
+                    colors={
+                      isDark
+                        ? ['transparent', active ? 'rgba(76,29,149,0.92)' : 'rgba(0,0,0,0.78)']
+                        : ['transparent', active ? 'rgba(15,23,42,0.82)' : 'rgba(15,23,42,0.55)']
+                    }
+                    style={styles.catFade}
+                  />
+                  <Text style={[styles.catLabel, active && styles.catLabelActive]} numberOfLines={1}>
+                    {categoryLabel(cat)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
+          {!searchQuery && <OfferSection products={offerProducts} />}
+
+          <View style={styles.sectionHeader}>
+            <View>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>{isFiltered ? 'Results' : 'New arrivals'}</Text>
+              <Text style={[styles.sectionSubtitle, { color: colors.muted }]}>
+                {loading ? 'Loading…' : `${products.length} product${products.length === 1 ? '' : 's'} from the store`}
               </Text>
             </View>
-            {!isSearching && (
+            {!isFiltered && (
               <TouchableOpacity style={styles.viewAllBtn} onPress={() => router.push('/(tabs)/shop')}>
-                <Text style={styles.viewAllText}>View All</Text>
-                <ChevronRight size={14} color="#8b5cf6" />
+                <Text style={[styles.viewAllText, { color: isDark ? '#a78bfa' : '#ef4444' }]}>View all</Text>
+                <ChevronRight size={14} color={isDark ? '#a78bfa' : '#ef4444'} />
               </TouchableOpacity>
             )}
           </View>
 
-          {/* Product Grid */}
           {loading ? (
-            <ActivityIndicator size="large" color="#8b5cf6" style={{ marginTop: 40 }} />
+            <ActivityIndicator size="large" color={isDark ? '#8b5cf6' : '#0f172a'} style={{ marginTop: 36 }} />
+          ) : error ? (
+            <EmptyState title="Could not load products" message={error} onAction={load} />
+          ) : products.length === 0 ? (
+            <EmptyState
+              title="No products found"
+              message={isFiltered ? 'Try another search or category.' : 'No live products in the database yet.'}
+              actionLabel={isFiltered ? 'Clear filters' : 'Retry'}
+              onAction={() => {
+                setSearchDraft('');
+                setSearchQuery('');
+                setSelectedCategory('All');
+                if (!isFiltered) load();
+              }}
+            />
           ) : (
-            <View style={styles.productGrid}>
-              {products.length > 0 ? products.map((item, i) => (
-                <TouchableOpacity 
-                  key={item.id} 
-                  style={styles.productCardWrapper}
-                  activeOpacity={0.9}
+            <View style={styles.grid}>
+              {gridProducts.map((item) => (
+                <ProductCard
+                  key={item.id}
+                  product={item}
                   onPress={() => router.push(`/product/${item.id}`)}
-                >
-                  <GlassCard style={styles.pCard} intensity={25} borderRadius={18}>
-                    {/* Just In Tag */}
-                    {!isSearching && i < 2 && (
-                      <View style={styles.justInTag}>
-                        <Zap size={10} color="#fff" fill="#fff" />
-                        <Text style={styles.justInText}>JUST IN</Text>
-                      </View>
-                    )}
-                    
-                    <View style={styles.pImageContainer}>
-                      <Image 
-                        source={{ uri: item.image_url || `https://picsum.photos/seed/${item.id}/400/500` }} 
-                        style={styles.pImage} 
-                        resizeMode="cover"
-                      />
-                      <LinearGradient 
-                        colors={['transparent', 'rgba(0,0,0,0.6)']} 
-                        style={styles.pGradient} 
-                      />
-                      <TouchableOpacity 
-                        style={styles.pWishlistBtn} 
-                        onPress={() => isInWishlist(item.id) ? removeFromWishlist(item.id) : addToWishlist(item)}
-                      >
-                        <BlurView intensity={30} tint="dark" style={styles.pWishlistBlur}>
-                          <Heart size={14} color={isInWishlist(item.id) ? "#ef4444" : "#fff"} fill={isInWishlist(item.id) ? "#ef4444" : "transparent"} />
-                        </BlurView>
-                      </TouchableOpacity>
-                    </View>
-
-                    <View style={styles.pInfo}>
-                      <View style={styles.pMeta}>
-                        <Text style={styles.pBrand}>{item.brand?.toUpperCase() || 'LUXE'}</Text>
-                        <View style={styles.pRating}>
-                          <Star size={10} color="#f59e0b" fill="#f59e0b" />
-                          <Text style={styles.pRatingText}>{item.rating || '4.8'}</Text>
-                        </View>
-                      </View>
-                      
-                      <Text style={styles.pTitle} numberOfLines={1}>{item.name}</Text>
-                      
-                      <View style={styles.pFooter}>
-                        <Text style={styles.pPrice}>₹{item.price?.toLocaleString()}</Text>
-                        <TouchableOpacity 
-                          style={styles.pAddBtn}
-                          onPress={() => addToCart(item.id)}
-                        >
-                          <LinearGradient 
-                            colors={['#8b5cf6', '#ec4899']} 
-                            style={styles.pAddBtnGradient}
-                          >
-                            <ShoppingBag size={14} color="#fff" />
-                          </LinearGradient>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </GlassCard>
-                </TouchableOpacity>
-              )) : (
-                <View style={styles.emptyResults}>
-                  <Text style={styles.emptyText}>No products found for "{searchQuery}"</Text>
-                </View>
-              )}
+                  wished={isInWishlist(item.id)}
+                  onWishlist={() => (isInWishlist(item.id) ? removeFromWishlist(item.id) : addToWishlist(item))}
+                  onAdd={() => addToCart(item)}
+                />
+              ))}
             </View>
           )}
-          
-          <View style={{ height: 100 }} />
+
+          <View style={{ height: 88 }} />
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -253,68 +240,68 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
   safeArea: { flex: 1 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 25, height: 70 },
-  logo: { fontSize: 24, fontWeight: '900', color: '#fff', letterSpacing: 4, fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif' },
-  headerIcons: { flexDirection: 'row', gap: 15 },
-  iconBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center', position: 'relative' },
-  cartBadge: { position: 'absolute', top: 5, right: 5, backgroundColor: '#8b5cf6', width: 14, height: 14, borderRadius: 7, justifyContent: 'center', alignItems: 'center', zIndex: 1 },
-  badgeText: { color: '#fff', fontSize: 8, fontWeight: '900' },
+  searchWrap: { paddingHorizontal: 16, paddingBottom: 14 },
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    height: 48,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  searchInput: { flex: 1, color: '#fff', fontSize: 15 },
 
-  searchBarContainer: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 15 },
-  searchInputWrapper: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 15, paddingHorizontal: 15, height: 45, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
-  searchIconInside: { marginRight: 10 },
-  searchInput: { flex: 1, color: '#fff', fontSize: 14, fontWeight: '500' },
-  cancelBtn: { paddingVertical: 10 },
-  cancelBtnText: { color: '#8b5cf6', fontSize: 14, fontWeight: '700' },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    paddingHorizontal: 16,
+    marginTop: 18,
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '800',
+    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+  },
+  sectionSubtitle: { color: '#64748b', fontSize: 12, marginTop: 4 },
+  viewAllBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  viewAllText: { color: '#a78bfa', fontSize: 13, fontWeight: '700' },
 
-  heroWrapper: { position: 'relative' },
-  heroSlide: { width: width, padding: 20 },
-  heroCard: { height: 420, overflow: 'hidden' },
-  heroImage: { width: '100%', height: '100%', position: 'absolute' },
-  heroGradient: { position: 'absolute', bottom: 0, left: 0, right: 0, height: '75%' },
-  heroContent: { position: 'absolute', bottom: 45, left: 30, right: 30 },
-  heroTag: { color: '#8b5cf6', fontSize: 12, fontWeight: '900', letterSpacing: 3, marginBottom: 15 },
-  heroTitle: { color: '#fff', fontSize: 45, fontWeight: '800', lineHeight: 50, fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', marginBottom: 25 },
-  heroBtn: { backgroundColor: '#fff', paddingHorizontal: 22, paddingVertical: 14, borderRadius: 30, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 8 },
-  heroBtnText: { color: '#000', fontSize: 12, fontWeight: '900', letterSpacing: 1 },
-  
-  pagination: { flexDirection: 'row', justifyContent: 'center', gap: 8, position: 'absolute', bottom: 45, width: '100%' },
-  dot: { height: 4, borderRadius: 2 },
-  activeDot: { width: 24, backgroundColor: '#8b5cf6' },
-  inactiveDot: { width: 8, backgroundColor: 'rgba(255,255,255,0.2)' },
+  catRow: { paddingHorizontal: 16, gap: 10, paddingBottom: 4 },
+  catCard: {
+    width: 118,
+    height: 92,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  catCardActive: { borderColor: '#a78bfa', borderWidth: 1.5 },
+  catImage: { width: '100%', height: '100%' },
+  catImageFallback: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(139,92,246,0.12)',
+  },
+  catFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '70%' },
+  catLabel: {
+    position: 'absolute',
+    left: 8,
+    right: 8,
+    bottom: 8,
+    color: '#e2e8f0',
+    fontSize: 12,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  catLabelActive: { color: '#fff' },
 
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', paddingHorizontal: 25, marginTop: 10, marginBottom: 25 },
-  sectionTitle: { color: '#fff', fontSize: 22, fontWeight: '800', fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', letterSpacing: 1 },
-  sectionSubtitle: { color: '#64748b', fontSize: 13, marginTop: 4 },
-  viewAllBtn: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  viewAllText: { color: '#8b5cf6', fontSize: 13, fontWeight: '700' },
-
-  productGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 15, justifyContent: 'space-between' },
-  productCardWrapper: { width: CARD_WIDTH, marginBottom: 25 },
-  pCard: { padding: 0, overflow: 'hidden' },
-  
-  justInTag: { position: 'absolute', top: 10, left: 10, zIndex: 5, flexDirection: 'row', alignItems: 'center', backgroundColor: '#8b5cf6', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, gap: 4 },
-  justInText: { color: '#fff', fontSize: 8, fontWeight: '900', letterSpacing: 1 },
-  
-  pImageContainer: { width: '100%', height: 180, backgroundColor: '#1a1a1a', position: 'relative' },
-  pImage: { width: '100%', height: '100%' },
-  pGradient: { position: 'absolute', bottom: 0, left: 0, right: 0, height: '40%' },
-  pWishlistBtn: { position: 'absolute', top: 10, right: 10, width: 32, height: 32, borderRadius: 16, overflow: 'hidden', zIndex: 10 },
-  pWishlistBlur: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  
-  pInfo: { padding: 10, justifyContent: 'center' },
-  pMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  pBrand: { color: '#8b5cf6', fontSize: 9, fontWeight: '900', letterSpacing: 1.2, flex: 1 },
-  pRating: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  pRatingText: { color: '#94a3b8', fontSize: 10, fontWeight: '700' },
-  
-  pTitle: { color: '#fff', fontSize: 13, fontWeight: '700', marginBottom: 12 },
-  
-  pFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  pPrice: { color: '#fff', fontSize: 16, fontWeight: '900' },
-  pAddBtn: { width: 36, height: 36, borderRadius: 12, overflow: 'hidden' },
-  pAddBtnGradient: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-
-  emptyResults: { flex: 1, padding: 40, alignItems: 'center' },
-  emptyText: { color: '#64748b', fontSize: 16, textAlign: 'center' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, justifyContent: 'space-between', alignItems: 'flex-start' },
 });
