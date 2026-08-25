@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/signup_mail.php';
 require_once __DIR__ . '/../includes/notification_mail.php';
+require_once __DIR__ . '/../includes/captcha.php';
 
 $pdo = db();
 $error = '';
@@ -22,7 +23,6 @@ $form = [
     'full_name' => '',
     'email' => '',
     'phone' => '',
-    'password' => '',
     'business_name' => '',
     'gst_number' => '',
     'note' => '',
@@ -69,18 +69,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         } else {
                             $insert = $pdo->prepare(
                                 'INSERT INTO seller_create_requests (
-                                    full_name, email, phone, requested_password_hash, requested_categories, note,
-                                    business_name, gst_number, status
+                                    full_name, email, phone, requested_password_hash, password_confirmed_at,
+                                    requested_categories, note, business_name, gst_number, status
                                  ) VALUES (
-                                    ?, ?, ?, ?, ?, ?,
-                                    ?, ?, ?
+                                    ?, ?, ?, ?, ?,
+                                    ?, ?, ?, ?, ?
                                  )'
                             );
+                            $passwordConfirmedAt = !empty($pending['password_confirmed_at'])
+                                ? date('Y-m-d H:i:s', (int) $pending['password_confirmed_at'])
+                                : date('Y-m-d H:i:s');
                             $insert->execute([
                                 (string) ($pendingForm['full_name'] ?? ''),
                                 $email,
                                 (string) ($pendingForm['phone'] ?? ''),
                                 (string) $pending['requested_password_hash'],
+                                $passwordConfirmedAt,
                                 implode(',', $pendingCategories),
                                 (string) ($pendingForm['note'] ?? ''),
                                 (string) ($pendingForm['business_name'] ?? ''),
@@ -139,6 +143,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach ($form as $key => $_) {
                 $form[$key] = trim((string) ($_POST[$key] ?? ''));
             }
+            $password = (string) ($_POST['password'] ?? '');
+            $passwordConfirm = (string) ($_POST['password_confirm'] ?? '');
             $form['email'] = strtolower($form['email']);
             $form['gst_number'] = strtoupper($form['gst_number']);
 
@@ -153,14 +159,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $selectedCategories = array_values(array_unique($selectedCategories));
 
-            if (mb_strlen($form['full_name']) < 3) {
+            $captchaError = luxe_captcha_require_form('luxe-captcha-register');
+            if ($captchaError !== '') {
+                $error = $captchaError;
+            } elseif (mb_strlen($form['full_name']) < 3) {
                 $error = 'Full name kam se kam 3 characters ka hona chahiye.';
             } elseif (!filter_var($form['email'], FILTER_VALIDATE_EMAIL)) {
                 $error = 'Valid email address enter karein.';
             } elseif (!preg_match('/^\+?[0-9 ]{10,15}$/', $form['phone'])) {
                 $error = 'Phone number 10-15 digits me enter karein.';
-            } elseif (strlen($form['password']) < 8 || !preg_match('/[A-Za-z]/', $form['password']) || !preg_match('/[0-9]/', $form['password'])) {
+            } elseif (strlen($password) < 8 || !preg_match('/[A-Za-z]/', $password) || !preg_match('/[0-9]/', $password)) {
                 $error = 'Password minimum 8 characters ka ho aur letters + numbers dono hon.';
+            } elseif ($passwordConfirm === '') {
+                $error = 'Confirm password enter karein.';
+            } elseif (!hash_equals($password, $passwordConfirm)) {
+                $error = 'Password aur confirm password match nahi kar rahe.';
             } elseif (mb_strlen($form['business_name']) < 3) {
                 $error = 'Business name required hai.';
             } elseif ($form['gst_number'] !== '' && !preg_match('/^[0-9A-Z]{15}$/', $form['gst_number'])) {
@@ -197,7 +210,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     'gst_number' => $form['gst_number'],
                                     'note' => $form['note'],
                                 ],
-                                'requested_password_hash' => password_hash($form['password'], PASSWORD_DEFAULT),
+                                'requested_password_hash' => password_hash($password, PASSWORD_DEFAULT),
+                                'password_confirmed_at' => time(),
                                 'selected_categories' => $selectedCategories,
                                 'code_hash' => luxe_signup_code_hash($code),
                                 'expires_at' => time() + 900,
@@ -244,6 +258,8 @@ if (is_array($pending)) {
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../admin/css/admin.css">
+  <link rel="stylesheet" href="css/seller.css">
+  <?php require __DIR__ . '/../includes/partials/captcha_assets.php'; ?>
   <style>
     .seller-category-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:12px}
     .seller-category-card{position:relative;display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid #e6e8ef;border-radius:12px;background:#fff;cursor:pointer;transition:all .15s ease}
@@ -267,12 +283,16 @@ if (is_array($pending)) {
     .seller-category-card:has(input:checked){border-color:#ef4444;background:#fff5f5;box-shadow:0 0 0 2px rgba(239,68,68,.14)}
     .seller-category-card:has(input:checked) .seller-category-card__check{border-color:#ef4444;background:linear-gradient(135deg,#ef4444,#dc2626)}
     @media (max-width: 640px){.seller-category-grid{grid-template-columns:1fr}}
+    .seller-form-row2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px}
+    @media (max-width: 640px){.seller-form-row2{grid-template-columns:1fr;gap:0}}
+    .seller-form-field{min-width:0}
   </style>
 </head>
-<body class="admin-login admin-app--merchant">
-  <div class="admin-login-card" style="max-width:760px">
-    <div class="admin-login-card__brand">
-      <div class="admin-sidebar__logo" style="width:44px;height:44px" aria-hidden="true"><span class="admin-sidebar__logo-bit admin-sidebar__logo-bit--a"></span><span class="admin-sidebar__logo-bit admin-sidebar__logo-bit--b"></span><span class="admin-sidebar__logo-bit admin-sidebar__logo-bit--c"></span></div>
+<body class="seller-login admin-app--merchant">
+  <main class="seller-login-shell seller-login-shell--wide">
+    <div class="seller-login-card">
+      <div class="seller-login-card__brand">
+        <div class="admin-sidebar__logo seller-login-card__logo" aria-hidden="true"><span class="admin-sidebar__logo-bit admin-sidebar__logo-bit--a"></span><span class="admin-sidebar__logo-bit admin-sidebar__logo-bit--b"></span><span class="admin-sidebar__logo-bit admin-sidebar__logo-bit--c"></span></div>
       <div>
         <div class="admin-sidebar__title">LUXE</div>
         <div class="admin-sidebar__subtitle">Seller onboarding</div>
@@ -296,24 +316,45 @@ if (is_array($pending)) {
       <label for="full_name">Full name</label>
       <input id="full_name" name="full_name" required minlength="3" value="<?= h($form['full_name']) ?>" placeholder="Seller name">
 
-      <label for="email">Email</label>
-      <input id="email" type="email" name="email" required value="<?= h($form['email']) ?>" placeholder="seller@example.com">
+      <div class="seller-form-row2">
+        <div class="seller-form-field">
+          <label for="email">Email</label>
+          <input id="email" type="email" name="email" required value="<?= h($form['email']) ?>" placeholder="seller@example.com">
+        </div>
+        <div class="seller-form-field">
+          <label for="phone">Phone</label>
+          <input id="phone" name="phone" required pattern="^\+?[0-9 ]{10,15}$" value="<?= h($form['phone']) ?>" placeholder="+91 9876543210">
+        </div>
+      </div>
 
-      <label for="phone">Phone</label>
-      <input id="phone" name="phone" required pattern="^\+?[0-9 ]{10,15}$" value="<?= h($form['phone']) ?>" placeholder="+91 9876543210">
-
-      <label for="password">Set password</label>
-      <div class="seller-password-wrap">
-        <input id="password" type="password" name="password" required minlength="8" placeholder="Minimum 8 chars (letters + numbers)">
-        <?php require __DIR__ . '/partials/password-toggle-button.php'; ?>
+      <div class="seller-form-row2">
+        <div class="seller-form-field">
+          <label for="password">Set password</label>
+          <div class="seller-password-wrap">
+            <input id="password" type="password" name="password" required minlength="8" autocomplete="new-password" placeholder="Min 8 chars (letters + numbers)">
+            <?php require __DIR__ . '/partials/password-toggle-button.php'; ?>
+          </div>
+        </div>
+        <div class="seller-form-field">
+          <label for="password_confirm">Confirm password</label>
+          <div class="seller-password-wrap">
+            <input id="password_confirm" type="password" name="password_confirm" required minlength="8" autocomplete="new-password" placeholder="Repeat password">
+            <?php require __DIR__ . '/partials/password-toggle-button.php'; ?>
+          </div>
+        </div>
       </div>
 
       <h3 style="margin:18px 0 8px">Business details</h3>
-      <label for="business_name">Business name</label>
-      <input id="business_name" name="business_name" required value="<?= h($form['business_name']) ?>" placeholder="Your brand / company name">
-
-      <label for="gst_number">GST number (optional)</label>
-      <input id="gst_number" name="gst_number" maxlength="15" value="<?= h($form['gst_number']) ?>" placeholder="22AAAAA0000A1Z5">
+      <div class="seller-form-row2">
+        <div class="seller-form-field">
+          <label for="business_name">Business name</label>
+          <input id="business_name" name="business_name" required value="<?= h($form['business_name']) ?>" placeholder="Your brand / company name">
+        </div>
+        <div class="seller-form-field">
+          <label for="gst_number">GST number (optional)</label>
+          <input id="gst_number" name="gst_number" maxlength="15" value="<?= h($form['gst_number']) ?>" placeholder="22AAAAA0000A1Z5">
+        </div>
+      </div>
 
       <label>Requested categories</label>
       <div class="seller-category-grid">
@@ -336,6 +377,8 @@ if (is_array($pending)) {
       <label for="note">Additional note (optional)</label>
       <input id="note" name="note" value="<?= h($form['note']) ?>" placeholder="Store type, expected products, etc.">
 
+      <?php $captchaElementId = 'luxe-captcha-register'; require __DIR__ . '/../includes/partials/captcha_widget.php'; ?>
+
       <input type="hidden" name="action" value="send_code">
       <button type="submit">Send verification code</button>
     </form>
@@ -356,7 +399,24 @@ if (is_array($pending)) {
     <?php endif; ?>
 
     <div class="hint"><a href="login.php">Back to seller login</a></div>
-  </div>
+    </div>
+  </main>
   <script src="js/password-toggle.js?v=2"></script>
+  <script>
+    (function () {
+      var form = document.querySelector('form input[name="action"][value="send_code"]')?.closest('form');
+      if (!form) return;
+      form.addEventListener('submit', function (e) {
+        var pass = document.getElementById('password');
+        var confirm = document.getElementById('password_confirm');
+        if (!pass || !confirm) return;
+        if (pass.value !== confirm.value) {
+          e.preventDefault();
+          alert('Password aur confirm password match nahi kar rahe.');
+          confirm.focus();
+        }
+      });
+    })();
+  </script>
 </body>
 </html>

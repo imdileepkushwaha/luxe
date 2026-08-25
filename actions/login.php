@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_once __DIR__ . '/../includes/captcha.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -22,6 +23,8 @@ if (!is_array($data)) {
 
 $email = trim((string) ($data['email'] ?? ''));
 $password = (string) ($data['password'] ?? '');
+
+luxe_captcha_require_json($data, 'luxe-captcha-login');
 
 if ($email === '' || $password === '') {
     http_response_code(422);

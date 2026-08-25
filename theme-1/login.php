@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_once __DIR__ . '/../includes/captcha.php';
 
 $pdo = db();
 if (auth_user($pdo)) {
@@ -33,7 +34,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $redirect = luxe_public_href(ltrim($postedRedirect, '/'));
     }
 
-    if ($email === '' || $password === '') {
+    $captchaError = luxe_captcha_require_form('luxe-captcha-login');
+    if ($captchaError !== '') {
+        $error = $captchaError;
+    } elseif ($email === '' || $password === '') {
         $error = 'Email aur password dono required hain.';
     } else {
         $st = $pdo->prepare('SELECT id, password_hash, email_verified_at FROM users WHERE email = ? LIMIT 1');
@@ -62,6 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Inter:wght@400;500;600;700;800&family=Jost:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="<?= h(luxe_theme_asset('css/styles.css')) ?>">
+  <?php require __DIR__ . '/../includes/partials/captcha_assets.php'; ?>
   <style>
     body {
       margin: 0; padding: 0;
@@ -399,6 +404,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             <input id="password" name="password" type="password" placeholder="Enter your password" autocomplete="current-password" required>
           </div>
+          <?php $captchaElementId = 'luxe-captcha-login'; require __DIR__ . '/../includes/partials/captcha_widget.php'; ?>
           <button type="submit" class="theme1-login-btn">Sign In to LUXE</button>
         </form>
       </div>
@@ -420,6 +426,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           </div>
           <div class="theme1-form-field"><label for="semail">Email Address</label><input id="semail" name="email" type="email" placeholder="you@example.com" required></div>
           <div class="theme1-form-field"><label for="spass">Password</label><input id="spass" name="password" type="password" placeholder="Minimum 8 characters" required></div>
+          <?php $captchaElementId = 'luxe-captcha-register'; require __DIR__ . '/../includes/partials/captcha_widget.php'; ?>
           <button type="submit" class="theme1-login-btn">Create Account</button>
         </form>
         
@@ -491,6 +498,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           title.textContent = "Create Account";
           sub.textContent = "Join LUXE for exclusive perks and fast checkout.";
         }
+        if (name === "signup" && window.LuxeCaptcha) {
+          setTimeout(function () { LuxeCaptcha.refreshPending(); }, 50);
+        }
       }
 
       tabs.forEach(function (tab) {
@@ -526,6 +536,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           password: document.getElementById("spass").value
         };
         try {
+          if (window.LuxeCaptcha && LuxeCaptcha.enabled()) {
+            payload.captcha_token = LuxeCaptcha.requireToken("luxe-captcha-register");
+            payload.captcha_scope = "luxe-captcha-register";
+          }
+        } catch (captchaErr) {
+          signupError.querySelector('span').textContent = captchaErr.message || "Please complete the CAPTCHA verification.";
+          signupError.classList.remove("hidden");
+          return;
+        }
+        try {
           var res = await fetch(LUXE_ACT + "register-send-code.php", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -538,6 +558,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           signupForm.classList.add("hidden");
           document.getElementById("verifyWrap").classList.remove("hidden");
         } catch (err) {
+          if (window.LuxeCaptcha) LuxeCaptcha.reset("luxe-captcha-register");
           signupError.querySelector('span').textContent = err.message || "Sign up failed";
           signupError.classList.remove("hidden");
         }
